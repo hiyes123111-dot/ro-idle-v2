@@ -1,0 +1,352 @@
+/*
+ * V2 regression smoke tests (Node.js, no external dependencies).
+ * Run from the repository root: node tools/v2_regression.js
+ */
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const root = path.resolve(__dirname, '..');
+const jsDir = path.join(root, 'js');
+const storage = Object.create(null);
+const jobTreeElement = { innerHTML: '' };
+const documentStub = {
+  addEventListener() {}, removeEventListener() {},
+  getElementById(id) { return id === 'tab-jobtree' ? jobTreeElement : null; }, querySelector() { return null; },
+  querySelectorAll() { return []; }, createElement() { return {}; },
+  body: { classList: { add() {}, remove() {} }, appendChild() {} },
+};
+const context = {
+  console, Date, Math, JSON, Object, Array, Set, Map, Number, String, RegExp,
+  setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+  localStorage: {
+    getItem(k) { return Object.prototype.hasOwnProperty.call(storage, k) ? storage[k] : null; },
+    setItem(k, v) { storage[k] = String(v); }, removeItem(k) { delete storage[k]; },
+  },
+  window: { addEventListener() {}, location: {} }, document: documentStub,
+  navigator: {}, performance: { now: () => 0 }, alert() {}, confirm: () => true,
+  prompt: () => null, URL, Blob, FileReader: function () {}, Image: function () {},
+  requestAnimationFrame: () => 0,
+};
+context.window.window = context.window;
+context.window.document = documentStub;
+vm.createContext(context);
+
+const scripts = [
+  'about.js', 'hp_sp_tables.js', 'img_alias.js', 'aspd_data.js',
+  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_artifacts.js',
+  'achievements.js', 'engine.js', 'ui.js',
+];
+for (const file of scripts) {
+  vm.runInContext(fs.readFileSync(path.join(jsDir, file), 'utf8'), context,
+    { filename: file, timeout: 30000 });
+}
+// Visual and audio effects are intentionally no-op in the headless mechanics tests.
+vm.runInContext(`showDamageFloatAt=()=>{}; showPlayerFloat=()=>{}; showElementFloat=()=>{};
+  playSkillSound=()=>{}; showSkillCastEffect=()=>{}; playHitSound=()=>{}; playAttackSound=()=>{};`, context);
+
+let failures = 0;
+function check(ok, label, detail = '') {
+  if (ok) console.log(`PASS ${label}`);
+  else { failures++; console.error(`FAIL ${label}${detail ? ` — ${detail}` : ''}`); }
+}
+
+// Configure a complete, slot-compatible loadout for every set and verify activation.
+const setResults = JSON.parse(vm.runInContext(`(() => {
+  const out = [];
+  for (const [setId, def] of Object.entries(EQUIP_SETS)) {
+    state = { jobId: 'assassincross', stats: {str:1,agi:1,vit:1,int:1,dex:1,luk:1},
+      equip: {}, instances: {}, relics: {} };
+    const used = new Set(); let error = '';
+    for (const group of def.items || []) {
+      const ids = Array.isArray(group) ? group : [group]; let chosen = null;
+      for (const id of ids) {
+        const item = ITEMS[id]; if (!item) continue;
+        let slot;
+        if (item.type === 'weapon') slot = !used.has('weapon') ? 'weapon' : (!used.has('shield') ? 'shield' : null);
+        else if (item.type === 'armor') {
+          if (item.armorType === 'headgear') {
+            const d = item.desc || '';
+            if (d.includes('頭上') && !d.includes('頭中') && !d.includes('頭下')) slot = 'head_top';
+            else if (d.includes('頭中') && !d.includes('頭上') && !d.includes('頭下')) slot = 'head_mid';
+            else if (d.includes('頭下') && !d.includes('頭上') && !d.includes('頭中')) slot = 'head_bottom';
+            else slot = ['head_top','head_mid','head_bottom'].find(s => !used.has(s));
+          } else if (item.armorType === 'accessory') slot = ['accessory1','accessory2'].find(s => !used.has(s));
+          else slot = ({shield:'shield',garment:'garment',footgear:'footgear'}[item.armorType] || 'armor');
+        }
+        if (slot && !used.has(slot)) { chosen = id; used.add(slot); state.equip[slot] = id; break; }
+      }
+      if (!chosen) { error = 'unable to equip'; break; }
+    }
+    let active = false, actual = {}, delta = {};
+    if (!error) {
+      actual = effectiveGearBonuses(); active = activeEquipSets().some(s => s.id === setId);
+      const savedDef = EQUIP_SETS[setId]; delete EQUIP_SETS[setId];
+      _gearBonusCache = null; _gearBonusKey = '';
+      const baseline = effectiveGearBonuses();
+      EQUIP_SETS[setId] = savedDef; _gearBonusCache = null; _gearBonusKey = '';
+      for (const key of Object.keys(savedDef.bonus || {})) delta[key] = (actual[key] || 0) - (baseline[key] || 0);
+    }
+    out.push({setId, active, error, expected:def.bonus || {}, delta});
+  }
+  return JSON.stringify(out);
+})()`, context));
+for (const result of setResults) {
+  check(result.active && !result.error, `set activates: ${result.setId}`, result.error);
+  for (const [key, value] of Object.entries(result.expected)) {
+    check((result.delta[key] || 0) === value, `set bonus: ${result.setId}.${key}`,
+      `expected ${value}, got ${result.delta[key] || 0}`);
+  }
+}
+
+// Set-only effects must not leak onto a single piece.
+const singlePiece = JSON.parse(vm.runInContext(`(() => {
+  const out = {};
+  for (const [id, slot] of [['rider_insignia','garment'],['rider_insignia_','garment'],['linen_glove','accessory1']]) {
+    state = { jobId:'assassincross', stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},
+      equip:{[slot]:id}, instances:{}, relics:{} };
+    const b = effectiveGearBonuses(); out[id] = { flee:b.flee||0, perfectDodge:b.perfectDodge||0,
+      sets:activeEquipSets().map(s => s.id) };
+  }
+  return JSON.stringify(out);
+})()`, context));
+check(singlePiece.rider_insignia.flee === 0 && singlePiece.rider_insignia.sets.length === 0,
+  'Rider Insignia alone has no set FLEE');
+check(singlePiece.rider_insignia_.flee === 0 && singlePiece.rider_insignia_.sets.length === 0,
+  'Rider Insignia [1] alone has no set FLEE');
+check(singlePiece.linen_glove.perfectDodge === 0 && singlePiece.linen_glove.sets.length === 0,
+  'Linen Glove alone has no set Perfect Dodge');
+// Both slotted and unslotted versions of the Rider Insignia / Black Leather Boots are valid set members.
+const riderVariants = JSON.parse(vm.runInContext(`(() => {
+  const out=[];
+  for (const a of ['rider_insignia','rider_insignia_']) for (const b of ['black_leather_boots','black_leather_boots_']) {
+    state={jobId:'assassincross',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},
+      equip:{garment:a,footgear:b},instances:{},relics:{}};
+    const bonus=effectiveGearBonuses(); out.push({a,b,active:activeEquipSets().some(s=>s.id==='rider_insignia_black_leather_set'),flee:bonus.flee||0});
+  }
+  return JSON.stringify(out);
+})()`, context));
+check(riderVariants.length === 4 && riderVariants.every(x => x.active && x.flee >= 10),
+  'all four Rider Insignia / Black Leather Boots slot combinations activate FLEE +10');
+
+// The legacy per-refine set bonus must scale with the actual equipped instance refine level.
+const refineSet = JSON.parse(vm.runInContext(`(() => {
+  state={jobId:'assassincross',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},
+    equip:{armor:'tatenasi_armor_',head_top:'tatenasi_helmet'},instances:{},relics:{}};
+  const instance=getOrCreateEquipInstance('armor'); state.instances[instance].refine=5;
+  const bonus=effectiveGearBonuses(); return JSON.stringify({active:activeEquipSets().some(s=>s.id==='tatenasi_set'),def:bonus.def||0});
+})()`, context));
+check(refineSet.active && refineSet.def >= 75, 'Tatenasi set per-refine DEF bonus scales at +5');
+
+// V2 fourth-job expansion and progression checks.
+const fourthJobs = JSON.parse(vm.runInContext(`JSON.stringify(Object.values(JOB_TREE).filter(j => j.tier === 4).map(j => ({
+  id:j.id, parent:j.parent, name:j.name, skills:j.skills.map(s => s.id), genderLock:j.genderLock || null
+})))`, context));
+check(fourthJobs.length === 13, '13 fourth jobs registered');
+const skillIds = fourthJobs.flatMap(j => j.skills);
+check(skillIds.length === 39 && new Set(skillIds).size === 39, '39 unique fourth-job skills registered');
+for (const job of fourthJobs) {
+  const status = JSON.parse(vm.runInContext(`(() => {
+    const j = JOB_TREE[${JSON.stringify(job.id)}], p = JOB_TREE[j.parent];
+    state = {jobId:j.parent, gender:${JSON.stringify(job.genderLock || 'male')}, jobLevel:p.jobLevelMax,
+      baseLevel:250, rebirthCount:1, rebirthPath:[], jobSkillPoints:{[j.parent]:7}};
+    return JSON.stringify({parentExists:!!p, linked:p.next.includes(j.id), can:canJobChange(j.id), reason:jobChangeBlockReason(j.id)});
+  })()`, context));
+  check(status.parentExists && status.linked, `fourth-job parent link: ${job.id}`);
+  check(status.can && status.reason === null, `fourth-job promotion: ${job.id}`, status.reason || 'blocked');
+}
+// V2 equipment, drops, map, card and relic integration.
+const gearIntegration = JSON.parse(vm.runInContext(`(() => {
+  const weaponIds=['v2_dragon_spear','v2_imperial_lance','v2_archmage_staff','v2_element_book',
+    'v2_wind_bow','v2_troubadour_harp','v2_trouvere_whip','v2_meister_axe','v2_biolo_injector',
+    'v2_shadow_katar','v2_abyss_dagger','v2_cardinal_staff','v2_inquisitor_knuckle'];
+  const weapons=weaponIds.map(id=>{
+    const item=ITEMS[id], job=item.reqJob[0];
+    state={jobId:job,gender:job==='trouvere'?'female':'male',baseLevel:250,jobLevel:1,
+      stats:{str:10,agi:10,vit:10,int:10,dex:10,luk:10},equip:{},instances:{},relics:{},
+      jobLevelHistory:{},rebirthCount:1,rebirthPath:[],jobSkillPoints:{}};
+    return {id,exists:!!item,slot:aspdCategoryOf(id),block:equipBlockReason(id),source:getItemSources(id).length};
+  });
+  const cardIds=['v2_rift_sentinel_card','v2_abyss_stalker_card','v2_ember_drake_card','v2_void_sage_card',
+    'v2_rift_guardian_card','v2_void_emperor_card','v2_wind_hawk_card','v2_biolo_card'];
+  const cards=cardIds.map(id=>({id,exists:!!CARDS[id]&&!!ITEMS[id],source:getItemSources(id).length}));
+  const relicIds=RELIC_PIECE_IDS.filter(id=>RELIC_ITEMS[id]&&RELIC_ITEMS[id].relicSet==='v2_rift');
+  const maps=MAPS.filter(m=>m.id.startsWith('v2_')).map(m=>({id:m.id,monsters:m.monsters.map(x=>x.id)}));
+  return JSON.stringify({weapons,cards,relicIds,maps,bosses:MVP_MAP_DATA.v2_abyss_rift_core||[]});
+})()`, context));
+check(gearIntegration.weapons.length === 13 && gearIntegration.weapons.every(x => x.exists && !x.block && x.source > 0),
+  '13 fourth-job weapons are equippable and have drop sources', gearIntegration.weapons.filter(x => !x.exists || x.block || !x.source).map(x => `${x.id}: ${x.block || 'missing source'}`).join('; '));
+check(gearIntegration.cards.length === 8 && gearIntegration.cards.every(x => x.exists && x.source > 0),
+  '8 V2 cards are registered and obtainable', gearIntegration.cards.filter(x => !x.exists || !x.source).map(x => x.id).join('; '));
+check(gearIntegration.relicIds.length === 8, 'V2 relic set generates all 8 pieces');
+check(gearIntegration.maps.length === 2 && gearIntegration.maps.every(m => m.monsters.length > 0), '2 V2 dungeon maps have monster populations');
+check(gearIntegration.bosses.includes('v2_rift_guardian') && gearIntegration.bosses.includes('v2_void_emperor'), 'V2 dungeon MVP roster is registered');
+const relicThresholds = JSON.parse(vm.runInContext(`(() => {
+  const ids=RELIC_SLOTS.map(slot=>'relic_v2_rift_'+slot.slice('relic_'.length));
+  const result=[];
+  for (const n of [1,2,3,5]) {
+    state={jobId:'dragon_knight',stats:{str:10,agi:10,vit:10,int:10,dex:10,luk:10},
+      equip:{},instances:{},relics:Object.fromEntries(RELIC_SLOTS.map((slot,i)=>[slot,i<n?ids[i]:null]))};
+    const b=effectiveGearBonuses();
+    result.push({n,atkPct:b.atkPct||0,matkPct:b.matkPct||0,hpPct:b.hpPct||0,spPct:b.spPct||0,
+      allTargetDmgPct:b.allTargetDmgPct||0,def:b.def||0,mdef:b.mdef||0});
+  }
+  return JSON.stringify(result);
+})()`, context));
+check(relicThresholds[0].atkPct === 0 && relicThresholds[1].atkPct === 4 && relicThresholds[1].matkPct === 4,
+  'V2 relic 2-piece threshold');
+check(relicThresholds[2].hpPct === 8 && relicThresholds[2].spPct === 8,
+  'V2 relic 3-piece threshold');
+check(relicThresholds[3].allTargetDmgPct === 5 && relicThresholds[3].def === 20 && relicThresholds[3].mdef === 20,
+  'V2 relic 5-piece threshold');
+const bossSkills = JSON.parse(vm.runInContext(`JSON.stringify({guardian:MONSTER_SKILLS.v2_rift_guardian.length,emperor:MONSTER_SKILLS.v2_void_emperor.length,
+  guardianMvp:MONSTERS.v2_rift_guardian.isMvp,emperorMvp:MONSTERS.v2_void_emperor.isMvp})`, context));
+check(bossSkills.guardian >= 2 && bossSkills.emperor >= 2 && bossSkills.guardianMvp && bossSkills.emperorMvp,
+  'V2 MVPs have boss skills and MVP flags');
+const bossSkillTrigger = JSON.parse(vm.runInContext(`(() => {
+  const old=Math.random; Math.random=()=>0;
+  try {
+    const a=monsterSkillFor({defId:'v2_rift_guardian',hp:100000,maxHp:100000,skCd:{}},MONSTERS.v2_rift_guardian);
+    const b=monsterSkillFor({defId:'v2_void_emperor',hp:100000,maxHp:100000,skCd:{}},MONSTERS.v2_void_emperor);
+    return JSON.stringify({guardian:!!a,emperor:!!b});
+  } finally { Math.random=old; }
+})()`, context));
+check(bossSkillTrigger.guardian && bossSkillTrigger.emperor, 'V2 MVP skill triggers resolve through monster combat system');
+
+const genderLock = JSON.parse(vm.runInContext(`(() => {
+  const j=JOB_TREE.trouvere, p=JOB_TREE[j.parent];
+  state={jobId:j.parent,gender:'male',jobLevel:p.jobLevelMax,baseLevel:250,
+    rebirthCount:1,rebirthPath:[],jobSkillPoints:{[j.parent]:0}};
+  return JSON.stringify({can:canJobChange('trouvere'),reason:jobChangeBlockReason('trouvere')});
+})()`, context));
+check(!genderLock.can && genderLock.reason === '這個職業只有女性角色能轉。', 'Trouvere gender restriction is enforced');
+
+// All new active skills must reach the existing combat resolver without throwing.
+const activeCastResults = JSON.parse(vm.runInContext(`(() => {
+  const out=[];
+  for (const j of Object.values(JOB_TREE).filter(j => j.tier === 4)) {
+    for (const sk of j.skills.filter(s => s.type !== 'passive')) {
+      try {
+        state={name:'V2技能測試',gender:j.genderLock||'male',jobId:j.id,baseLevel:250,jobLevel:1,
+          jobLevelHistory:{},rebirthCount:1,rebirthPath:[],
+          stats:{str:100,agi:100,vit:100,int:100,dex:100,luk:100},equip:{},instances:{},relics:{},
+          learnedSkills:{[sk.id]:5},inventory:[],gold:99999999,hp:999999,maxHp:999999,
+          sp:999999,maxSp:999999,buffs:[],monsters:[{id:1,defId:'poring',hp:99999999,maxHp:99999999}],
+          cooldowns:{},shields:[],attackAccumulator:0};
+        out.push({job:j.id,skill:sk.id,ok:!!castSkill(sk.id,{forceLv:5})});
+      } catch(e) { out.push({job:j.id,skill:sk.id,ok:false,error:String(e)}); }
+    }
+  }
+  return JSON.stringify(out);
+})()`, context));
+check(activeCastResults.length === 26 && activeCastResults.every(x => x.ok),
+  'all 26 fourth-job active skills resolve in combat', activeCastResults.filter(x => !x.ok).map(x => `${x.skill}: ${x.error || 'cast failed'}`).join('; '));
+
+// All new passive skills must pass through recomputeDerived without errors.
+const passiveResults = JSON.parse(vm.runInContext(`(() => {
+  const out=[];
+  for (const j of Object.values(JOB_TREE).filter(j => j.tier === 4)) {
+    const sk=j.skills.find(s => s.type === 'passive');
+    try {
+      createCharacter('V2被動測試',{str:10,agi:10,vit:10,int:10,dex:10,luk:10},'male');
+      state.jobId=j.id; state.jobLevel=1; state.baseLevel=200; state.learnedSkills={[sk.id]:5};
+      state.jobSkillPoints={}; recomputeDerived(true); out.push({job:j.id,skill:sk.id,ok:true});
+    } catch(e) { out.push({job:j.id,skill:sk.id,ok:false,error:String(e)}); }
+  }
+  return JSON.stringify(out);
+})()`, context));
+check(passiveResults.length === 13 && passiveResults.every(x => x.ok),
+  'all 13 fourth-job passive skills recalculate without errors', passiveResults.filter(x => !x.ok).map(x => `${x.skill}: ${x.error}`).join('; '));
+const learningResults = JSON.parse(vm.runInContext(`(() => {
+  const out=[];
+  for (const j of Object.values(JOB_TREE).filter(j => j.tier === 4)) {
+    createCharacter('V2技能學習測試',{str:10,agi:10,vit:10,int:10,dex:10,luk:10},j.genderLock||'male');
+    state.jobId=j.id; state.jobLevel=1; state.baseLevel=200; state.jobSkillPoints={[j.id]:15};
+    state.skillPoints=15; state.learnedSkills={}; let ok=true;
+    for (const sk of j.skills) for (let n=0;n<5;n++) if (!levelUpSkill(sk.id)) ok=false;
+    out.push({job:j.id,ok,levels:j.skills.map(sk=>state.learnedSkills[sk.id]||0)});
+  }
+  return JSON.stringify(out);
+})()`, context));
+check(learningResults.length === 13 && learningResults.every(x => x.ok && x.levels.every(n => n === 5)),
+  'all 39 fourth-job skills can be learned to level 5');
+
+const transition = JSON.parse(vm.runInContext(`(() => {
+  createCharacter('V2四轉測試', {str:10,agi:10,vit:10,int:10,dex:10,luk:10}, 'male');
+  state.jobId='runeknight'; state.jobLevel=70; state.baseLevel=250;
+  state.jobSkillPoints={runeknight:30}; state.skillPoints=30;
+  state.jobLevelHistory={lordknight:70}; state.rebirthCount=1; state.rebirthPath=['swordsman','knight'];
+  const ok=doJobChange('dragon_knight');
+  return JSON.stringify({ok,jobId:state.jobId,carried:state.jobSkillPoints.runeknight,
+    available:skillPointsAvailable('dragon_knight'),max:currentJob().jobLevelMax});
+})()`, context));
+check(transition.ok && transition.jobId === 'dragon_knight', 'fourth-job promotion executes');
+check(transition.carried === 30 && transition.available === 30, 'third-job skill points carry into fourth-job pool');
+vm.runInContext(`createCharacter('V2職業樹測試',{str:10,agi:10,vit:10,int:10,dex:10,luk:10},'male');
+  state.jobId='runeknight'; state.jobLevel=70; state.baseLevel=250; state.jobSkillPoints={runeknight:5};
+  state.skillPoints=5; state.jobLevelHistory={lordknight:70}; state.rebirthCount=1;
+  state.rebirthPath=['swordsman','knight']; renderJobTree();`, context);
+check(jobTreeElement.innerHTML.includes('龍騎士'), 'fourth-job node appears in the rebirth job tree');
+
+// Legacy-save migration smoke test.
+const saveResult = vm.runInContext(`(() => {
+  createCharacter('V2相容測試', {str:5,agi:5,vit:5,int:5,dex:5,luk:5}, 'male');
+  const key = getSlotKey(0); const old = JSON.parse(localStorage.getItem(key));
+  ['relics','relicReviveUsed','relicReviveReadyAt','relicMonkReadyAt','relicShieldReadyAt',
+   'encounterMode','miniMode','farmMode','autoBuyAllySpPotion','autoBuyAllyArrow','allySpPotion',
+   'dpsTracker','codex','jobSkillPoints','instances','equipSkin'].forEach(k => delete old[k]);
+  old.mvpMode = true; old.equip = {weapon:'knife', armor:'cotton_shirt'}; old.equippedCards = {}; old.refinement = {};
+  old.skillPoints = 2; localStorage.setItem(key, JSON.stringify(old));
+  const loaded = loadGame();
+  return JSON.stringify({loaded, name:state.name, miniMode:state.miniMode,
+    relicSlots:Object.keys(state.relics || {}).length, hasInstances:!!state.instances,
+    noviceSkillPoints:state.jobSkillPoints && state.jobSkillPoints.novice});
+})()`, context);
+const migrated = JSON.parse(saveResult);
+check(migrated.loaded && migrated.name === 'V2相容測試', 'legacy save loads');
+check(migrated.miniMode === true, 'legacy MVP toggle migrates to mini mode');
+check(migrated.relicSlots === 8 && migrated.hasInstances, 'legacy save receives relic and equipment-instance defaults');
+check(migrated.noviceSkillPoints === 2, 'legacy skill points migrate to per-job pool');
+
+// Artifact crafting regression: requirements, material consumption, output, and failure safety.
+vm.runInContext(`
+  state = { baseLevel: 200, gold: 10000000, inventory: [] };
+  getItemQty = id => { const row = state.inventory.find(x => x.item === id); return row ? row.qty : 0; };
+  removeItem = (id, n) => { const row = state.inventory.find(x => x.item === id); if (!row || row.qty < n) throw new Error('underflow '+id); row.qty -= n; };
+  addItem = (id, n) => { const row = state.inventory.find(x => x.item === id); if (row) row.qty += n; else state.inventory.push({item:id,qty:n}); };
+  saveGame = () => {}; logMsg = () => {}; renderTopBar = () => {};
+  const br = [
+    ['goddess_tear',5],['valkyrie_token',5],['brynhild_armor_piece',3],['hero_remains',3],
+    ['andvari_ring',1],['dusk_glow',3],['dawn_essence',3],['v2_rift_core',20]
+  ];
+  br.forEach(([item,qty]) => addItem(item,qty));
+`, context);
+const brCraft = context.window.craftV2Artifact('brynhild');
+check(brCraft === true, 'Brynhild artifact can be crafted with full recipe');
+check(vm.runInContext(`getItemQty('brynhild') === 1 && state.gold === 8000000 &&
+  ['goddess_tear','valkyrie_token','brynhild_armor_piece','hero_remains','andvari_ring','dusk_glow','dawn_essence','v2_rift_core'].every(x=>getItemQty(x)===0)`, context),
+  'Brynhild crafting consumes exact materials and zeny');
+vm.runInContext(`
+  state.gold = 10000000;
+  [['goddess_tear',5],['valkyrie_token',5],['dusk_glow',3],['dawn_essence',3],
+   ['cold_moonlight',3],['hazy_starlight',3],['v2_rift_core',20],['v2_dragon_scale',15]]
+    .forEach(([item,qty]) => addItem(item,qty));
+`, context);
+const aspCraft = context.window.craftV2Artifact('asprika');
+check(aspCraft === true, 'Asprika artifact can be crafted with full recipe');
+check(vm.runInContext(`getItemQty('asprika') === 1 && state.gold === 8000000 &&
+  ['goddess_tear','valkyrie_token','dusk_glow','dawn_essence','cold_moonlight','hazy_starlight','v2_rift_core','v2_dragon_scale'].every(x=>getItemQty(x)===0)`, context),
+  'Asprika crafting consumes exact materials and zeny');
+vm.runInContext(`state.inventory = []; state.gold = 10000000;`, context);
+const failedCraft = context.window.craftV2Artifact('brynhild');
+check(failedCraft === false && vm.runInContext(`state.gold === 10000000 && state.inventory.length === 0`, context),
+  'insufficient artifact materials do not consume zeny or items');
+
+// Syntax check every JavaScript source file.
+for (const file of fs.readdirSync(jsDir).filter(f => f.endsWith('.js'))) {
+  try { new vm.Script(fs.readFileSync(path.join(jsDir, file), 'utf8'), { filename:file }); check(true, `syntax: ${file}`); }
+  catch (e) { check(false, `syntax: ${file}`, e.message); }
+}
+
+console.log(`\n${failures ? 'FAILED' : 'ALL PASSED'} — ${failures} failure(s); ${setResults.length} equipment sets checked.`);
+process.exitCode = failures ? 1 : 0;
