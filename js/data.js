@@ -27381,7 +27381,10 @@ function getEquipCardSlots(equipSlot) {
   const itemId = (state && state.equip) ? getEquipBaseItemId(equipSlot) : null;
   if (!itemId) return 0;
   const item = ITEMS[itemId];
-  return item && item.slots ? item.slots : 0;
+  if (!item) return 0;
+  // 打洞孔數屬於單件裝備個體，不可寫回 ITEMS，避免同款裝備全體一起增加插槽。
+  const inst = typeof getEquipInstance === 'function' ? getEquipInstance(equipSlot) : null;
+  return (item.slots || 0) + (inst ? (inst.extraSlots || 0) : 0);
 }
 
 // 判斷武器是否為雙手武器（佔武器+盾牌兩個欄位）

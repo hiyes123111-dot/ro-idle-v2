@@ -2417,6 +2417,7 @@ function renderAutoBattleTab() {
       <div class="potion-toggles">
         <label class="auto-toggle"><input type="checkbox" ${state.autoPotion.enabled ? 'checked' : ''} onchange="setAutoPotionEnabled(this.checked);"> 自動使用回復道具</label>
         <label class="auto-toggle"><input type="checkbox" ${state.autoBuyPotion ? 'checked' : ''} onchange="setAutoBuyPotion(this.checked);"> 藥水不足時自動購買${AUTO_BUY_QTY}瓶</label>
+        <label class="auto-toggle"><input type="checkbox" ${state.autoBuySkillItems !== false ? 'checked' : ''} onchange="setAutoBuySkillItems(this.checked);"> 技能耗材不足時自動補給（背包＋倉庫低於 6 個時購買 20 個）</label>
       </div>
       <div class="ab-config-row">
         <label class="ab-config-label">HP 低於</label>
@@ -4388,6 +4389,26 @@ function canJobEquip(def) {
   return true;
 }
 
+function renderDrillingWorkshopHtml() {
+  const candidates = (state.inventory || []).filter(r => {
+    const d = ITEMS[r.item], inst = r.instanceId && state.instances && state.instances[r.instanceId];
+    return !!(d && inst && ['weapon','armor'].includes(d.type) && !(d.slots || 0) && !(inst.extraSlots || 0));
+  });
+  const haveScale = getItemQty('v2_dragon_scale'), haveCore = getItemQty('v2_rift_core');
+  const options = candidates.map(r => {
+    const d = ITEMS[r.item], inst = state.instances[r.instanceId];
+    const chance = getDrillChance(d);
+    return `<option value="${r.instanceId}">${inst.refine ? `+${inst.refine} ` : ''}${d.name}｜成功率 ${chance}%${(inst.cards||[]).length ? '｜已有卡片' : ''}</option>`;
+  }).join('');
+  return `<section class="drill-workshop">
+    <div class="drill-workshop-head"><div class="drill-workshop-art"><img src="${itemImgSrc('mace_of_trust')}" alt="RO 鐵鎚素材" onerror="this.onerror=null;this.parentElement.textContent='⚒️'"></div><div><h3>打洞工坊</h3><p>讓原本無孔的武器與防具，獲得額外卡片插槽。</p></div></div>
+    <div class="drill-workshop-cost">🧪 熾焰龍鱗 ${haveScale} / 1　 🌀 裂隙核心碎片 ${haveCore} / 1　 💰 鋅幣 5,000</div>
+    ${candidates.length ? `<div class="drill-workshop-controls"><select id="drill-target">${options}</select><button class="btn-small" onclick="drillEquipment(document.getElementById('drill-target').value)">⚒️ 開始打洞</button></div>` : '<div class="drill-empty">目前沒有符合條件的無孔裝備。先將無孔武器或防具放在背包中。</div>'}
+    <div class="drill-rates">成功率依裝備價值：一般 80%｜進階 65%｜稀有 45%｜高階 30%｜頂級 20%</div>
+    <div class="drill-note">失敗只消耗材料與鋅幣，裝備、精煉及已插卡片都會保留；每件裝備最多增加 1 孔。</div>
+  </section>`;
+}
+
 function renderEquipTab() {
   const el = document.getElementById('tab-equip');
   if (!el) return;
@@ -4436,7 +4457,7 @@ function renderEquipTab() {
       return `<div class="equip-pick-row">
         <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
         <div class="equip-pick-info">
-          <div class="equip-pick-name">${refine > 0 ? `<span class="slot-refine">+${refine}</span> ` : ''}${getItemDisplayName(r.item)}${d.slots ? ` <span class="inv-slots">[${d.slots}]</span>` : ''}</div>
+          <div class="equip-pick-name">${refine > 0 ? `<span class="slot-refine">+${refine}</span> ` : ''}${getItemDisplayName(r.item)}${((d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)) ? ` <span class="inv-slots">[${(d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)}]</span>` : ''}</div>
           <div class="equip-pick-stats">${bits.join('　')}</div>
           ${cards.length ? `<div class="equip-pick-cards">🃏 ${cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}</div>` : ''}
           ${renderCompareBadge(r.item, refine, r.instanceId)}
@@ -4449,6 +4470,7 @@ function renderEquipTab() {
        以前只有 .equip-fixed 是 sticky，切換鈕會跟著清單一起捲走——
        清單一長就得先捲回最上面才能換分類。 */
     el.innerHTML = `
+      ${renderDrillingWorkshopHtml()}
       <div class="equip-sticky">
         <div class="equip-fixed${getEquipPanelCollapsed() ? ' collapsed' : ''}">
           <div class="equip-fixed-head">
@@ -4547,7 +4569,7 @@ function renderInventoryTab() {
         const iLocked = isItemLocked(row.item);
         const refTag = inst.refine > 0 ? `<span class="slot-refine">+${inst.refine}</span> ` : '';
         const iCards = inst.cards || [];
-        const maxSlots = def.slots || 0;
+        const maxSlots = (def.slots || 0) + (inst.extraSlots || 0);
         const cardsHtml = iCards.length
           ? `<div class="inv-cardslot">🃏 ${iCards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}（${iCards.length}/${maxSlots}）</div>`
           : '';
@@ -4555,7 +4577,7 @@ function renderInventoryTab() {
           <div class="inv-row-main">
             <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
             <div class="inv-info">
-              <div class="inv-name">${iLocked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${refTag}${displayName}${def.slots ? ` <span class="inv-slots">[${def.slots}]</span>` : ''}${elemTag}</div>
+              <div class="inv-name">${iLocked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${refTag}${displayName}${((def.slots || 0) + (inst.extraSlots || 0)) ? ` <span class="inv-slots">[${(def.slots || 0) + (inst.extraSlots || 0)}]</span>` : ''}${elemTag}</div>
               <div class="inv-desc">${def.desc || ''}</div>
               ${cardsHtml}
               ${renderCompareBadge(row.item, inst.refine, row.instanceId)}

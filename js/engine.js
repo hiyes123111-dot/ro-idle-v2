@@ -333,6 +333,7 @@ function createCharacter(name, statAlloc, gender) {
     autoBuyPotion: true,
     autoBuySpPotion: false,
     autoBuyArrow: true,
+    autoBuySkillItems: true, // 技能觸媒／礦石／蜘蛛絲等自動補給
     /* 隊友那三個自動購買（#93 補進來）。以前只寫在 loadGame() 的補欄位那段，
        新角色在第一次讀檔之前是 undefined——面板上三個勾勾都是空的，
        實際行為卻要等重載才會變成預設的「開」。 */
@@ -5555,6 +5556,7 @@ function gameTick() {
     ensurePlayerAmmo();
     // 自動補箭：弓箭手掛機時箭快見底就自動補貨
     tryAutoBuyArrow();
+    tryAutoBuySkillItems();
     // 隊友的箭也由玩家出（#93）。**要排在 alliesTick 前面**，這一秒買的這一秒就射得到
     tryAutoBuyAllyArrow();
     // 隊友（#83）：借慢心跳跑，攻擊次數照各自的攻擊間隔補齊
@@ -5950,6 +5952,36 @@ function tryAutoBuyArrow() {
   if (state.gold < unit * AUTO_BUY_ARROW_QTY) return;
   buyItem(id, AUTO_BUY_ARROW_QTY);
 }
+/* 技能耗材自動補給：只補已學會技能實際會消耗的道具。
+   背包＋倉庫合計低於門檻時，從 NPC 商店購買；商店沒有販售或金錢不足就跳過。
+   毒藥瓶屬於致命塗毒的持有需求，不會因技能觸發而扣除。 */
+const AUTO_BUY_SKILL_ITEM_THRESHOLD = 5;
+const AUTO_BUY_SKILL_ITEM_QTY = 20;
+const AUTO_BUY_SKILL_ITEM_INTERVAL = 15000;
+function tryAutoBuySkillItems() {
+  if (!state.autoBuySkillItems || !state.learnedSkills) return;
+  const now = Date.now();
+  if (now < (state.autoBuySkillItemsReadyAt || 0)) return;
+  state.autoBuySkillItemsReadyAt = now + AUTO_BUY_SKILL_ITEM_INTERVAL;
+  const needed = new Set();
+  Object.entries(state.learnedSkills).forEach(([skillId, lv]) => {
+    if (!lv) return;
+    const sk = (typeof SKILLS !== 'undefined' && SKILLS[skillId]) ? SKILLS[skillId] : null;
+    if (sk && Array.isArray(sk.costItems)) sk.costItems.forEach(id => needed.add(id));
+  });
+  if (state.hasEdpProc && typeof EDP_BOTTLE_ITEM !== 'undefined') needed.add(EDP_BOTTLE_ITEM);
+  needed.forEach(id => {
+    const def = ITEMS[id];
+    if (!def || !def.buyPrice) return;
+    const owned = getItemQty(id) + (typeof sageWarehouseQty === 'function' ? sageWarehouseQty(id) : 0);
+    if (owned > AUTO_BUY_SKILL_ITEM_THRESHOLD) return;
+    const qty = AUTO_BUY_SKILL_ITEM_QTY;
+    const unit = Math.max(1, Math.round(def.buyPrice * (state.shopDiscountMult || 1)));
+    if (state.gold < unit * qty) return;
+    if (buyItem(id, qty)) logMsg(`🧺 技能耗材補給：${def.name} ×${qty}`);
+  });
+}
+function setAutoBuySkillItems(v) { state.autoBuySkillItems = !!v; saveGame(); }
 function setAutoBuyArrow(v) { state.autoBuyArrow = !!v; saveGame(); }
 
 function buyItem(itemId, qty) {
@@ -9035,6 +9067,9 @@ function earnedSkillPoints(jobId) {
   if (advancedReplacementOf(jobId)) return 0;
   const lv = (jobId === state.jobId) ? state.jobLevel : ((state.jobLevelHistory || {})[jobId] || 0);
   let pts = Math.max(0, lv - 1);
+  // V2.3：三轉專屬技能池一次性配置 25 點（技能等級上限合計 25）。
+  // 已有三轉角色也會依職業歷史自動取得，不需重練或重置存檔。
+  if ((JOB_TREE[jobId]?.tier || 0) === 3) pts += 25;
   // 轉生後的新手多一筆，湊到「JOB10 時剛好點滿新手全部技能」
   if (jobId === 'novice' && (state.rebirthCount || 0) > 0) pts += rebirthSkillPoints();
   return pts;
@@ -9363,7 +9398,19 @@ function castSkillInner(skillId, opts) {
     logMsg(`⚠️ 「${sk.name}」需要裝備${equipReqName(sk.requiresEquip)}才能施放！`);
     return false;
   }
-  /* 聖十字審判的保險（使用者 2026-08-09 指定）：HP 低於門檻就不放。
+  if (!free && sk.requiresSkill && !(state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) {
+    logMsg(`⚠️ 「${sk.name}」需要先學會前置技能才能施放！`);
+    return false;
+  }
+  if (!free && sk.requiresSkill && !(state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) {
+    logMsg(`⚠️ 「${sk.name}」需要先學會前置技能才能施放！`);
+    return false;
+  }
+  if (!free && sk.requiresSkill && !(state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) {
+    logMsg(`⚠️ 「${sk.name}」需要先學會前置技能才能施放！`);
+    return false;
+  }
+    /* 聖十字審判的保險（使用者 2026-08-09 指定）：HP 低於門檻就不放。
      官方是「消耗當前 HP 的 20% 再自傷一半」，放置遊戲會自動施放，
      沒有這道門檻等於掛機掛到一半自己把自己耗死。 */
   if (!free && sk.minHpPctToCast && state.hp < state.maxHp * sk.minHpPctToCast / 100) {
@@ -10789,7 +10836,7 @@ function tryAutoCastSkill() {
     const sk = findSkillForUse(config.skillId);
     if (sk) {
       const lv = skillLv(sk.id);
-      if (lv && skillReady(sk.id) && weaponReqMet(sk.requiresWeapon) && equipReqMet(sk.requiresEquip)) {
+      if (lv && skillReady(sk.id) && weaponReqMet(sk.requiresWeapon) && equipReqMet(sk.requiresEquip) && (!sk.requiresSkill || (state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) && (!sk.requiresSkill || (state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) && (!sk.requiresSkill || (state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0))) {
         const spCost = skillSpCost(sk, lv);
         const isAttack = skillNeedsMonster(sk);
         if (state.sp >= spCost && spPct >= config.spThreshold && !wastesResourceInTown(sk, lv)) {
@@ -10807,7 +10854,7 @@ function tryAutoCastSkill() {
     const sk2 = findSkillForUse(config.skillId2);
     if (sk2) {
       const lv2 = skillLv(sk2.id);
-      if (lv2 && skillReady(sk2.id) && weaponReqMet(sk2.requiresWeapon) && equipReqMet(sk2.requiresEquip)) {
+      if (lv2 && skillReady(sk2.id) && weaponReqMet(sk2.requiresWeapon) && equipReqMet(sk2.requiresEquip) && (!sk2.requiresSkill || (state.learnedSkills && state.learnedSkills[sk2.requiresSkill] > 0)) && (!sk2.requiresSkill || (state.learnedSkills && state.learnedSkills[sk2.requiresSkill] > 0)) && (!sk2.requiresSkill || (state.learnedSkills && state.learnedSkills[sk2.requiresSkill] > 0))) {
         const spCost2 = skillSpCost(sk2, lv2);
         if (state.sp >= spCost2 && spPct >= config.spThreshold2 && monsterCount >= config.monsterCount2 && !wastesResourceInTown(sk2, lv2)) {
           castSkill(sk2.id);
@@ -12131,6 +12178,48 @@ function describeInstance(inst) {
   return `${ref}${name}${cards}`;
 }
 
+/* ---------------- V2.1 裝備打洞 ----------------
+   打洞只增加「單件裝備個體」的額外孔位，絕不修改 ITEMS 共用定義。
+   失敗消耗材料與鋅幣、保留裝備；每件最多增加一孔。
+------------------------------------------------- */
+const DRILL_MATERIALS = { scale: 'v2_dragon_scale', core: 'v2_rift_core' };
+function getDrillChance(item) {
+  const value = Number(item && Math.max(item.sell || 0, item.buyPrice || 0)) || 0;
+  const level = Number(item && item.reqLevel) || 0;
+  if (value >= 100000 || level >= 200) return 20;
+  if (value >= 50000 || level >= 150) return 30;
+  if (value >= 10000 || level >= 100) return 45;
+  if (value >= 2000 || level >= 50) return 65;
+  return 80;
+}
+function drillEquipment(instanceId) {
+  const idx = state.inventory.findIndex(r => r.instanceId === instanceId);
+  if (idx < 0) { logMsg('⚠️ 找不到這件背包装備。'); return false; }
+  const row = state.inventory[idx];
+  const def = ITEMS[row.item];
+  const inst = state.instances && state.instances[instanceId];
+  if (!def || !inst || !['weapon','armor'].includes(def.type) || (def.slots || 0) > 0 || (inst.extraSlots || 0) >= 1) {
+    logMsg('⚠️ 這件裝備不符合打洞條件，或已經打過洞。'); return false;
+  }
+  const scaleId = DRILL_MATERIALS.scale, coreId = DRILL_MATERIALS.core;
+  if (getItemQty(scaleId) < 1 || getItemQty(coreId) < 1 || (state.gold || 0) < 5000) {
+    logMsg('⚠️ 材料不足：需要熾焰龍鱗 ×1、裂隙核心碎片 ×1、鋅幣 5,000。'); return false;
+  }
+  removeItem(scaleId, 1); removeItem(coreId, 1); state.gold -= 5000;
+  const chance = getDrillChance(def);
+  if (Math.random() * 100 < chance) {
+    inst.extraSlots = 1;
+    logMsg(`✨ 打洞成功！${def.name} 新增 1 個卡片插槽（成功率 ${chance}%）。`);
+  } else {
+    logMsg(`💥 打洞失敗！${def.name} 完好保留，材料與鋅幣已消耗（成功率 ${chance}%）。`);
+  }
+  saveGame();
+  if (typeof renderEquipTab === 'function') renderEquipTab();
+  if (typeof renderInventoryTab === 'function') renderInventoryTab();
+  if (typeof renderTopBar === 'function') renderTopBar();
+  return true;
+}
+
 function insertCard(equipSlot, cardId) {
   const card = CARDS[cardId];
   if (!card) return false;
@@ -13447,6 +13536,7 @@ function loadGame() {
     }
     if (typeof state.autoBuyPotion !== 'boolean') state.autoBuyPotion = true;
     if (typeof state.autoBuyArrow !== 'boolean') state.autoBuyArrow = true;
+    if (typeof state.autoBuySkillItems !== 'boolean') state.autoBuySkillItems = true;
     // 隊友（#83）：舊存檔沒有這些欄位
     if (!Array.isArray(state.allies)) state.allies = [];
     state.allies.forEach(a => { if (a) { a.monsters = null; a.monster = null; a._lastAttackAt = 0; } });

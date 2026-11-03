@@ -1950,3 +1950,9 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .artifact-mat-ok { color:var(--green, #4b9b69); }
 .artifact-mat-missing { color:var(--danger, #c45a5a); }
 .artifact-mat-sep { opacity:.35; }
+
+
+/* V2.1 裝備打洞工坊 */
+.drill-workshop{margin:12px 0 16px;padding:14px;border:1px solid rgba(205,160,85,.42);border-radius:12px;background:linear-gradient(135deg,rgba(73,48,29,.92),rgba(35,29,26,.96));color:#f4e5c8;box-shadow:inset 0 1px rgba(255,255,255,.06)}
+.drill-workshop-head{display:flex;align-items:center;gap:12px}.drill-workshop-art{width:54px;height:54px;display:grid;place-items:center;flex:0 0 54px;border-radius:10px;background:radial-gradient(circle,#b98242,#49301d 70%);font-size:32px;box-shadow:inset 0 0 12px #e5b96a55}.drill-workshop-art img{width:42px;height:42px;object-fit:contain;image-rendering:auto}.drill-workshop h3{margin:0 0 4px;color:#ffd58b}.drill-workshop p{margin:0;font-size:12px;color:#d9c7a9}.drill-workshop-cost{margin:12px 0 9px;padding:8px;border-radius:7px;background:#17120f88;font-size:12px;line-height:1.8}.drill-workshop-controls{display:flex;gap:8px;align-items:center}.drill-workshop-controls select{min-width:0;flex:1;padding:9px;border-radius:7px;background:#211b17;color:#f6e7cd;border:1px solid #82623e}.drill-workshop-controls button{white-space:nowrap}.drill-rates,.drill-note,.drill-empty{margin-top:9px;font-size:11px;line-height:1.6;color:#d4c2a4}.drill-note{color:#e9bd79}.drill-empty{padding:8px;background:#17120f66;border-radius:7px}
+@media(max-width:480px){.drill-workshop-controls{align-items:stretch;flex-direction:column}.drill-workshop-controls button{width:100%}.drill-workshop-cost{font-size:11px}}

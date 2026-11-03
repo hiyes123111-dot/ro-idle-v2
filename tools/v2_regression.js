@@ -34,7 +34,7 @@ vm.createContext(context);
 
 const scripts = [
   'about.js', 'hp_sp_tables.js', 'img_alias.js', 'aspd_data.js',
-  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_artifacts.js',
+  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_4_content.js', 'v2_artifacts.js',
   'achievements.js', 'engine.js', 'ui.js',
 ];
 for (const file of scripts) {
@@ -342,11 +342,74 @@ const failedCraft = context.window.craftV2Artifact('brynhild');
 check(failedCraft === false && vm.runInContext(`state.gold === 10000000 && state.inventory.length === 0`, context),
   'insufficient artifact materials do not consume zeny or items');
 
+// V2.1 drilling regression: per-instance extra slot, cost, and equipment preservation.
+const drillTest = vm.runInContext(`(() => {
+  createCharacter('打洞測試',{str:5,agi:5,vit:5,int:5,dex:5,luk:5},'male');
+  state.inventory = [
+    {item:'cotton_shirt',qty:1,instanceId:'drill_test_item'},
+    {item:'v2_dragon_scale',qty:1}, {item:'v2_rift_core',qty:1}
+  ];
+  state.instances = {drill_test_item:{item:'cotton_shirt',refine:4,cards:[]}};
+  state.equip = {armor:'drill_test_item'}; state.gold = 10000;
+  const oldRandom = Math.random; Math.random = () => 0;
+  const beforeSlots = ITEMS.cotton_shirt.slots || 0;
+  const ok = drillEquipment('drill_test_item');
+  Math.random = oldRandom;
+  return JSON.stringify({ok,extra:state.instances.drill_test_item.extraSlots,
+    baseSlots:ITEMS.cotton_shirt.slots||0,equippedSlots:getEquipCardSlots('armor'),
+    refine:state.instances.drill_test_item.refine,gold:state.gold,
+    scale:getItemQty('v2_dragon_scale'),core:getItemQty('v2_rift_core'),beforeSlots});
+})()`, context);
+const drilled = JSON.parse(drillTest);
+check(drilled.ok && drilled.extra === 1 && drilled.equippedSlots === 1 && drilled.baseSlots === drilled.beforeSlots,
+  'drilling adds one slot to the individual item only');
+check(drilled.refine === 4 && drilled.gold === 5000 && drilled.scale === 0 && drilled.core === 0,
+  'drilling preserves refine and consumes exact materials and zeny');
+
+// Skill consumable auto-supply: learned skill costs are detected and replenished in batches.
+const supplyTest = vm.runInContext(`(() => {
+  const entry = Object.entries(SKILLS).find(([id, sk]) => sk && Array.isArray(sk.costItems) && sk.costItems.length);
+  if (!entry) return {found:false};
+  const [skillId, sk] = entry;
+  state.autoBuySkillItems = true;
+  state.autoBuySkillItemsReadyAt = 0;
+  state.learnedSkills = {[skillId]: 1};
+  state.gold = 100000000;
+  const purchases = [];
+  const oldBuy = buyItem;
+  buyItem = (id, qty) => { purchases.push({id, qty}); return true; };
+  const oldWarehouse = sageWarehouseQty;
+  sageWarehouseQty = () => 0;
+  try { tryAutoBuySkillItems(); }
+  finally { buyItem = oldBuy; sageWarehouseQty = oldWarehouse; }
+  return {found:true, expected:sk.costItems, purchases};
+})()`, context);
+check(supplyTest.found && supplyTest.expected.every(id => supplyTest.purchases.some(p => p.id === id && p.qty === 20)),
+  'skill consumable auto-supply detects learned skill catalysts and buys 20 per low-stock item');
+
 // Syntax check every JavaScript source file.
 for (const file of fs.readdirSync(jsDir).filter(f => f.endsWith('.js'))) {
   try { new vm.Script(fs.readFileSync(path.join(jsDir, file), 'utf8'), { filename:file }); check(true, `syntax: ${file}`); }
   catch (e) { check(false, `syntax: ${file}`, e.message); }
 }
 
+
+// V2.4 class skill conditions and equipment coverage.
+const v24 = vm.runInContext(`(() => {
+  const third = Object.values(JOB_TREE).filter(j => j.tier === 3);
+  const thirdWeapons = third.filter(j => ITEMS['v24_' + j.id + '_weapon']);
+  const thirdSkills = ['rk_sonicwave','rk_runeedge','rk_dragonbreath','ra_arrowstorm','mi_soundblend','wa_swing','me_axeboom','gx_crossimpact','sr_knuckle'];
+  const allSkillsExist = thirdSkills.every(id => !!SKILLS[id]);
+  const gated = thirdSkills.filter(id => SKILLS[id] && (SKILLS[id].requiresWeapon || SKILLS[id].requiresSkill)).length;
+  const imageIds = Object.values(ITEMS).filter(i => i.id && i.id.startsWith('v24_')).every(i => !!i.imgId);
+  return {thirdJobs:third.length,thirdWeapons:thirdWeapons.length,allSkillsExist,gated,imageIds,thirdSet:!!EQUIP_SETS.v24_third_set,fourthSet:!!EQUIP_SETS.v24_fourth_set};
+})()`, context);
+check(v24.thirdJobs === 13 && v24.thirdWeapons === 13, 'V2.4 adds one illustrated third-job weapon for each of 13 jobs');
+check(v24.allSkillsExist && v24.gated >= 8, 'V2.4 weapon and prerequisite skill conditions are registered');
+check(v24.imageIds && v24.thirdSet && v24.fourthSet, 'V2.4 equipment items have image IDs and both full-set bonuses');
+const thirdArmorIcon = path.join(__dirname, '..', 'images', 'equip', 'armor', '91001.png');
+check(fs.existsSync(thirdArmorIcon), 'V2.4.1 unique third-job armor icon file exists');
+check(vm.runInContext(`ITEMS.v24_third_armor.imgId === 91001 && !IMG_ALIAS['equip/armor']['91001.png']`, context),
+  'V2.4.1 third-job armor icon no longer resolves through a duplicate legacy alias');
 console.log(`\n${failures ? 'FAILED' : 'ALL PASSED'} — ${failures} failure(s); ${setResults.length} equipment sets checked.`);
 process.exitCode = failures ? 1 : 0;
