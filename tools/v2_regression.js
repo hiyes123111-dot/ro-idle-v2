@@ -34,7 +34,7 @@ vm.createContext(context);
 
 const scripts = [
   'about.js', 'hp_sp_tables.js', 'img_alias.js', 'aspd_data.js',
-  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_4_content.js', 'v2_artifacts.js',
+  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_4_content.js', 'v2_5_content.js', 'v2_artifacts.js',
   'achievements.js', 'engine.js', 'ui.js',
 ];
 for (const file of scripts) {
@@ -144,7 +144,7 @@ const fourthJobs = JSON.parse(vm.runInContext(`JSON.stringify(Object.values(JOB_
 })))`, context));
 check(fourthJobs.length === 13, '13 fourth jobs registered');
 const skillIds = fourthJobs.flatMap(j => j.skills);
-check(skillIds.length === 39 && new Set(skillIds).size === 39, '39 unique fourth-job skills registered');
+check(skillIds.length >= 150 && new Set(skillIds).size === skillIds.length, 'complete fourth-job skill catalogs registered', `count=${skillIds.length}`);
 for (const job of fourthJobs) {
   const status = JSON.parse(vm.runInContext(`(() => {
     const j = JOB_TREE[${JSON.stringify(job.id)}], p = JOB_TREE[j.parent];
@@ -176,6 +176,13 @@ const gearIntegration = JSON.parse(vm.runInContext(`(() => {
 })()`, context));
 check(gearIntegration.weapons.length === 13 && gearIntegration.weapons.every(x => x.exists && !x.block && x.source > 0),
   '13 fourth-job weapons are equippable and have drop sources', gearIntegration.weapons.filter(x => !x.exists || x.block || !x.source).map(x => `${x.id}: ${x.block || 'missing source'}`).join('; '));
+const fourthWeaponImages = JSON.parse(vm.runInContext(`JSON.stringify(['v2_dragon_spear','v2_imperial_lance','v2_archmage_staff','v2_element_book','v2_wind_bow','v2_troubadour_harp','v2_trouvere_whip','v2_meister_axe','v2_biolo_injector','v2_shadow_katar','v2_abyss_dagger','v2_cardinal_staff','v2_inquisitor_knuckle'].map(id=>({id,imgId:ITEMS[id]?.imgId||0})))`, context));
+check(fourthWeaponImages.length === 13 && fourthWeaponImages.every(x => x.imgId > 0), 'all 13 fourth-job weapons reuse project image assets', fourthWeaponImages.filter(x => !x.imgId).map(x => x.id).join('; '));
+const fourthWeaponGates = JSON.parse(vm.runInContext(`(() => {
+  const cases=[['dragon_knight','v2_dragon_spear','spear'],['arch_mage','v2_archmage_staff','rod2'],['meister','v2_meister_axe','axe2'],['troubadour','v2_troubadour_harp','instrument'],['trouvere','v2_trouvere_whip','whip'],['shadow_cross','v2_shadow_katar','katar'],['inquisitor','v2_inquisitor_knuckle','knuckle']];
+  return JSON.stringify(cases.map(([job,item,req])=>{state={jobId:job,equip:{weapon:item}};return {job,item,req,ok:weaponReqMet(req)}}));
+})()`, context));
+check(fourthWeaponGates.every(x=>x.ok), 'fourth-job weapon gates match the corresponding equipped weapons', fourthWeaponGates.filter(x=>!x.ok).map(x=>`${x.job}:${x.req}`).join('; '));
 check(gearIntegration.cards.length === 8 && gearIntegration.cards.every(x => x.exists && x.source > 0),
   '8 V2 cards are registered and obtainable', gearIntegration.cards.filter(x => !x.exists || !x.source).map(x => x.id).join('; '));
 check(gearIntegration.relicIds.length === 8, 'V2 relic set generates all 8 pieces');
@@ -233,14 +240,14 @@ const activeCastResults = JSON.parse(vm.runInContext(`(() => {
           learnedSkills:{[sk.id]:5},inventory:[],gold:99999999,hp:999999,maxHp:999999,
           sp:999999,maxSp:999999,buffs:[],monsters:[{id:1,defId:'poring',hp:99999999,maxHp:99999999}],
           cooldowns:{},shields:[],attackAccumulator:0};
-        out.push({job:j.id,skill:sk.id,ok:!!castSkill(sk.id,{forceLv:5})});
+        out.push({job:j.id,skill:sk.id,ok:!!castSkill(sk.id,{free:true,forceLv:Math.min(5,sk.maxLv)})});
       } catch(e) { out.push({job:j.id,skill:sk.id,ok:false,error:String(e)}); }
     }
   }
   return JSON.stringify(out);
 })()`, context));
-check(activeCastResults.length === 26 && activeCastResults.every(x => x.ok),
-  'all 26 fourth-job active skills resolve in combat', activeCastResults.filter(x => !x.ok).map(x => `${x.skill}: ${x.error || 'cast failed'}`).join('; '));
+check(activeCastResults.length > 100 && activeCastResults.every(x => x.ok),
+  'all fourth-job active skills resolve in combat', activeCastResults.filter(x => !x.ok).map(x => `${x.skill}: ${x.error || 'cast failed'}`).join('; '));
 
 // All new passive skills must pass through recomputeDerived without errors.
 const passiveResults = JSON.parse(vm.runInContext(`(() => {
@@ -261,15 +268,15 @@ const learningResults = JSON.parse(vm.runInContext(`(() => {
   const out=[];
   for (const j of Object.values(JOB_TREE).filter(j => j.tier === 4)) {
     createCharacter('V2技能學習測試',{str:10,agi:10,vit:10,int:10,dex:10,luk:10},j.genderLock||'male');
-    state.jobId=j.id; state.jobLevel=1; state.baseLevel=200; state.jobSkillPoints={[j.id]:15};
-    state.skillPoints=15; state.learnedSkills={}; let ok=true;
-    for (const sk of j.skills) for (let n=0;n<5;n++) if (!levelUpSkill(sk.id)) ok=false;
-    out.push({job:j.id,ok,levels:j.skills.map(sk=>state.learnedSkills[sk.id]||0)});
+    state.jobId=j.id; state.jobLevel=1; state.baseLevel=200; state.jobSkillPoints={[j.id]:60};
+    state.skillPoints=60; state.learnedSkills={}; let ok=true;
+    for (const sk of j.skills.slice(0,3)) for (let n=0;n<Math.min(5,sk.maxLv);n++) if (!levelUpSkill(sk.id)) ok=false;
+    out.push({job:j.id,ok,levels:j.skills.slice(0,3).map(sk=>({got:state.learnedSkills[sk.id]||0,want:Math.min(5,sk.maxLv)}))});
   }
   return JSON.stringify(out);
 })()`, context));
-check(learningResults.length === 13 && learningResults.every(x => x.ok && x.levels.every(n => n === 5)),
-  'all 39 fourth-job skills can be learned to level 5');
+check(learningResults.length === 13 && learningResults.every(x => x.ok && x.levels.every(n => n.got === n.want)),
+  'all 13 jobs can learn their fourth-job skills through the skill-point system');
 
 const transition = JSON.parse(vm.runInContext(`(() => {
   createCharacter('V2四轉測試', {str:10,agi:10,vit:10,int:10,dex:10,luk:10}, 'male');

@@ -157,20 +157,23 @@
     CARDS[id] = { id, ...def };
     ITEMS[id] = {id,name:def.name,type:'material',icon:'📦',weight:1,sell:10,buyPrice:20,desc:`${def.desc} 系列: 卡片 裝備: ${def.slot} 重量: 1`};
   };
+  const fourthWeaponImages = { dragon_knight:1168, imperial_guard:1463, arch_mage:1664, element_master:1583,
+    wind_hawk:1713, troubadour:1907, trouvere:1909, meister:1360, biolo:1236,
+    shadow_cross:1245, abyss_chaser:1242, cardinal:1668, inquisitor:1809 };
   const weapon = (id, name, jobId, weaponCat, atk, matk, icon, desc) => addItem(id, {
-    name, type:'weapon', icon, weaponType:(weaponCat === 'instrument' || weaponCat === 'whip') ? 'bow' : weaponCat, weaponCat, weaponLv:4, atk, ...(matk ? {matk} : {}),
+    name, type:'weapon', icon, imgId:fourthWeaponImages[jobId], weaponType:(weaponCat === 'instrument' || weaponCat === 'whip') ? 'bow' : weaponCat, weaponCat, weaponLv:4, atk, ...(matk ? {matk} : {}),
     weight:120, slots:1, reqLevel:200, reqJob:[jobId],
     desc: `${desc} 系列: ${weaponCat === 'rod' || weaponCat === 'book' ? '武器' : '武器'} 攻擊: ${atk} 重量: 120 武器等級: 4 要求等級: 200 裝備: ${JOB_TREE[jobId].name}`,
   });
 
-  weapon('v2_dragon_spear','龍魂長槍','dragon_knight','spear',330,0,'🔱','封存古龍力量的長槍，揮動時會留下赤色龍焰。');
+  weapon('v2_dragon_spear','龍魂長槍','dragon_knight','spear',330,0,'🔱','雙手長槍，封存古龍力量，揮動時會留下赤色龍焰。');
   weapon('v2_imperial_lance','帝國裁決槍','imperial_guard','spear',310,0,'🛡️','帝國衛士專用的制式長槍，槍尖刻有聖印。');
-  weapon('v2_archmage_staff','星界法杖','arch_mage','rod',95,360,'✨','以星界晶核製成的法杖，能大幅放大魔力。');
+  weapon('v2_archmage_staff','星界法杖','arch_mage','rod',95,360,'✨','雙手法杖，以星界晶核製成，能大幅放大魔力。');
   weapon('v2_element_book','元素秘典','element_master','book',175,245,'📘','記載四大元素循環的古老秘典。');
   weapon('v2_wind_bow','蒼穹之弓','wind_hawk','bow',325,0,'🏹','以風鷹羽骨製成的長弓，箭矢破空無聲。');
   weapon('v2_troubadour_harp','天籟豎琴','troubadour','instrument',265,85,'🎻','奏者傳承的共鳴樂器，能將音波化為利刃。');
   weapon('v2_trouvere_whip','月影之鞭','trouvere','whip',260,95,'🎀','舞者專用的月影長鞭，揮舞時散出銀色光弧。');
-  weapon('v2_meister_axe','重型機械斧','meister','axe1',355,0,'🪓','機匠打造的高輸出機械斧，斧刃內藏增壓裝置。');
+  weapon('v2_meister_axe','重型機械斧','meister','axe2',355,0,'🪓','雙手機械斧，斧刃內藏增壓裝置。');
   weapon('v2_biolo_injector','生化注射器','biolo','dagger',230,190,'🧪','生化學者專用的注射型短刃，可導入高濃度藥劑。');
   weapon('v2_shadow_katar','夜影拳刃','shadow_cross','katar',315,0,'🗡️','吸收暗影的拳刃，專為瞬間處決而設計。');
   weapon('v2_abyss_dagger','深淵短劍','abyss_chaser','dagger',285,140,'🌑','從深淵裂縫帶回的短劍，刃面映不出光線。');

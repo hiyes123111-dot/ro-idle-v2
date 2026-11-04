@@ -18599,7 +18599,7 @@ const ITEMS = {
   "sharel_manteau": {"id":"sharel_manteau","imgId":2596,"name":"抗火屬性魔法斗篷 [1]","type":"armor","icon":"🧣","armorType":"garment","def":20,"weight":70,"sell":80,"buyPrice":160,"reqLevel":65,"desc":"有抗屬性的魔法斗篷。 從火屬性怪受到的傷害減少5%。 從自惡魔系怪受到的傷害增加5%。 與抗火屬性神盾一起裝備後，當抗火屬性魔法斗篷精煉每+1時從惡魔系怪受到的傷害再-1%。 與抗火屬性神盾一起裝備後，當抗火屬性神盾精煉每+1時對火屬性怪的傷害再+1%。 系列: 披肩 防禦: 20 重量: 70 要求等級: 65 裝備: 全部職業","slots":1},
   "ramor_manteau": {"id":"ramor_manteau","imgId":2598,"name":"抗不死屬性魔法斗篷 [1]","type":"armor","icon":"🧣","armorType":"garment","def":20,"weight":70,"sell":80,"buyPrice":160,"reqLevel":65,"desc":"蘊含著抗屬性的斗篷。 受到不死屬性魔物的傷害減少5%。 受到人類型魔物的傷害增加5%。 搭配抗不死屬性神盾時，抗不死屬性魔法斗篷精煉每提高1點，受到人類型魔物的傷害再-1%。 搭配抗不死屬性神盾時，抗不死屬性神盾精煉每提高1點，對不死屬性魔物的傷害再+1%。 系列: 披肩 防禦: 20 重量: 70 要求等級: 65 裝備: 全部職業","slots":1},
   "s_p_sachet": {"id":"s_p_sachet","imgId":2600,"name":"小羊香袋","type":"armor","icon":"💍","armorType":"accessory","weight":10,"sell":20,"buyPrice":40,"reqLevel":1,"desc":"香氣怡人的綿羊香包。 AllState+1，可使用技能神聖之光Lv1 系列: 飾品 防禦: 0 重量: 10 要求等級: 1 裝備: 全部職業","slots":0},
-  "magingiorde": {"id":"magingiorde","imgId":2629,"name":"雷神腰帶","type":"armor","icon":"💍","armorType":"accessory","def":2,"weight":800,"sell":8,"buyPrice":16,"reqLevel":94,"str":40,"desc":"系在腰上會產生強大力量的恐怖物品，是雷神托爾的專屬腰帶。 STR+40，MDEF+7。 會依配戴者的BaseLv而額外增加STR。 當淨STR為120時，對boss魔物的物理傷害+10%。 系列: 飾品 防禦: 2 重量: 800 要求等級: 94 裝備:所有職業","slots":0,"mdef":7},
+  "magingiorde": {"id":"magingiorde","imgId":2629,"name":"雷神腰帶","type":"armor","icon":"💍","armorType":"accessory","def":2,"weight":800,"sell":8,"buyPrice":16,"reqLevel":94,"str":40,"desc":"系在腰上會產生強大力量的恐怖物品，是雷神托爾的專屬腰帶。 STR+40，MDEF+7。 會依配戴者的BaseLv而額外增加STR。 當淨STR為120時，對boss魔物的物理傷害+10%。 系列: 飾品 防禦: 2 重量: 800 要求等級: 94 裝備:所有職業","slots":0,"mdef":7,"bonus":{"bossDmgPct":10,"perBaseLv5_str":1}},
   "brysinggamen": {"id":"brysinggamen","imgId":2630,"name":"女神項鍊","type":"armor","icon":"💍","armorType":"accessory","def":1,"weight":150,"sell":4,"buyPrice":8,"reqLevel":94,"desc":"曾是女神弗雷亞戴過的項鍊，戴上去會變美麗和有不錯能力的神之物品。 STR、AGI、DEX、VIT各+6，LUK、INT各+10。 MDEF+5。 治癒量+6%。 系列: 飾品 防禦: 1 重量: 150 要求等級: 94 裝備:所有職業","slots":0,"mdef":5},
   "first_age_ring": {"id":"first_age_ring","imgId":2631,"name":"RO 3周年戒指","type":"armor","icon":"💍","armorType":"accessory","weight":1,"sell":20,"buyPrice":40,"desc":"為了紀念RO 3周年所製作出來的戒指 2005年 8月31日，會自動消失 AllState+5 系列: 飾品 防禦: 0 重量: 1 要求等級: 沒有 裝備: 所有職業","slots":0},
   "kafra_ring": {"id":"kafra_ring","imgId":2640,"name":"卡普拉戒指","type":"armor","icon":"💍","armorType":"accessory","def":1,"weight":20,"sell":4,"buyPrice":8,"str":1,"agi":1,"vit":1,"int":1,"dex":1,"luk":1,"desc":"只有卡普拉職員所攜帶的那戒指，是否屬實還不確定。 All State+1 系列: 飾品 防禦: 1 重量: 20 要求等級: 0 裝備: 除初心者以外的所有職業","slots":0},
@@ -18717,6 +18717,7 @@ const ITEMS = {
   "feather_bonnet": {"id":"feather_bonnet","imgId":5018,"name":"羽毛帽","type":"armor","icon":"👑","armorType":"headgear","def":8,"weight":30,"sell":32,"buyPrice":64,"reqJob":["archer"],"agi":1,"desc":"上方插著一根價值高昂的羽毛，看起來相當時髦的帽子。 AGI+1 系列: 頭盔 防禦: 8 位置: 頭上 重量: 30 裝備: 弓箭手系列專用","slots":0},
   "kafra_band": {"id":"kafra_band","imgId":5020,"name":"卡普拉髮圈","type":"armor","icon":"👑","armorType":"headgear","def":5,"weight":50,"sell":20,"buyPrice":40,"desc":"卡普拉小姐們所使用的髮圈，很多小姐在從事工作時，會攜帶這髮圈 MDEF+3 系列: 頭盔 防禦: 5 位置: 頭上 重量: 50 裝載: 所有職業","slots":0,"mdef":3},
   "bankruptcy_of_heart": {"id":"bankruptcy_of_heart","imgId":5021,"name":"破產之哀","type":"armor","icon":"👑","armorType":"headgear","def":8,"weight":120,"sell":32,"buyPrice":64,"reqLevel":38,"int":1,"dex":1,"desc":"某一位破產的商人失去所有的東西，將心情的痛苦藏於袋中，傳說裝備此頭飾的人，可以感覺到失去財產的人的心情，悲傷的心情會圍繞著你，讓你的心情低迷，不過有強烈的魔力可讓你重新站起，讓裝備者的能力 急增神奇的髮圈 INT+1 DEX+1 系列: 頭盔 防禦: 8 位置: 頭上 重量: 120 要求等級: 38 裝載: 商人系列專用","slots":0},
+  "helm_of_mid_sol_god": {"id":"helm_of_mid_sol_god","imgId":401086,"name":"米德加爾特大太陽神頭盔 [1]","type":"armor","icon":"👑","armorType":"headgear","def":100,"weight":350,"sell":0,"buyPrice":0,"reqLevel":100,"slots":1,"mdef":20,"desc":"MDEF+20。精煉每+2時 ATK、MATK+35；每+3時全特性素質+2；+7時近/遠距離物理傷害、全屬性魔法傷害+15%；+9時MHP+30%；+11時P.ATK、S.MATK+20；+13時對全種族物理/魔法傷害+15%。搭配雷神腰帶：對首領階級對象物理傷害+35%。系列：頭具 位置：頭上 重量：350 要求等級：100 全職業。","bonus":{"allTargetDmgPct":0},"per2Refine":{"atk":35,"matk":35},"per3Refine":{"str":2,"agi":2,"vit":2,"int":2,"dex":2,"luk":2},"condBonus":[{"when":{"refineMin":7},"bonus":{"rangedDmgPct":15,"meleeDmgPct":15,"magicDmgPct":15}},{"when":{"refineMin":9},"bonus":{"hpPct":30}},{"when":{"refineMin":11},"bonus":{"patk":20,"smatk":20}},{"when":{"refineMin":13},"bonus":{"allRaceDmgPct":15}}]},
   "helm_of_sun": {"id":"helm_of_sun","imgId":5022,"name":"太陽神頭盔","type":"armor","icon":"👑","armorType":"headgear","def":4,"weight":240,"sell":16,"buyPrice":32,"str":3,"int":2,"desc":"象徵著太陽有巨大翅膀的獨特帽子。請不要問帶在頭上之後怎麼走路。 STR+3 INT+2 系列: 頭盔 防禦: 4 位置: 頭上中 重量: 240 裝載: 2轉職業以上可以裝備","slots":0},
   "hat_of_bundle": {"id":"hat_of_bundle","imgId":5023,"name":"包袱帽","type":"armor","icon":"👑","armorType":"headgear","weight":100,"sell":20,"buyPrice":40,"desc":"中/壯年女性們，主要搬運物品時常用的東西，大部分水紋花樣佔居多為特點。 系列: 頭盔 防禦: 0 位置: 頭上 重量: 100 裝載: 商人系列專用","slots":0},
   "hat_of_cake": {"id":"hat_of_cake","imgId":5024,"name":"蛋糕帽","type":"armor","icon":"👑","armorType":"headgear","def":2,"weight":100,"sell":8,"buyPrice":16,"desc":"過生日攜帶在身上到處遊走時，會受到很多人的祝福和排斥的帽子，因為是模型會有很多人想衝過來吃一口，小心不要傷到牙齒。 系列: 頭盔 防禦: 2 位置: 頭上 重量: 100 裝載: 所有職業","slots":0},
@@ -27512,6 +27513,11 @@ function isDaggerWeapon(itemId) { return aspdCategoryOf(itemId) === 'dagger'; }
 
    官方寫了但只做得到一部分的，加成後面標了註解說明少了什麼。 */
 const EQUIP_SETS = {
+  mid_sol_god_megin_set: {
+    name: '米德加爾特大太陽神頭盔＋雷神腰帶',
+    items: ['helm_of_mid_sol_god', 'magingiorde'],
+    bonus: { bossDmgPct: 35 },
+  },
   // ---- Lv1~50 ----
   rwc2012_set: {
     name: 'RWC 紀念套裝',
@@ -27694,12 +27700,14 @@ const WEAPON_REQ_CATEGORIES = {
   barefist: ['bare', 'knuckle'],
   // #72 鍊金術士的熟練度官方寫「斧頭或單手劍」——跟商人系的 axemace（斧或鈍器）不是同一組
   axesword: ['axe1', 'axe2', 'sword1'],
+  // V2.5 四轉技能使用的精確武器子類別／雙類別條件。
+  rod2: ['rod2'], axe2: ['axe2'], dagger_bow: ['dagger', 'bow'], mace_book: ['mace', 'book'],
 };
 const WEAPON_REQ_NAMES = {
   sword: '單手劍或短劍', sword2: '雙手劍', dagger: '短劍', katar: '拳刃',
   mace: '鈍器', axe: '斧頭', axemace: '斧頭或鈍器',   spear: '矛類武器', spear_sword2: '矛類或雙手劍', bow: '弓', rod: '法杖',
   instrument: '樂器', whip: '鞭子', knuckle: '拳套', book: '書本',
-  barefist: '空手或拳套', axesword: '斧頭或單手劍',
+  barefist: '空手或拳套', axesword: '斧頭或單手劍', rod2: '雙手杖', axe2: '雙手斧', dagger_bow: '短劍或弓', mace_book: '鈍器或書籍',
 };
 function weaponReqName(req) { return WEAPON_REQ_NAMES[req] || req; }
 // 目前手上的武器符不符合這個限定；沒寫限定的技能一律通過

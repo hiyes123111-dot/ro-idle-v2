@@ -1014,7 +1014,8 @@ function recomputeDerived(fullHeal) {
   const dexAtk = isDexAtkWeapon(getEquipBaseItemId('weapon'));
   const atkMain = dexAtk ? cDex : cStr;
   const atkSub = dexAtk ? cStr : cDex;
-  const statusAtk = atkMain + Math.floor((atkMain / 10) ** 2) + Math.floor(atkSub / 5) + Math.floor(cLuk / 5);
+  const statusAtk = atkMain + Math.floor((atkMain / 10) ** 2) + Math.floor(atkSub / 5) + Math.floor(cLuk / 5)
+    + getCardBonus('pow') * 5; // 四轉 POW：每 1 點 Status ATK +5（裝備／卡片條件同樣適用）
   state._atkUsesDex = dexAtk;
   /* ATK 拆成三個桶子，總和仍然是 state.atk（其他地方照舊只讀 state.atk）。
      普通攻擊的傷害鏈要分開處理它們——官方的體型修正與屬性倍率**只作用在武器ATK**上：
@@ -1032,8 +1033,9 @@ function recomputeDerived(fullHeal) {
   state._atkMastery += buffAtkFlat;
 
   // MATK：區間公式，min = INT+(INT/7)²，max = INT+(INT/5)²，取平均當戰鬥數值
-  const matkMinRaw = cInt + Math.floor((cInt / 7) ** 2) + Math.floor(cDex / 5);
-  const matkMaxRaw = cInt + Math.floor((cInt / 5) ** 2) + Math.floor(cDex / 5) + Math.floor(cLuk / 3);
+  const traitSplMatk = getCardBonus('spl') * 5; // 四轉 SPL：每 1 點 Status MATK +5
+  const matkMinRaw = cInt + Math.floor((cInt / 7) ** 2) + Math.floor(cDex / 5) + traitSplMatk;
+  const matkMaxRaw = cInt + Math.floor((cInt / 5) ** 2) + Math.floor(cDex / 5) + Math.floor(cLuk / 3) + traitSplMatk;
   state.matkMin = Math.round(matkMinRaw * job.matkMod) + equippedMatk();
   state.matkMax = Math.round(matkMaxRaw * job.matkMod) + equippedMatk();
   state.matk = Math.round((state.matkMin + state.matkMax) / 2);
@@ -2306,20 +2308,8 @@ function recomputeDerived(fullHeal) {
     if (hpFlat) state.maxHp = Math.max(1, state.maxHp + hpFlat);
   }
 
-  /* perJobLv10_<目標>（#17）：官方「增加與自身 JOB 等級十位數相同的數值」
-     （伊夫利特卡片的 ATK／CRI／HIT）。轉職會把 jobLevel 打回 1，所以這個加成
-     在轉職當下會歸零再長回來——官方就是這個行為，不特別補償。
-     放在這裡是因為要等 ATK/HIT/CRI 三個衍生值都算完才加得上去。 */
-  {
-    const tens = Math.floor((state.jobLevel || 1) / 10);
-    if (tens > 0) {
-      const per = n => getCardBonus('perJobLv10_' + n) * tens;
-      const a = per('atk');
-      if (a) { state.atk += a; state._atkWeapon += a; }
-      state.hit += per('hit');
-      state.critRate = Math.min(100, state.critRate + per('critRate'));
-    }
-  }
+  /* perJobLv10_<目標> 由 getCardBonus() 統一依目前 JOB 等級計算，
+     因此 ATK、HIT、CRI 及未來新增的 HP/MATK/技能傷害等目標都走同一入口。 */
 
   // 卡片加成 — 百分比（負值也要吃，塔奧群卡那種有取捨的卡才成立）
   const hpPctBonus = getCardBonus('hpPct') / 100;
@@ -6180,7 +6170,9 @@ function skillHits(sk, lv, monDef, inst) {
 }
 // 攻擊力的臨時修正：詛咒（×0.75）與挑釁（±N%）
 function playerAtkMult() {
-  return playerAilAtkMult() * (1 + pDebuff('atkPct') / 100);
+  // P.ATK 是最終物理傷害百分比，必須放在武器／素質／熟練度合併後的最終乘區。
+  const pAtkPct = (typeof getCardBonus === 'function' ? getCardBonus('pAtk') : 0);
+  return playerAilAtkMult() * (1 + pDebuff('atkPct') / 100) * (1 + pAtkPct / 100);
 }
 /* 自動防禦（#22）：這一擊有沒有被完全擋下。只擋物理，跟「完全迴避」是兩件事——
    完全迴避看的是 LUK，這個是技能給的限時 buff。 */
@@ -6520,8 +6512,9 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
      魔法那半沒有現成的桶，掛在這裡——這是全專案唯一一個「知道自己在算魔法、
      手上又有 monDef」的地方，放別處都得再開一條平行的管線。 */
   if (useMag) {
+    const sMatkPct = (typeof getCardBonus === 'function' ? getCardBonus('sMatk') : 0);
     const dragon = (state.dragonMatkPct && monDef && monDef.race === 'dragon') ? state.dragonMatkPct : 0;
-    return state.matk * elemMult * (1 + dragon / 100);
+    return state.matk * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100);
   }
   return weaponChainDamage(monDef, elemMult, state.buffs.some(b => b.type === 'maxroll'), sk);
 }
@@ -7459,6 +7452,10 @@ function getCodexPool() {
     Object.keys(RELIC_ITEMS).forEach(id => { if (ITEMS[id]) itemSet.add(id); });
   }
   if (typeof RELIC_TICKET_ID !== 'undefined' && ITEMS[RELIC_TICKET_ID]) itemSet.add(RELIC_TICKET_ID);
+  // V2 職業裝備／四轉裝備即使尚未掛到地圖掉落表，也必須可在圖鑑查詢。
+  Object.keys(ITEMS).forEach(id => {
+    if (/^v2[45]_/.test(id) || /^v24_/.test(id)) itemSet.add(id);
+  });
   const cardSet = new Set([...itemSet].filter(id => CARDS[id]));
   _codexPoolCache = {
     monsters: [...monSet].sort((a, b) => (MONSTERS[a].level || 0) - (MONSTERS[b].level || 0)),
@@ -12192,13 +12189,28 @@ function getDrillChance(item) {
   if (value >= 2000 || level >= 50) return 65;
   return 80;
 }
-function drillEquipment(instanceId) {
-  const idx = state.inventory.findIndex(r => r.instanceId === instanceId);
+function drillEquipment(target) {
+  // 支援從背包堆疊裝備直接打洞：先拆出一件成為獨立個體，避免同堆其他裝備一起變更。
+  let idx = state.inventory.findIndex(r => r.instanceId === target);
+  if (idx < 0) idx = state.inventory.findIndex(r => r.item === target && !r.instanceId);
   if (idx < 0) { logMsg('⚠️ 找不到這件背包装備。'); return false; }
-  const row = state.inventory[idx];
+  let row = state.inventory[idx];
   const def = ITEMS[row.item];
+  if (!def || !['weapon','armor'].includes(def.type) || (def.slots || 0) > 0) {
+    logMsg('⚠️ 這件裝備不符合打洞條件，或已經有插槽。'); return false;
+  }
+  if (!row.instanceId) {
+    const newId = `drill_${row.item}_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+    row.qty -= 1;
+    if (row.qty <= 0) state.inventory.splice(idx, 1);
+    state.instances = state.instances || {};
+    state.instances[newId] = { item: row.item, refine: 0, cards: [], extraSlots: 0 };
+    state.inventory.push({ item: row.item, qty: 1, instanceId: newId });
+    target = newId;
+  }
+  const instanceId = target;
   const inst = state.instances && state.instances[instanceId];
-  if (!def || !inst || !['weapon','armor'].includes(def.type) || (def.slots || 0) > 0 || (inst.extraSlots || 0) >= 1) {
+  if (!inst || (inst.extraSlots || 0) >= 1) {
     logMsg('⚠️ 這件裝備不符合打洞條件，或已經打過洞。'); return false;
   }
   const scaleId = DRILL_MATERIALS.scale, coreId = DRILL_MATERIALS.core;
@@ -12470,6 +12482,10 @@ function effectiveGearBonuses() {
     return d ? `${d.itemId}+${d.refine}[${d.cards.join(',')}]` : '-';
   }).join('|') + '#' + state.jobId
     + '#' + BASE_STAT_KEYS.map(k => (state.stats && state.stats[k]) || 0).join(',')
+    /* 等級與技能等級也會影響 perBaseLv / perJobLv / perSkill；必須進快取簽章，
+       否則升級後會沿用舊加成，直到換裝才更新。 */
+    + '#BL' + (state.baseLevel || 1) + '#JL' + (state.jobLevel || 1)
+    + '#SK' + Object.entries(state.learnedSkills || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}:${v}`).join(',')
     /* 箭矢也要進簽章：when.ammo 的配對加成（大地之弓＋地靈箭矢）換箭要重算 */
     + '#' + (lo.ammo || '-')
     /* 遺物也要進簽章，否則換遺物不會重算——條件式加成卡在舊值那個坑（見上面）
@@ -12499,7 +12515,7 @@ function effectiveGearBonuses() {
     /* 平鋪的特殊鍵（perBaseLv10_atk 等）也要進總表——getCardBonus() 會按前綴解析。
        只挑底線開頭的鍵，避免把 atk/def 那些平鋪數值重複算一次。 */
     for (const [k, v] of Object.entries(def)) {
-      if (/^per(BaseLv1|BaseLv10|BaseLv15|BaseLv210|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') total[k] = (total[k] || 0) + v;
+      if (/^per(BaseLv1|BaseLv5|BaseLv10|BaseLv15|BaseLv210|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') total[k] = (total[k] || 0) + v;
       if (k.startsWith('spCost_') && typeof v === 'number') total[k] = (total[k] || 0) + v;
     }
     if (def.perRefine) {
@@ -12987,6 +13003,13 @@ function getCardBonus(stat) {
     if ((state.baseLevel || 0) < 70) continue;
     total += Math.floor((state.baseLevel - 70) / 10 + 1) * all[k];
   }
+  /* perBaseLv5_<目標>：BaseLv 每 5 級增加指定素質（雷神腰帶）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv5_')) continue;
+    const target = k.slice('perBaseLv5_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.baseLevel || 0) / 5) * all[k];
+  }
   /* perBaseLv15_<目標>（成長型武器系列）：官方「BaseLv 每+15時 MATK+3（上限為Lv195）」。
      desc 沒寫起算門檻，從 Lv1 起算、封頂 195（195/15＝13 層）。 */
   for (const k in all) {
@@ -13009,6 +13032,14 @@ function getCardBonus(stat) {
     if (target !== stat) continue;
     if ((state.baseLevel || 0) < 210) continue;
     total += all[k];
+  }
+  /* perJobLv10_<目標>：JOB 每滿 10 級增加指定目標。支援任意 bonus key，
+     不限於舊版硬編碼的 ATK/HIT/CRI。 */
+  for (const k in all) {
+    if (!k.startsWith('perJobLv10_')) continue;
+    const target = k.slice('perJobLv10_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.jobLevel || 0) / 10) * all[k];
   }
   /* perStat_<來源>_<每N點>_<目標>：官方「純粹XX每N時 ○○+M」。
       來源限六項素質（看**加點的基礎值**，不含裝備／卡片／技能——官方的「純粹」），

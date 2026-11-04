@@ -936,7 +936,15 @@ const MOUNT_WEAPON_CATS = ['spear1', 'spear2'];
 
 /* 沒有自己的圖、直接借別人的職業。超級新手官方本來就是穿新手服的，借新手那組剛好。
    沒列在這裡又沒有圖的職業會退回 player_swordsman.svg 那張靜圖。 */
-const SPRITE_ALIAS = { supernovice: 'novice' };
+const SPRITE_ALIAS = {
+  supernovice: 'novice',
+  // 四轉專屬影格尚未收錄時，沿用對應三轉職業動作，避免退回劍士靜態圖。
+  dragon_knight: 'runeknight', imperial_guard: 'royalguard',
+  arch_mage: 'warlock', element_master: 'sorcerer', wind_hawk: 'ranger',
+  troubadour: 'clown', trouvere: 'wanderer', meister: 'mechanic', biolo: 'geneticist',
+  shadow_cross: 'guillotinecross', abyss_chaser: 'shadowchaser',
+  cardinal: 'archbishop', inquisitor: 'sura'
+};
 /* 三轉的立繪（#111 → #119）。
 
    #111 當時 `images/frames/` 底下一張三轉的圖都沒有，所以整批借母職的
@@ -4587,6 +4595,7 @@ function renderInventoryTab() {
             <button class="btn-small ${iLocked ? '' : 'ghost'}" title="${iLocked ? '解除鎖定' : '鎖定後不會被賣出／自動販賣'}"
               onclick="toggleItemLock('${row.item}');renderInventoryTab();">${iLocked ? '🔒' : '🔓'}</button>
             <button class="btn-small" onclick="equipInstance('${row.instanceId}');renderInventoryTab();renderTopBar();">裝備</button>
+            ${['weapon','armor'].includes(def.type) && !(def.slots || 0) && !(inst.extraSlots || 0) ? `<button class="btn-small ghost" onclick="drillEquipment('${row.instanceId}');renderInventoryTab();">⚒️ 打洞</button>` : ''}
             ${iLocked ? '' : `<button class="btn-small ghost" onclick="sellItemInstance('${row.instanceId}');renderInventoryTab();renderTopBar();">賣出(${def.sell})</button>`}
             <button class="btn-small ghost" onclick="depositInstanceToWarehouse('${row.instanceId}');renderInventoryTab();renderTopBar();">存倉庫</button>
             ${iCards.length ? `<button class="btn-small ghost danger" onclick="doDestroyInstance('${row.instanceId}')">拆卸取回卡片</button>` : ''}
@@ -4617,6 +4626,7 @@ function renderInventoryTab() {
           </div>
         </div>
         <div class="inv-actions">
+          ${['weapon','armor'].includes(def.type) && !(def.slots || 0) ? `<button class="btn-small ghost" onclick="drillEquipment('${row.item}');renderInventoryTab();">⚒️ 打洞</button>` : ''}
           <button class="btn-small ${locked ? '' : 'ghost'}" title="${locked ? '解除鎖定' : '鎖定後不會被賣出／自動販賣'}"
             onclick="toggleItemLock('${row.item}');renderInventoryTab();">${locked ? '🔒' : '🔓'}</button>
           ${def.ammo ? `<button class="btn-small" onclick="equipAmmo('${row.item}');renderInventoryTab();renderTopBar();">裝備箭矢</button>` : ''}
