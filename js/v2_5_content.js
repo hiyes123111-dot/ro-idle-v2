@@ -85,9 +85,31 @@
         mult: active ? Array.from({length:maxLv},(_,i)=>((type.endsWith('_aoe')?8.0:12.0)+(i*(type.endsWith('_aoe')?1.2:1.6)))) : Array.from({length:maxLv},(_,i)=> (stat === 'maxHpMult' || stat === 'maxSpMult') ? 1 + (i+1)*0.02 : (i+1)*5),
         ...(active ? {} : {passiveStat:stat}),
         desc: active
-          ? `${name}：${isMagic.has(type) ? '魔法傷害' : '物理傷害'} ${Math.round((type.endsWith('_aoe') ? 8.0 : 12.0) * 100)}%～${Math.round(((type.endsWith('_aoe') ? 8.0 : 12.0) + (maxLv - 1) * (type.endsWith('_aoe') ? 1.2 : 1.6)) * 100)}%。${type.endsWith('_aoe') ? '攻擊全體敵人。' : '攻擊單一目標。'}技能等級越高，傷害倍率越高。`
-          : `${name}：被動技能，最高 Lv${maxLv}。${stat === 'atkFlat' ? '每級 ATK +5。' : stat === 'matkFlat' ? '每級 MATK +5。' : stat === 'defFlat' ? '每級 DEF +5。' : stat === 'maxHpMult' ? '每級最大 HP +2%。' : stat === 'maxSpMult' ? '每級最大 SP +2%。' : '每級提升對應能力。'}`
+          ? `${name}：${isMagic.has(type) ? 'MATK' : 'ATK'} ${Math.round((type.endsWith('_aoe') ? 8.0 : 12.0) * 100)}%～${Math.round(((type.endsWith('_aoe') ? 8.0 : 12.0) + (maxLv - 1) * (type.endsWith('_aoe') ? 1.2 : 1.6)) * 100)}%${type.endsWith('_aoe') ? '範圍' : '單體'}傷害；${type.endsWith('_aoe') ? '攻擊全體敵人' : '攻擊單一目標'}，${elem === 'neutral' ? '無屬性' : ({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',undead:'不死'}[elem] || elem) + '屬性'}。SP 消耗 ${isMagic.has(type) ? 32 : 25}～${(isMagic.has(type) ? 32 : 25) + (maxLv - 1) * 2}；冷卻 ${type.endsWith('_aoe') ? 7 : 5} 秒。`
+          : `${name}：被動技能，最高 Lv${maxLv}。本作實際效果：${({atkFlat:`每級 ATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,matkFlat:`每級 MATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,defFlat:`每級 DEF +5，Lv${maxLv} 時共 +${maxLv*5}。`,maxHpMult:`每級最大 HP +2%，Lv${maxLv} 時最大 HP +${maxLv*2}%。`,maxSpMult:`每級最大 SP +2%，Lv${maxLv} 時最大 SP +${maxLv*2}%。`,hitFlat:`每級 HIT +5，Lv${maxLv} 時共 +${maxLv*5} 命中。`,fleeFlat:`每級 FLEE +5，Lv${maxLv} 時共 +${maxLv*5} 迴避。`})[stat] || `被動效果：${stat}；目前需依戰鬥觸發條件判定。`}${(['召喚元素:阿爾多雷','召喚元素:普羅賽拉','召喚元素:迪盧比奧','召喚元素:泰雷莫圖斯','召喚元素:塞爾彭斯','召喚爬行者','召喚神木戰士','召喚神木妖精','召喚地獄樹'].includes(name) ? '（目前不會生成獨立召喚物；以此項常駐能力加成實裝。）' : '')}`
       };
+      // 龍騎士四轉技能：以官方 2026 技能調整後的等級倍率取代通用四轉倍率。
+      // 倍率係數以 1.0 = 100% 表示，沿用既有 damage / damage_aoe 傷害結算。
+      if (jobId === 'dragon_knight') {
+        const dkValues = {
+          '橫揮斬': { type:'damage_aoe', mult:[27,30,33,36,39,42,45,48,51,54], cooldown:Array(10).fill(0.35), spCost:[25,27,29,31,33,35,37,39,41,43], desc:'龍騎士四轉範圍物理攻擊，ATK 2,700%～5,400%。' },
+          '風暴斬擊': { type:'damage_aoe', mult:[19,19.5,20,20.5,21], cooldown:Array(5).fill(0.5), desc:'龍騎士四轉範圍物理攻擊，ATK 1,900%～2,100%。' },
+          '神龍貫刺': { type:'damage', mult:[76,97.5,119,140.5,162], cooldown:Array(5).fill(2), desc:'長矛專用遠距離物理攻擊，ATK 7,600%～16,200%。', requiresWeapon:'spear' },
+          '狂暴粉碎': { type:'damage', mult:[71,103.5,136,168.5,201], cooldown:[0.2,0.4,0.6,0.8,1], desc:'龍騎士四轉強力單體物理攻擊，ATK 7,100%～20,100%。' },
+          '天龍氣息': { type:'damage_aoe', mult:[4,7.5,11,14.5,18,21.5,25,28.5,32,35.5], cooldown:Array(10).fill(0.5), spCost:[61,64,67,70,73,76,79,82,85,88], desc:'需學會盧恩騎士「龍之訓練」。騎乘龍時吐息攻擊全體敵人，ATK 400%～3,550% 遠距離物理傷害；目前尚未加入 MaxHP／MaxSP 額外係數。', requiresSkill:'rk_dragontraining' },
+          '天龍光環': { type:'damage', mult:[129,158,187,216,245,274,303,332,361,390], cooldown:Array(10).fill(60), spCost:Array(10).fill(100), desc:'龍騎士四轉單體物理攻擊，ATK 12,900%～39,000%，冷卻 60 秒。' },
+        };
+        const dk = dkValues[name];
+        if (dk) {
+          sk.type = dk.type; sk.mult = dk.mult; sk.cooldown = dk.cooldown;
+          if (dk.spCost) sk.spCost = dk.spCost;
+          const firstPct = Math.round(dk.mult[0] * 100);
+          const lastPct = Math.round(dk.mult[dk.mult.length - 1] * 100);
+          sk.desc = `${dk.desc}（實際傷害倍率 ${firstPct}%～${lastPct}%）`;
+          if (dk.requiresWeapon) sk.requiresWeapon = dk.requiresWeapon;
+          if (dk.requiresSkill) sk.requiresSkill = dk.requiresSkill;
+        }
+      }
       // 使用者指定：遊俠三轉／四轉攻擊技及陷阱統一改成二轉式被動，普攻自動觸發。
       if (jobId === 'wind_hawk') {
         const attackProc = new Set(['漸進狙擊','毀滅風暴','憤怒暴風','獵鷹奇襲','獵鷹狙擊']);
@@ -114,14 +136,15 @@
           if (t.stun) sk.stunSec = t.stun;
           if (t.hit) sk.hitDebuff = t.hit;
           if (t.duration) sk.duration = Array.from({length:maxLv},()=>t.duration);
-          sk.desc = `被動陷阱：普通攻擊時有 ${t.chance[0]}%～${t.chance[t.chance.length-1]}% 機率自動觸發「${name}」，不需手動設置、不消耗 SP，內部冷卻 ${t.cd} 秒。`;
+          const trapDetail = t.effect === 'stun' ? `使目標暈眩 ${t.stun} 秒` : t.effect === 'damage' ? `造成 ATK ${Math.round(t.mult[0]*100)}%～${Math.round(t.mult[t.mult.length-1]*100)}% ${({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',neutral:'無'})[t.element] || '無'}屬性傷害` : t.effect === 'hitDebuff' ? `使目標 HIT 降低 ${t.hit[0]}～${t.hit[t.hit.length-1]} 點，持續 ${t.duration} 秒` : `對全體敵人造成 ATK ${Math.round(t.mult[0]*100)}%～${Math.round(t.mult[t.mult.length-1]*100)}% ${({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',neutral:'無'})[t.element] || '無'}屬性範圍傷害`;
+          sk.desc = `被動陷阱：普通攻擊時有 ${t.chance[0]}%～${t.chance[t.chance.length-1]}% 機率自動觸發「${name}」，${trapDetail}；不需手動設置、不消耗 SP，內部冷卻 ${t.cd} 秒。`;
         }
       }
       const req = (weaponGates[jobId]||{})[name];
       if (req === 'shield') sk.requiresEquip = 'shield';
       else if (req) sk.requiresWeapon = req;
       // 以已存在的三轉／二轉技能作為施放前置；不限制學習順序。
-      if (jobId === 'dragon_knight' && name === '天龍氣息') sk.requiresSkill = 'riding';
+      if (jobId === 'dragon_knight' && name === '天龍氣息') sk.requiresSkill = 'rk_dragontraining';
       if (jobId === 'imperial_guard' && name === '盾牌投擲') sk.requiresEquip = 'shield';
       if (jobId === 'wind_hawk' && name === '獵鷹奇襲') sk.requiresSkill = 'huntingmastery';
       if (req) sk.desc += `（使用條件：${labels[req]}）`;
@@ -140,12 +163,16 @@
       const sk = typeof ref === 'string' ? SKILLS[ref] : ref;
       if (!sk || sk.type === 'passive' || !['damage','damage_aoe','magic','magic_aoe','dot'].includes(sk.type)) continue;
       const vals = Array.isArray(sk.mult) ? sk.mult : (sk.mult == null ? [] : [sk.mult]);
-      if (!vals.length || /[0-9]+%/.test(sk.desc || '')) continue;
+      if (!vals.length) continue;
+      const kind = ['magic','magic_aoe'].includes(sk.type) ? 'MATK 魔法' : 'ATK 物理';
+      const elementName = ({neutral:'無',fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',undead:'不死'})[sk.element] || '無';
+      const target = sk.type.endsWith('_aoe') ? '範圍攻擊（本作命中全體敵人）' : '單體攻擊';
       const first = Math.round(Number(vals[0]) * 100);
       const last = Math.round(Number(vals[vals.length - 1]) * 100);
-      const kind = ['magic','magic_aoe'].includes(sk.type) ? '魔法傷害' : '物理傷害';
-      const target = sk.type.endsWith('_aoe') ? '攻擊全體敵人' : '攻擊單一目標';
-      sk.desc = `${sk.name}：${kind} ${first}%～${last}%，${target}。` + (sk.desc ? ` ${sk.desc}` : '');
+      const lvSp = Array.isArray(sk.spCost) ? `${sk.spCost[0]}～${sk.spCost[sk.spCost.length-1]}` : (sk.spCost ?? 0);
+      const lvCd = Array.isArray(sk.cooldown) ? `${sk.cooldown[0]}～${sk.cooldown[sk.cooldown.length-1]}` : (sk.cooldown ?? 0);
+      const weapon = sk.requiresWeapon ? `；需裝備${({bow:'弓',spear:'長矛',sword2:'雙手劍',axe2:'雙手斧',katar:'拳刃',dagger:'短劍',instrument:'樂器',whip:'鞭子',knuckle:'拳套'})[sk.requiresWeapon] || sk.requiresWeapon}` : '';
+      sk.desc = `${sk.name}：${kind}傷害 ${first}%～${last}%，${target}，${elementName}屬性；SP 消耗 ${lvSp}，冷卻 ${lvCd} 秒${weapon}。倍率依技能等級變化。`;
     }
   }
   window.V25_FOURTH_JOB_AUDIT = Object.fromEntries(Object.entries(catalogs).map(([id, rows]) => [id, rows.length]));

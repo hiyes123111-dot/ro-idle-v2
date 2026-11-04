@@ -430,7 +430,36 @@ function onTickUI() {
     updateAllyPanelLive();   // 只改數字，整個重畫會把展開中的下拉選單刪掉
     // 即時更新角色分頁的 BUFF 倒數
     if (activeTab === 'character') updateBuffCountdown();
+    if (activeTab === 'autobattle') updateRangerProcStatsLive();
   }
+}
+
+/* 弓箭手被動觸發統計：資料來自 engine.js 真正的機率判定，不額外抽樣。 */
+function rangerProcStatsMarkup() {
+  const ids = [
+    'ra_arrowstorm','ra_aimedbolt','ra_fearbreeze',
+    'v25_wind_hawk_3','v25_wind_hawk_4','v25_wind_hawk_5','v25_wind_hawk_12','v25_wind_hawk_13',
+    'trap','skidtrap','flasher','sleeptrap','freezingtrap','blastmine','claymoretrap','magnumbreak_h',
+    'v25_wind_hawk_7','v25_wind_hawk_8','v25_wind_hawk_9','v25_wind_hawk_10'
+  ];
+  const learned = ids.filter(id => state.learnedSkills && state.learnedSkills[id]);
+  if (!learned.length) return '<div class="ab-info-text">學會弓箭手系被動觸發技能後，這裡會顯示實際統計。</div>';
+  const stats = state.rangerProcStats || {};
+  const rows = learned.map(id => {
+    const sk = findSkillById(id);
+    const r = stats[id] || {};
+    const rolls = r.rolls || 0, procs = r.procs || 0;
+    const hasChance = !!(sk && sk.procChance != null);
+    const rate = !hasChance ? '固定觸發' : (rolls ? (procs / rolls * 100).toFixed(1) + '%' : '—');
+    const readyAt = (state.rangerPassiveReadyAt && state.rangerPassiveReadyAt[id]) || (state.trapReadyAt && state.trapReadyAt[id]) || 0;
+    const remain = Math.max(0, (readyAt - Date.now()) / 1000);
+    return `<tr><td>${sk ? sk.name : id} Lv${state.learnedSkills[id]}</td><td>${r.eligible || 0}</td><td>${rolls}</td><td>${procs}</td><td>${rate}</td><td>${r.cooldownSkips || 0}</td><td>${remain > 0 ? remain.toFixed(1)+'s' : '就緒'}</td></tr>`;
+  }).join('');
+  return `<div class="ab-table-wrap"><table class="ab-proc-table"><thead><tr><th>技能</th><th>符合攻擊</th><th>觸發檢查</th><th>觸發</th><th>實測率</th><th>冷卻略過</th><th>剩餘CD</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function updateRangerProcStatsLive() {
+  const el = document.getElementById('ranger-proc-stats');
+  if (el) el.innerHTML = rangerProcStatsMarkup();
 }
 
 /* GM 測試面板（v1.0 起預設關閉）。
@@ -2419,6 +2448,13 @@ function renderAutoBattleTab() {
     </div>
     ` : ''}
 
+    <!-- 弓箭手系被動觸發統計 -->
+    <div class="ab-section">
+      <div class="ab-section-title-row"><h4 class="ab-section-title">🏹 被動技能觸發統計</h4><button class="btn-small" onclick="resetRangerProcStats()">重置統計</button></div>
+      <div class="ab-info-text">觸發率＝成功觸發次數 ÷ 實際機率判定次數。冷卻中的攻擊不會重抽，會另外計入「冷卻略過」。統計會隨存檔保留。</div>
+      <div id="ranger-proc-stats">${rangerProcStatsMarkup()}</div>
+    </div>
+
     <!-- 藥水設定 -->
     <div class="ab-section">
       <h4 class="ab-section-title">🧪 藥水設定</h4>
@@ -2987,6 +3023,7 @@ let codexSearch = '';
 let codexPage = 0;
 let codexOpenId = null;
 let codexJobFilter = false;  // 只顯示本職業裝得上的裝備
+let codexSetOpenId = null;
 
 /* 分類篩選（#138）。圖鑑一頁 60 格、道具有一千四百多筆，只有「已發現／未發現」
    根本翻不完——使用者要的是按類別收斂。三個分頁各有自己的一組分類，
@@ -3040,7 +3077,7 @@ const CODEX_CATS = {
 };
 let codexCat = { mon: 'all', card: 'all', item: 'all', hidden: 'all' };
 function setCodexView(v) {
-  codexView = v; codexPage = 0; codexOpenId = null;
+  codexView = v; codexPage = 0; codexOpenId = null; codexSetOpenId = null;
   /* 進隱藏圖鑑時重置篩選，避免殘留的「已發現」把未開出的卡藏起來 */
   if (v === 'hidden') { codexFilter = 'all'; codexSearch = ''; }
   renderCodexTab();
@@ -3164,7 +3201,85 @@ function codexBar(label, found, total) {
   </div>`;
 }
 
+/* 套裝圖鑑：直接彙整引擎實際使用的 EQUIP_SETS、RELIC_SETS 與卡片 condBonus.setName。
+   不以背包或已穿戴狀態過濾，讓玩家能查到遊戲內完整套裝清單。 */
+function getCodexSetEntries() {
+  const out = [];
+  Object.entries(EQUIP_SETS || {}).forEach(([id, d]) => out.push({
+    id: 'equip:' + id, kind: '裝備套裝', name: d.name || id,
+    pieces: (d.items || []).map(x => Array.isArray(x) ? x : [x]),
+    bonus: d.bonus || {}, perRefine: d.perRefine || null,
+    sourceId: (d.items || []).flatMap(x => Array.isArray(x) ? x : [x])[0] || null,
+  }));
+  if (typeof RELIC_SETS !== 'undefined') Object.entries(RELIC_SETS).forEach(([id, d]) => out.push({
+    id: 'relic:' + id, kind: '遺物套裝', name: d.name || id,
+    pieces: (typeof RELIC_SLOTS !== 'undefined' ? RELIC_SLOTS : []).map(slot => {
+      const itemId = 'relic_' + id + '_' + slot.replace(/^relic_/, '');
+      return [itemId];
+    }),
+    tiers: d.tiers || [], bonus: {}, sourceId: 'relic_' + id + '_head', desc: d.desc || '',
+  }));
+  const cardGroups = {};
+  Object.entries(CARDS || {}).forEach(([cardId, c]) => (c.condBonus || []).forEach((cb, i) => {
+    if (!cb.setName) return;
+    const key = cb.setName;
+    if (!cardGroups[key]) cardGroups[key] = { id: 'card:' + key, kind: '卡片套卡', name: key, members: [], bonuses: [], bonus: cb.bonus || {}, sourceId: cardId };
+    const required = (cb.when && cb.when.withCards) || [];
+    [cardId, ...required].forEach(memberId => { if (!cardGroups[key].members.includes(memberId)) cardGroups[key].members.push(memberId); });
+    if (cb.bonus && Object.keys(cb.bonus).length) cardGroups[key].bonuses.push(cb.bonus);
+    if (Object.keys(cb.bonus || {}).length > Object.keys(cardGroups[key].bonus || {}).length) cardGroups[key].bonus = cb.bonus || {};
+  }));
+  Object.values(cardGroups).forEach(g => { g.members = [...new Set(g.members)]; g.pieces = g.members.map(id => [id]); out.push(g); });
+  return out.sort((a,b) => a.kind.localeCompare(b.kind, 'zh-Hant') || a.name.localeCompare(b.name, 'zh-Hant'));
+}
+const CODEX_BONUS_LABELS = {
+  hpPct:'MaxHP', spPct:'MaxSP', atkPct:'ATK%', matkPct:'MATK%', allTargetDmgPct:'全目標傷害%',
+  rangedDmgPct:'遠距離傷害%', critDmgPct:'暴擊傷害%', critRate:'暴擊率', aspdPct:'攻速%', aspdFlat:'攻速',
+  spCostPct:'技能SP消耗%', hpRegenPct:'HP恢復力%', spRegenPct:'SP恢復力%', perfectDodge:'完全迴避',
+  def:'DEF', mdef:'MDEF', atk:'ATK', matk:'MATK', str:'STR', agi:'AGI', vit:'VIT', int:'INT', dex:'DEX', luk:'LUK',
+  hit:'命中', flee:'迴避', hp:'HP', sp:'SP', bossDmgPct:'對BOSS傷害%', sizeDmg_large:'對大型傷害%',
+  skillCdFlat:'技能冷卻', skillDmg_:'技能傷害',
+};
+function codexBonusText(bonus) {
+  return Object.entries(bonus || {}).filter(([,v]) => typeof v === 'number' && v !== 0).map(([k,v]) => {
+    let label = CODEX_BONUS_LABELS[k] || k.replace(/([A-Z])/g, ' $1');
+    return `${label} ${v > 0 ? '+' : ''}${v}${/(Pct|Rate)$/.test(k) ? '%' : ''}`;
+  });
+}
+function toggleCodexSetDetail(id) { codexSetOpenId = codexSetOpenId === id ? null : id; renderCodexTab(); }
+function renderCodexSets() {
+  const el = document.getElementById('tab-codex'); if (!el || !state) return;
+  const all = getCodexSetEntries();
+  let rows = all.filter(x => !codexSearch || (x.name + ' ' + x.kind + ' ' + x.pieces.flat().map(id => (ITEMS[id] || CARDS[id] || {}).name || id).join(' ')).toLowerCase().includes(codexSearch));
+  const count = { '裝備套裝':0, '遺物套裝':0, '卡片套卡':0 }; all.forEach(x => count[x.kind] = (count[x.kind] || 0) + 1);
+  let html = `<h3 class="panel-title">📕 圖鑑</h3><div class="codex-tabs">
+    <button class="btn-small" onclick="setCodexView('mon')">👾 怪物</button><button class="btn-small" onclick="setCodexView('card')">🃏 卡片</button>
+    <button class="btn-small" onclick="setCodexView('item')">🎒 道具</button><button class="btn-small active" onclick="setCodexView('sets')">🧩 套裝 ${all.length}</button></div>
+    <div class="codex-controls"><input id="codex-search" class="codex-search" type="text" placeholder="搜尋套裝名稱或套裝部件…" value="${codexSearch.replace(/"/g,'&quot;')}" oninput="onCodexSearch(this.value, event)"></div>
+    <div class="codex-cats">${Object.entries(count).map(([k,n])=>`<span class="btn-small">${k} ${n}</span>`).join('')}</div>
+    <div class="empty-hint">共收錄 ${all.length} 組：包含一般裝備套裝、遺物套裝與卡片套卡。點選即可查看完整部件與效果。</div>`;
+  if (!rows.length) html += '<div class="empty-hint">沒有符合的套裝。</div>';
+  rows.forEach(set => {
+    const isOpen = codexSetOpenId === set.id;
+    const pieces = set.pieces || [];
+    const bonus = codexBonusText(set.bonus);
+    const preview = pieces.slice(0,4).map(group => { const id=group[0]; const d=ITEMS[id]||CARDS[id]||{}; return d.name || id; }).join('、');
+    html += `<div class="codex-set-card ${isOpen?'open':''}" onclick="toggleCodexSetDetail('${set.id.replace(/'/g,"\\'")}')">
+      <div class="codex-set-head"><div><b>${set.name}</b><div class="codex-cell-sub">${set.kind} · ${pieces.length} 件／部件</div></div><span>⌄</span></div>
+      <div class="codex-set-preview">${preview || '套裝部件資料待補'}</div>
+      ${isOpen ? `<div class="codex-set-detail">${set.desc ? `<p>${set.desc}</p>`:''}<div class="codex-detail-sec">套裝部件</div>
+        ${pieces.map((group,i)=>{ const id=group[0]; const d=ITEMS[id]||CARDS[id]||{}; const label=group.map(x=>(ITEMS[x]||CARDS[x]||{}).name||x).join('／'); const img=ITEMS[id]?itemImgSrc(id):cardArtSrc(id); return `<div class="codex-set-piece"><img src="${img}" onerror="this.style.display='none'"><span>${i+1}. ${label}</span><small>${ITEMS[id]?'裝備／道具':'卡片'}</small></div>`; }).join('')}
+        <div class="codex-detail-sec">套裝效果</div>${bonus.length ? `<div class="codex-detail-stats">${bonus.map(x=>`<span>${x}</span>`).join('')}</div>` : '<div class="dim">未設定一般數值加成，可能為特殊效果或僅有條件式效果。</div>'}
+        ${set.perRefine ? `<div class="codex-set-note">精煉追加：${codexBonusText(set.perRefine.bonus).join('、') || '依精煉等級計算'}</div>`:''}
+        ${(set.tiers||[]).map(t=>`<div class="codex-set-tier"><b>${t.need} 件效果</b>：${t.text || codexBonusText(t.bonus).join('、') || '特殊效果'}</div>`).join('')}
+        <div class="codex-set-note">套裝效果依實際裝備／卡片條件生效；替代孔數版本以遊戲套裝資料為準。</div></div>` : ''}
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
 function renderCodexTab() {
+  if (codexView === 'sets') { renderCodexSets(); return; }
   const el = document.getElementById('tab-codex');
   if (!el || !state) return;
 
@@ -3232,6 +3347,7 @@ function renderCodexTab() {
       <button class="btn-small ${codexView === 'mon' ? 'active' : ''}" onclick="setCodexView('mon')">👾 怪物</button>
       <button class="btn-small ${codexView === 'card' ? 'active' : ''}" onclick="setCodexView('card')">🃏 卡片</button>
       <button class="btn-small ${codexView === 'item' ? 'active' : ''}" onclick="setCodexView('item')">🎒 道具</button>
+      <button class="btn-small ${codexView === 'sets' ? 'active' : ''}" onclick="setCodexView('sets')">🧩 套裝</button>
       ${boxUnlocked ? `<button class="btn-small ${codexView === 'hidden' ? 'active' : ''}" onclick="setCodexView('hidden')">🎁 隱藏</button>` : ''}
     </div>` +
     (!boxUnlocked ? `<div class="empty-hint">🔒 三大收集（怪物／卡片／道具）全滿後，解鎖「隱藏圖鑑」——神秘箱挑戰。</div>`
@@ -3496,6 +3612,13 @@ function renderCodexDetail(id) {
   /* 來源改成「一行一個去處」：哪隻怪掉、掉落率多少、在哪張圖、出現率多少、直接去。
      以前只列到怪物就停了，玩家還得自己再查那隻怪在哪——而一隻怪平均出現在 3.4 張圖。 */
   const spots = getItemFarmSpots(id).slice(0, 15);
+  const boxSources = typeof getItemBoxSources === 'function' ? getItemBoxSources(id) : [];
+  const boxRows = boxSources.map(s => `<div class="codex-spot box-source">
+      <img class="codex-spot-icon" src="${itemImgSrc(s.boxId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
+      <span class="codex-spot-mon">📦 ${s.name}</span>
+      <span class="codex-drop-rate" title="依目前箱子抽選池估算的單件機率">${s.chance < 0.0001 ? '<0.01' : (s.chance * 100).toFixed(4)}%</span>
+      <span class="codex-spot-name">${s.note}</span>
+    </div>`).join('');
   const srcRows = spots.map(s => {
     const m = MONSTERS[s.mon];
     if (!m) return '';
@@ -3560,8 +3683,8 @@ function renderCodexDetail(id) {
     ${!card && statBits.length ? `<div class="codex-detail-stats">${statBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
     ${unimpl}
-    <div class="codex-detail-sec">去哪裡打<span class="codex-sec-hint">照出現率排序，點「前往」直接過去</span></div>
-    <div class="codex-spots">${relicRows}${shopRows}${srcRows || (relicRows || shopRows ? '' : '<div class="dim">沒有怪物會掉，也不在商店販售</div>')}</div>
+    <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
+    <div class="codex-spots">${relicRows}${shopRows}${boxRows}${srcRows || (relicRows || shopRows || boxRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
   </div>`;
 }
 

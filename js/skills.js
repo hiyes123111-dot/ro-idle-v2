@@ -266,12 +266,12 @@ const SKILLS = {
     /* 官方每段倍率是 (100 + 50×等級)%，**而且會打 5 段**＝總倍率 750%~1750%。
        本作沒有多段攻擊的呈現，使用者 2026-08-08 指定「直接把倍率 ×5」，
        所以這裡寫的是**官方的總倍率**，一次打完。 */
-    mult: [7.5, 10.0, 12.5, 15.0, 17.5],
+    mult: [10.0, 12.5, 15.0, 17.5, 20.0],
     requiresWeapon: 'spear_sword2',
     // 官方係數就是 0.8，乘的是**顯示重量**（引擎會把 ITEMS.weight 的 ×10 原始值除回來）
     weaponWeightMult: [0.8, 0.8, 0.8, 0.8, 0.8],
     ignoreSize: true,
-    desc: '矛類或雙手劍專用。旋轉貫穿造成 ATK×750%~1750% 傷害，額外加上「武器重量×0.8」的攻擊力，且無視體型懲罰。'
+    desc: '矛類或雙手劍專用。旋轉貫穿造成 ATK×1,000%~2,000% 傷害，額外加上「武器重量×0.8」的攻擊力，且無視體型懲罰。'
         + '（官方是每段 150%~350% 打 5 段，本作沒有多段呈現，直接合成一次打完）'
   },
   lk_aurablade: {
@@ -2395,9 +2395,10 @@ const SKILLS = {
     desc: '被動技能。伏虎拳發動後有 20% 機率觸發：消耗 1 顆氣球體，造成 ATK 200%~2000% 傷害。'
         + '之後在爆氣狀態下可以接上阿修羅霸凰拳（機率與猛龍誇強那條相同）。'
   },
-  rk_sonicwave: { id: 'rk_sonicwave', name: '音速衝擊波', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2], mult: [1.8, 2.03, 2.27, 2.5, 2.74, 2.97, 3.2, 3.44, 3.67, 3.91], desc: '三轉專屬技能，依技能等級提升傷害。' },
-  rk_dragonbreath: { id: 'rk_dragonbreath', name: '龍息爆發', maxLv: 10, type: 'magic', element: 'fire', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4], mult: [2.2, 2.49, 2.77, 3.06, 3.34, 3.63, 3.92, 4.2, 4.49, 4.77], desc: '三轉專屬技能，依技能等級提升傷害。' },
-  rk_runeedge: { id: 'rk_runeedge', name: '符文刃舞', maxLv: 5, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12], cooldown: [6, 6, 6, 6, 6], mult: [3.5, 3.95, 4.41, 4.87, 5.32], desc: '三轉專屬技能，依技能等級提升傷害。' },
+  rk_sonicwave: { id: 'rk_sonicwave', name: '音速衝擊波', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2], mult: [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5], desc: '盧恩騎士三轉遠距離單體攻擊，造成 ATK 500%～950% 傷害。' },
+  rk_dragontraining: { id: 'rk_dragontraining', name: '龍之訓練 Dragon Training', maxLv: 5, type: 'passive', passiveStat: 'dragonTraining', requiresSkill: 'riding', spCost: [0], cooldown: [0], mult: [1], dragonBreathPct: [10, 20, 30, 40, 50], desc: '被動技能。需先學會騎乘術；提升龍息爆發傷害 10%～50%，技能等級越高加成越高。' },
+  rk_dragonbreath: { id: 'rk_dragonbreath', name: '龍息爆發', maxLv: 10, type: 'magic_aoe', element: 'fire', requiresSkill: 'rk_dragontraining', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4], mult: [8.0, 8.53, 9.07, 9.6, 10.13, 10.67, 11.2, 11.73, 12.27, 12.8], desc: '需學會龍之訓練。龍向全體敵人吐出火焰，造成 MATK 800%～1,280% 火屬性範圍傷害。' },
+  rk_runeedge: { id: 'rk_runeedge', name: '符文刃舞', maxLv: 5, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12], cooldown: [6, 6, 6, 6, 6], mult: [6.0, 7.0, 8.0, 9.0, 10.0], desc: '盧恩騎士三轉符文斬擊，造成 ATK 600%～1,000% 傷害。' },
   rg_radiance: { id: 'rg_radiance', name: '放射光輝', maxLv: 10, type: 'damage', element: 'holy', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], mult: [1.7, 1.92, 2.14, 2.36, 2.58, 2.8, 3.03, 3.25, 3.47, 3.69], desc: '三轉專屬技能，依技能等級提升傷害。' },
   rg_sacredguard: { id: 'rg_sacredguard', name: '聖盾猛擊', maxLv: 10, type: 'damage', element: 'holy', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], mult: [2.1, 2.37, 2.65, 2.92, 3.19, 3.46, 3.74, 4.01, 4.28, 4.56], desc: '三轉專屬技能，依技能等級提升傷害。' },
   rg_earthdrive: { id: 'rg_earthdrive', name: '大地驅動', maxLv: 5, type: 'damage', element: 'earth', spCost: [8, 9, 10, 11, 12], cooldown: [7, 7, 7, 7, 7], mult: [3.2, 3.62, 4.03, 4.45, 4.86], desc: '三轉專屬技能，依技能等級提升傷害。' },

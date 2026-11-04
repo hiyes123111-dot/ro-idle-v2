@@ -138,6 +138,23 @@ const refineSet = JSON.parse(vm.runInContext(`(() => {
 })()`, context));
 check(refineSet.active && refineSet.def >= 75, 'Tatenasi set per-refine DEF bonus scales at +5');
 
+// Sprint Set: casting and after-cast delay are intentionally ignored by this game's cooldown model.
+const sprintSet = JSON.parse(vm.runInContext(`(() => {
+  state={jobId:'assassincross',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},
+    equip:{armor:'sprint_mail',footgear:'sprint_shoes',accessory1:'sprint_ring'},instances:{},relics:{}};
+  _gearBonusCache=null; _gearBonusKey='';
+  const b=effectiveGearBonuses();
+  return JSON.stringify({active:activeEquipSets().some(s=>s.id==='sprint_set'),
+    hpPct:b.hpPct||0,spPct:b.spPct||0,hpRegenPct:b.hpRegenPct||0,
+    spRegenPct:b.spRegenPct||0,hpItemEffectBonusPct:getCardBonus('hpItemEffectBonusPct')||0});
+})()`, context));
+check(sprintSet.active && sprintSet.hpPct===7 && sprintSet.spPct===7,
+  'Sprint Set 3-piece MHP/MSP +7% applies', JSON.stringify(sprintSet));
+check(sprintSet.hpRegenPct===5 && sprintSet.spRegenPct===5,
+  'Sprint Mail / Shoes HP and SP recovery +5% apply');
+check(sprintSet.hpItemEffectBonusPct===3,
+  'Sprint Mail healing-item effectiveness +3% routes to the actual item-heal consumer');
+
 // V2 fourth-job expansion and progression checks.
 const fourthJobs = JSON.parse(vm.runInContext(`JSON.stringify(Object.values(JOB_TREE).filter(j => j.tier === 4).map(j => ({
   id:j.id, parent:j.parent, name:j.name, skills:j.skills.map(s => s.id), genderLock:j.genderLock || null
@@ -462,6 +479,37 @@ const skillBonusAlias = vm.runInContext(`(() => { state={jobId:'ranger',stats:{s
 check(skillBonusAlias, 'legacy skill bonus key resolves to prefixed skill ID');
 const aoeNoTargetGuard = fs.readFileSync(path.join(jsDir, 'engine.js'), 'utf8').includes("'damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot'");
 check(aoeNoTargetGuard, 'AOE attacks require a target before SP and cooldown are consumed');
+
+
+// V2.5.5.14: audit the full RWC and Fashion set effects end-to-end.
+const setEffectAudit = JSON.parse(vm.runInContext(`(() => {
+  const equip = (items) => {
+    state = { jobId:'assassincross', stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1}, equip:{}, instances:{}, relics:{} };
+    for (const [slot,id] of items) state.equip[slot]=id;
+    _gearBonusCache=null; _gearBonusKey='';
+    return effectiveGearBonuses();
+  };
+  const rwc = equip([['accessory1','rwc_2012_ring'],['accessory2','rwc_2012_pendant']]);
+  const fashion = equip([['footgear','fashion_shoes'],['head_mid','blue_eyeshadow']]);
+  const fashionAlt = equip([['footgear','fashion_shoes'],['head_mid','blue_eye_shadow']]);
+  const rwcSlotted = equip([['accessory1','rwc_2012_ring_'],['accessory2','rwc_2012_pendant_']]);
+  return JSON.stringify({rwc:{all:rwc.allTargetDmgPct||0,matkPct:rwc.matkPct||0},rwcSlotted:{all:rwcSlotted.allTargetDmgPct||0,matkPct:rwcSlotted.matkPct||0},fashion:{hp:fashion.hpPct||0,sp:fashion.spPct||0,int:fashion.int||0,matkPct:fashion.matkPct||0},fashionAlt:{hp:fashionAlt.hpPct||0,sp:fashionAlt.spPct||0,int:fashionAlt.int||0,matkPct:fashionAlt.matkPct||0}});
+})()`, context));
+check(setEffectAudit.rwc.all === 5 && setEffectAudit.rwc.matkPct === 4, 'RWC set gives +1% base physical damage plus +4% set damage and +4% MATK, without duplicate stacking', JSON.stringify(setEffectAudit.rwc));
+check(setEffectAudit.rwcSlotted.all === 5 && setEffectAudit.rwcSlotted.matkPct === 4, 'Slotted RWC set variant has the same correct bonuses', JSON.stringify(setEffectAudit.rwcSlotted));
+
+const otherSetAudit = JSON.parse(vm.runInContext(`(() => {
+  const equip=(slots)=>{state={jobId:'assassincross',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},equip:slots,instances:{},relics:{}};_gearBonusCache=null;_gearBonusKey='';return effectiveGearBonuses();};
+  const ice=equip({head_top:'hat_of_scrat',armor:'suit_of_sid',garment:'manteau_of_diego',accessory1:'badge_of_manny'});
+  const krieger=equip({armor:'krieger_suit1',footgear:'krieger_shoes1',garment:'krieger_muffler1'});
+  return JSON.stringify({ice:{hp:ice.hpPct||0,sp:ice.spPct||0,matk:ice.matkPct||0},krieger:{all:krieger.allTargetDmgPct||0,matk:krieger.matkPct||0,freeze:krieger.ailResist_freeze||0}});
+})()`,context));
+check(otherSetAudit.ice.hp===10 && otherSetAudit.ice.sp===10 && otherSetAudit.ice.matk===5, 'Ice Age set HP/SP and MATK bonuses apply once', JSON.stringify(otherSetAudit.ice));
+check(otherSetAudit.krieger.all===5 && otherSetAudit.krieger.matk===5 && otherSetAudit.krieger.freeze===100, 'Krieger set damage/MATK bonuses and freeze immunity apply once', JSON.stringify(otherSetAudit.krieger));
+
+for (const [label, v] of [['canonical',setEffectAudit.fashion],['alternate eye shadow',setEffectAudit.fashionAlt]]) {
+  check(v.hp === 13 && v.sp === 10 && v.int === 3 && v.matkPct === 4, `Fashion set ${label} applies base + set bonuses exactly once`, JSON.stringify(v));
+}
 
 console.log(`\n${failures ? 'FAILED' : 'ALL PASSED'} — ${failures} failure(s); ${setResults.length} equipment sets checked.`);
 process.exitCode = failures ? 1 : 0;
