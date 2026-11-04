@@ -9,7 +9,7 @@ const lk=['lk_berserk','lk_tensionrelax','lk_parrying','lk_aurablade','lk_concen
 const lkIds=jobs.lordknight.skills.map(x=>typeof x==='string'?x:x.id);
 const rkIds=jobs.runeknight.skills.map(x=>typeof x==='string'?x:x.id);
 check(lk.every(id=>lkIds.includes(id)&&skills[id]),'Lord Knight has all 8 class skills registered');
-check(skills.lk_spiralpierce.mult[0]===10&&skills.lk_spiralpierce.mult[4]===20&&skills.lk_spiralpierce.desc.includes('1,000%~2,000%'),'Spiral Pierce total multiplier equals five hits of 200%~400%');
+check(skills.lk_spiralpierce.mult[0]===10&&skills.lk_spiralpierce.mult[4]===20&&skills.lk_spiralpierce.desc.includes('1000%～2000%'),'Spiral Pierce uses the configured 1,000%~2,000% project total multiplier');
 check(skills.lk_jointbeat.requiresWeapon==='spear'&&skills.lk_jointbeat.type==='passive','Joint Beat remains spear-gated passive proc');
 check(skills.lk_parrying.requiresWeapon==='sword2'&&skills.lk_parrying.type==='passive','Parrying remains two-handed-sword passive');
 check(rkIds.includes('rk_dragontraining')&&skills.rk_dragontraining.passiveStat==='dragonTraining','Rune Knight includes Dragon Training passive');

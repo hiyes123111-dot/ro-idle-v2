@@ -14,10 +14,13 @@ ctx.getCardBonus = key => ctx.values[key] || 0;
 vm.runInNewContext(engine.slice(start, end) + '\nthis.getSkillDamageBonus = getSkillDamageBonus;', ctx);
 const cases = [
   ['tigercannon', 'v2_in_tiger_cannon'],
-  ['axe_tornado', 'v2_me_tornado_swing'],
+  ['axe_tornado', 'me_tornado'],
   ['crimson_rock', 'v2_am_crimson_rock'],
   ['cannonattack', 'gn_cartcannon'],
   ['heavymetal', 'mi_soundblend'],
+  ['holyspear', 'v2_ca_holy_spear'],
+  ['counterSlash', 'gx_counter'],
+  ['melodystrike', 'cg_arrowvulcan'],
 ];
 for (const [legacy, skillId] of cases) {
   if (!ctx.SKILLS[skillId]) throw new Error(`alias target is not registered: ${skillId}`);

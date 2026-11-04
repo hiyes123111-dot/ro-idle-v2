@@ -1971,7 +1971,3 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 /* 弓箭手被動技能實測統計 */
 .ab-section-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .ab-table-wrap{width:100%;overflow-x:auto;margin-top:8px}
-.ab-proc-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
-.ab-proc-table th,.ab-proc-table td{padding:6px 7px;border-bottom:1px solid var(--border-color,rgba(128,128,128,.2));text-align:right}
-.ab-proc-table th:first-child,.ab-proc-table td:first-child{text-align:left}
-.ab-proc-table th{color:var(--text-muted,#999);font-weight:600}

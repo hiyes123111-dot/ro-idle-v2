@@ -430,37 +430,9 @@ function onTickUI() {
     updateAllyPanelLive();   // 只改數字，整個重畫會把展開中的下拉選單刪掉
     // 即時更新角色分頁的 BUFF 倒數
     if (activeTab === 'character') updateBuffCountdown();
-    if (activeTab === 'autobattle') updateRangerProcStatsLive();
   }
 }
 
-/* 弓箭手被動觸發統計：資料來自 engine.js 真正的機率判定，不額外抽樣。 */
-function rangerProcStatsMarkup() {
-  const ids = [
-    'ra_arrowstorm','ra_aimedbolt','ra_fearbreeze',
-    'v25_wind_hawk_3','v25_wind_hawk_4','v25_wind_hawk_5','v25_wind_hawk_12','v25_wind_hawk_13',
-    'trap','skidtrap','flasher','sleeptrap','freezingtrap','blastmine','claymoretrap','magnumbreak_h',
-    'v25_wind_hawk_7','v25_wind_hawk_8','v25_wind_hawk_9','v25_wind_hawk_10'
-  ];
-  const learned = ids.filter(id => state.learnedSkills && state.learnedSkills[id]);
-  if (!learned.length) return '<div class="ab-info-text">學會弓箭手系被動觸發技能後，這裡會顯示實際統計。</div>';
-  const stats = state.rangerProcStats || {};
-  const rows = learned.map(id => {
-    const sk = findSkillById(id);
-    const r = stats[id] || {};
-    const rolls = r.rolls || 0, procs = r.procs || 0;
-    const hasChance = !!(sk && sk.procChance != null);
-    const rate = !hasChance ? '固定觸發' : (rolls ? (procs / rolls * 100).toFixed(1) + '%' : '—');
-    const readyAt = (state.rangerPassiveReadyAt && state.rangerPassiveReadyAt[id]) || (state.trapReadyAt && state.trapReadyAt[id]) || 0;
-    const remain = Math.max(0, (readyAt - Date.now()) / 1000);
-    return `<tr><td>${sk ? sk.name : id} Lv${state.learnedSkills[id]}</td><td>${r.eligible || 0}</td><td>${rolls}</td><td>${procs}</td><td>${rate}</td><td>${r.cooldownSkips || 0}</td><td>${remain > 0 ? remain.toFixed(1)+'s' : '就緒'}</td></tr>`;
-  }).join('');
-  return `<div class="ab-table-wrap"><table class="ab-proc-table"><thead><tr><th>技能</th><th>符合攻擊</th><th>觸發檢查</th><th>觸發</th><th>實測率</th><th>冷卻略過</th><th>剩餘CD</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-function updateRangerProcStatsLive() {
-  const el = document.getElementById('ranger-proc-stats');
-  if (el) el.innerHTML = rangerProcStatsMarkup();
-}
 
 /* GM 測試面板（v1.0 起預設關閉）。
 
@@ -2447,15 +2419,7 @@ function renderAutoBattleTab() {
       <div class="support-skill-list">${supportRows}</div>
     </div>
     ` : ''}
-
-    <!-- 弓箭手系被動觸發統計 -->
-    <div class="ab-section">
-      <div class="ab-section-title-row"><h4 class="ab-section-title">🏹 被動技能觸發統計</h4><button class="btn-small" onclick="resetRangerProcStats()">重置統計</button></div>
-      <div class="ab-info-text">觸發率＝成功觸發次數 ÷ 實際機率判定次數。冷卻中的攻擊不會重抽，會另外計入「冷卻略過」。統計會隨存檔保留。</div>
-      <div id="ranger-proc-stats">${rangerProcStatsMarkup()}</div>
-    </div>
-
-    <!-- 藥水設定 -->
+<!-- 藥水設定 -->
     <div class="ab-section">
       <h4 class="ab-section-title">🧪 藥水設定</h4>
       <div class="potion-toggles">
@@ -3017,7 +2981,7 @@ const SIZE_LABELS = { small: '小型', medium: '中型', large: '大型' };
 const ITEM_TYPE_LABELS = {
   weapon: '武器', armor: '防具', consumable: '消耗品', material: '素材', etc: '雜物', card: '卡片'
 };
-let codexView = 'mon';      // mon | card | item
+let codexView = 'mon';      // mon | card | item | sets
 let codexFilter = 'all';    // all | found | missing
 let codexSearch = '';
 let codexPage = 0;
@@ -3078,6 +3042,8 @@ const CODEX_CATS = {
 let codexCat = { mon: 'all', card: 'all', item: 'all', hidden: 'all' };
 function setCodexView(v) {
   codexView = v; codexPage = 0; codexOpenId = null; codexSetOpenId = null;
+  /* 套裝是獨立圖鑑頁；切入時清除道具篩選，避免沿用舊分頁狀態。 */
+  if (v === 'sets') { codexFilter = 'all'; codexSearch = ''; codexJobFilter = false; }
   /* 進隱藏圖鑑時重置篩選，避免殘留的「已發現」把未開出的卡藏起來 */
   if (v === 'hidden') { codexFilter = 'all'; codexSearch = ''; }
   renderCodexTab();

@@ -351,7 +351,6 @@ function createCharacter(name, statAlloc, gender) {
     muted: false,
     lastAttackTime: Date.now(),
     attackAccumulator: 0,
-    rangerProcStats: {}, // 弓箭手被動觸發統計：每技能獨立記錄
     createdAt: Date.now(),
     lastActiveAt: Date.now()
   };
@@ -1972,7 +1971,7 @@ function recomputeDerived(fullHeal) {
             id: sk.id,
             name: sk.name,
             chance: Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance,
-            mult: val,
+            mult: val * (1 + getSkillDamageBonus(sk) / 100),
             cdSec: Array.isArray(sk.internalCooldown) ? sk.internalCooldown[lv - 1] : (sk.internalCooldown || 0),
             inflict: sk.inflict || null,
             element: sk.element || 'neutral',
@@ -2224,7 +2223,8 @@ function recomputeDerived(fullHeal) {
         case 'onHitAoeProc': {
           state.hasOnHitAoeProc = true;
           state.onHitAoeProcChance = Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance;
-          state.onHitAoeProcMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
+          state.onHitAoeProcMult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult) * (1 + getSkillDamageBonus(sk) / 100);
+          state.onHitAoeProcSkillId = sk.id;
           state.onHitAoeProcElement = sk.element || 'none';
           state.onHitAoeProcCooldownSec = Array.isArray(sk.internalCooldown) ? sk.internalCooldown[lv - 1] : (sk.internalCooldown || 5);
           break;
@@ -2253,7 +2253,8 @@ function recomputeDerived(fullHeal) {
         case 'onHitAoeStunProc': {
           state.hasOnHitAoeStunProc = true;
           state.onHitAoeStunChance = Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance;
-          state.onHitAoeStunMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
+          state.onHitAoeStunMult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult) * (1 + getSkillDamageBonus(sk) / 100);
+          state.onHitAoeStunSkillId = sk.id;
           state.onHitAoeStunElement = sk.element || 'none';
           state.onHitAoeStunStunChance = Array.isArray(sk.stunChance) ? sk.stunChance[lv - 1] : (sk.stunChance || 0);
           state.onHitAoeStunStunSec = Array.isArray(sk.stunSec) ? sk.stunSec[lv - 1] : (sk.stunSec || 1);
@@ -3330,12 +3331,13 @@ const BOX_POOLS = {
      所以改成兩段抽：先擲 20% 決定要不要給裝備，再從對應的子池裡均勻抽。
      三轉裝與 1z 雜物照樣留在池子裡——這個箱子的定位就是賭博。 */
   any: {
-    build: () => Object.keys(ITEMS).filter(boxEligible),
+    /* 藍箱只收錄有正式怪物掉落來源的裝備；沒有怪物來源的裝備統一留給紫箱。 */
+    build: () => Object.keys(ITEMS).filter(k => boxEligible(k) &&
+      (!EQUIP_TYPES.includes(ITEMS[k].type) || getItemSources(k).length > 0)),
     split: { rate: 0.2, pick: k => EQUIP_TYPES.includes(ITEMS[k].type) },
   },
-  /* 神秘紫箱：跟神秘箱子同一個道具池，差別只在**裝備比例 40%**（神秘箱子是 20%）。
-     兩者在官方都是「開出隨機道具」的雜物箱，本作拿裝備比例做出區隔——
-     紫箱比較容易開出裝備，藍箱比較容易開出雜物但兩邊的大獎池一模一樣。 */
+  /* 神秘紫箱：包含全部可抽選道具與裝備，尤其收納沒有正式怪物掉落來源的裝備。
+     神秘箱子（藍箱）只收錄有怪物來源的裝備；紫箱裝備分流 40%，藍箱 20%。 */
   violet: {
     build: () => Object.keys(ITEMS).filter(boxEligible),
     split: { rate: 0.4, pick: k => EQUIP_TYPES.includes(ITEMS[k].type) },
@@ -3459,7 +3461,7 @@ function drawFromBox(kind) {
 }
 
 /* 圖鑑用：回傳道具是否能從箱子開出，以及依實際抽選分流計算的單件機率。
-   紫箱與藍箱使用相同道具池；差別是裝備分流分別為 40%／20%。 */
+   紫箱包含全部可抽選裝備；藍箱排除沒有正式怪物掉落來源的裝備。裝備分流分別為 40%／20%。 */
 function getItemBoxSources(itemId) {
   const out = [];
   const labels = { any: '神秘箱子', violet: '神秘紫箱' };
@@ -3896,20 +3898,6 @@ function tryCardAilments(trigger, mon) {
 
 /* ---------------- 獵人陷阱：被動觸發（攻擊時機率/固定觸發，各自獨立冷卻）---------------- */
 const TRAP_SKILL_IDS = ['trap', 'skidtrap', 'flasher', 'sleeptrap', 'freezingtrap', 'blastmine', 'claymoretrap', 'magnumbreak_h', 'v25_wind_hawk_7', 'v25_wind_hawk_8', 'v25_wind_hawk_9', 'v25_wind_hawk_10'];
-/* 統計直接掛在真正的觸發判定上，不做第二次抽樣。 */
-function recordRangerProc(skillId, field, amount = 1) {
-  if (!state) return;
-  if (!state.rangerProcStats) state.rangerProcStats = {};
-  const row = state.rangerProcStats[skillId] || (state.rangerProcStats[skillId] = { eligible:0, rolls:0, procs:0, cooldownSkips:0, lastProcAt:0 });
-  row[field] = (row[field] || 0) + amount;
-  if (field === 'procs') row.lastProcAt = Date.now();
-}
-function resetRangerProcStats() {
-  if (!state) return;
-  state.rangerProcStats = {};
-  saveGame();
-  if (typeof renderAutoBattleTab === 'function') renderAutoBattleTab();
-}
 function tryTrapProcs(target, monDef) {
   if (!state.learnedSkills) return;
   if (!state.trapReadyAt) state.trapReadyAt = {};
@@ -3918,12 +3906,10 @@ function tryTrapProcs(target, monDef) {
     if (!lv) return;
     const sk = findSkillById(skillId);
     if (!sk || !sk.rangerTrapProc && !TRAP_SKILL_IDS.slice(0,8).includes(skillId)) return;
-    recordRangerProc(skillId, 'eligible');
     const readyAt = state.trapReadyAt[skillId] || 0;
-    if (Date.now() < readyAt) { recordRangerProc(skillId, 'cooldownSkips'); return; }
+    if (Date.now() < readyAt) { return; }
 
     let proc = false;
-    recordRangerProc(skillId, 'rolls');
     if (sk.procChance == null) {
       proc = true; // 定時爆炸陷阱：無機率判定，冷卻好就必定觸發
     } else {
@@ -3932,7 +3918,6 @@ function tryTrapProcs(target, monDef) {
       proc = Math.random() * 100 < chance;
     }
     if (!proc) return;
-    recordRangerProc(skillId, 'procs');
 
     const cdSec = Math.max(1, (sk.internalCooldown || 10) - (state.trapCdReductionSec || 0));
     state.trapReadyAt[skillId] = Date.now() + cdSec * 1000;
@@ -3949,7 +3934,7 @@ function tryTrapProcs(target, monDef) {
     } else if (sk.trapEffect === 'damage') {
       const mult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
       const elemMult = getElementMultiplierVsMonster(sk.element || 'none', monDef, target);
-      const dmg = mitigateDamage(skillBaseDamage(false, monDef, elemMult) * mult * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(monDef) * ailDmgTakenMult(target), ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
+      const dmg = mitigateDamage(skillBaseDamage(false, monDef, elemMult, sk) * mult * (1 + getSkillDamageBonus(sk) / 100) * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(monDef) * ailDmgTakenMult(target), ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
       target.hp -= dmg;
       logMsg(`💥 「${sk.name}」觸發！對 ${monDef.name} 造成 ${dmg} 點傷害！`);
       if (target.hp <= 0) killMonster(monDef, target);
@@ -3960,7 +3945,7 @@ function tryTrapProcs(target, monDef) {
         const mon = state.monsters[i];
         const mDef = MONSTERS[mon.defId];
         const elemMult = getElementMultiplierVsMonster(sk.element || 'none', mDef, mon);
-        const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult) * mult * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(mDef) * ailDmgTakenMult(mon), ...defOf(mDef, 1, false, mon)) + raceFlatBonus(mDef);
+        const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult, sk) * mult * (1 + getSkillDamageBonus(sk) / 100) * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(mDef) * ailDmgTakenMult(mon), ...defOf(mDef, 1, false, mon)) + raceFlatBonus(mDef);
         mon.hp -= dmg;
         logMsg(`  → 對 ${mDef.name} 造成 ${dmg} 點傷害！`);
         if (mon.hp <= 0) killMonster(mDef, mon);
@@ -3978,21 +3963,18 @@ function tryRangerPassiveProcs(target, monDef) {
   for (const id of RANGER_PASSIVE_SKILL_IDS) {
     const lv = state.learnedSkills[id] || 0;
     if (!lv || !target || target.hp <= 0) continue;
-    recordRangerProc(id, 'eligible');
     const sk = findSkillById(id);
     if (!sk || !sk.rangerPassiveProc) continue;
-    if (now < (state.rangerPassiveReadyAt[id] || 0)) { recordRangerProc(id, 'cooldownSkips'); continue; }
-    recordRangerProc(id, 'rolls');
+    if (now < (state.rangerPassiveReadyAt[id] || 0)) { continue; }
     const chance = Array.isArray(sk.procChance) ? sk.procChance[Math.min(lv-1,sk.procChance.length-1)] : (sk.procChance || 0);
     if (Math.random()*100 >= chance) continue;
-    recordRangerProc(id, 'procs');
     const cd = Array.isArray(sk.internalCooldown) ? sk.internalCooldown[Math.min(lv-1,sk.internalCooldown.length-1)] : (sk.internalCooldown || 0);
     state.rangerPassiveReadyAt[id] = now + Math.max(0,cd)*1000;
     const mult = Array.isArray(sk.mult) ? sk.mult[Math.min(lv-1,sk.mult.length-1)] : (sk.mult || 1);
     const bonus = 1 + getSkillDamageBonus(sk)/100;
     const hitOne = (mon, def) => {
       const elem = getElementMultiplierVsMonster(sk.element || 'neutral', def, mon);
-      const dmg = mitigateDamage(skillBaseDamage(false, def, elem) * mult * bonus * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(def) * ailDmgTakenMult(mon), ...defOf(def,1,false,mon)) + raceFlatBonus(def);
+      const dmg = mitigateDamage(skillBaseDamage(false, def, elem, sk) * mult * bonus * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(def) * ailDmgTakenMult(mon), ...defOf(def,1,false,mon)) + raceFlatBonus(def);
       mon.hp -= dmg;
       if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, 'normal', sk.element || null);
       logMsg(`🏹「${sk.name}」被動觸發！對 ${def.name} 造成 ${dmg} 點傷害！`);
@@ -4029,8 +4011,15 @@ function tryMagicStunProcs(mon, monDef) {
     applyStun(mon, stunSec, true);
     mon.frozenByProc = true;
     const dmgMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
-    const elemMult = getElementMultiplierVsMonster(sk.element || 'none', monDef, mon);
-    const dmg = mitigateDamage(state.matk * dmgMult * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(sk.element || 'none', monDef, mon)
+      * elementDmgMult(sk.element || 'neutral');
+    // 冰凍術／石化術雖是受擊觸發，仍屬技能魔法傷害：走統一 MATK 技能基底，
+    // 套用技能增傷、目標卡片與異常承傷，避免只吃裸 MATK 而漏掉角色養成效果。
+    const dmg = mitigateDamage(
+      skillBaseDamage(true, monDef, elemMult, sk) * dmgMult
+        * (1 + getSkillDamageBonus(sk) / 100)
+        * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon),
+      ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, 'normal', sk.element || null);
     logMsg(`❄️ 「${sk.name}」觸發！${monDef.name} 暈眩了，並受到 ${dmg} 點魔法傷害！`);
@@ -4057,7 +4046,7 @@ function tryOnAttackStrikes(target, monDef) {
 
     const elemMult = getElementMultiplierVsMonster('neutral', monDef, target);
     const dmg = mitigateDamage(
-      skillBaseDamage(false, monDef, elemMult) * e.mult * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
+      skillBaseDamage(false, monDef, elemMult, findSkillById(e.id)) * e.mult * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
       ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
     target.hp -= dmg;
     if (typeof showDamageFloatAt === 'function') showDamageFloatAt(target.id, '-' + dmg, 'normal');
@@ -4222,7 +4211,7 @@ function tryPhysAoeStrikes(monDef) {
       if (!md) continue;
       const elemMult = getElementMultiplierVsMonster(e.element, md, mon) * elementDmgMult(e.element);
       const dmg = mitigateDamage(
-        skillBaseDamage(false, md, elemMult) * e.mult * cardTargetDmgMult(md) * ailDmgTakenMult(mon),
+        skillBaseDamage(false, md, elemMult, findSkillById(e.id)) * e.mult * cardTargetDmgMult(md) * ailDmgTakenMult(mon),
         ...defOf(md, 1, false, mon)) + raceFlatBonus(md);
       mon.hp -= dmg;
       wakeIfFrozen(mon);
@@ -5263,9 +5252,13 @@ function tryMagicCrasher(target, monDef) {
   if (Math.random() * 100 >= state.magicCrasherChance) return;
   state.magicCrasherReadyAt = Date.now() + state.magicCrasherCdSec * 1000;
   const elemMult = getElementMultiplierVsMonster('neutral', monDef, target);
+  const procSkill = findSkillById('hw_magiccrasher');
   const dmg = mitigateDamage(
-    state.matk * state.magicCrasherMult * elemMult * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
-    ...defOf(monDef, 1, false, target));
+    state.matk * state.magicCrasherMult * elemMult
+      * elementDmgMult(procSkill && procSkill.element || 'neutral')
+      * (1 + getSkillDamageBonus(procSkill) / 100)
+      * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
+    ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
   target.hp -= dmg;
   if (typeof showDamageFloatAt === 'function') showDamageFloatAt(target.id, '-' + dmg, 'normal');
   logMsg(`💫 魔擊術發動！追加 ${dmg} 點傷害！`);
@@ -5299,7 +5292,8 @@ function trySpearCounterProc(mon, monDef) {
   if (Date.now() < (state.spearCounterReadyAt || 0)) return;
   if (Math.random() * 100 >= state.spearCounterChance) return;
   state.spearCounterReadyAt = Date.now() + (state.spearCounterCooldownSec || 10) * 1000;
-  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.spearCounterMult, ...defOf(monDef));
+  const procSkill = findSkillById('spearstab');
+  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * state.spearCounterMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
   mon.hp -= dmg;
   applyStun(mon, state.spearCounterStunSec || 2, true);
   logMsg(`🔱 長矛刺擊發動！對 ${monDef.name} 造成 ${dmg} 點反擊傷害，並使其暈眩了！`);
@@ -5314,7 +5308,8 @@ function trySpearBoomerangProc() {
   state.spearBoomerangReadyAt = Date.now() + (state.spearBoomerangCooldownSec || 5) * 1000;
   const mon = state.monsters[Math.floor(Math.random() * state.monsters.length)];
   const monDef = MONSTERS[mon.defId];
-  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.spearBoomerangMult, ...defOf(monDef));
+  const procSkill = findSkillById('spearboomerang');
+  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * state.spearBoomerangMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
   mon.hp -= dmg;
   logMsg(`🔱 投擲長矛發動！對 ${monDef.name} 造成 ${dmg} 點傷害！`);
   if (mon.hp <= 0) killMonster(monDef, mon);
@@ -5328,7 +5323,8 @@ function tryChargeRandomProc() {
   state.chargeRandomReadyAt = Date.now() + (state.chargeRandomCooldownSec || 5) * 1000;
   const mon = state.monsters[Math.floor(Math.random() * state.monsters.length)];
   const monDef = MONSTERS[mon.defId];
-  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.chargeRandomMult, ...defOf(monDef));
+  const procSkill = findSkillById('charge');
+  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * state.chargeRandomMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
   mon.hp -= dmg;
   logMsg(`🐎 衝鋒攻擊發動！對 ${monDef.name} 造成 ${dmg} 點傷害！`);
   if (mon.hp <= 0) killMonster(monDef, mon);
@@ -5344,8 +5340,9 @@ function tryOnHitAoeProc() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     const mon = state.monsters[i];
     const monDef = MONSTERS[mon.defId];
-    const elemMult = getElementMultiplierVsMonster(state.onHitAoeProcElement, monDef, mon);
-    const dmg = mitigateDamage(state.matk * state.onHitAoeProcMult * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(state.onHitAoeProcElement, monDef, mon) * elementDmgMult(state.onHitAoeProcElement);
+    const procSkill = findSkillById(state.onHitAoeProcSkillId || 'firebolt_wiz');
+    const dmg = mitigateDamage(skillBaseDamage(true, monDef, elemMult, procSkill) * state.onHitAoeProcMult * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     wakeIfFrozen(mon);
     pushCombatLog(`  → 對 ${monDef.name} 造成 ${dmg} 點傷害！`);
@@ -5365,8 +5362,9 @@ function tryOnAttackAoeProc() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     const mon = state.monsters[i];
     const monDef = MONSTERS[mon.defId];
-    const elemMult = getElementMultiplierVsMonster(state.onAttackAoeElement, monDef, mon);
-    const dmg = mitigateDamage((state.onAttackAoeFlatDmg + state.matk * state.onAttackAoeMult) * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(state.onAttackAoeElement, monDef, mon) * elementDmgMult(state.onAttackAoeElement);
+    const procSkill = findSkillById('firepillar');
+    const dmg = mitigateDamage((state.onAttackAoeFlatDmg + skillBaseDamage(true, monDef, elemMult, procSkill) * state.onAttackAoeMult) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     wakeIfFrozen(mon);
     pushCombatLog(`  → 對 ${monDef.name} 造成 ${dmg} 點傷害！`);
@@ -5397,8 +5395,9 @@ function tryOnHitAoeStunProc() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     const mon = state.monsters[i];
     const monDef = MONSTERS[mon.defId];
-    const elemMult = getElementMultiplierVsMonster(state.onHitAoeStunElement, monDef, mon);
-    const dmg = mitigateDamage(state.matk * state.onHitAoeStunMult * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(state.onHitAoeStunElement, monDef, mon) * elementDmgMult(state.onHitAoeStunElement);
+    const procSkill = findSkillById(state.onHitAoeStunSkillId || 'frostdiver_wiz');
+    const dmg = mitigateDamage(skillBaseDamage(true, monDef, elemMult, procSkill) * state.onHitAoeStunMult * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     wakeIfFrozen(mon);
     if (Math.random() * 100 < state.onHitAoeStunStunChance) applyStun(mon, state.onHitAoeStunStunSec, true);
@@ -6937,7 +6936,8 @@ function playerAttackInner() {
       const mon = state.monsters[i];
       const mDef = MONSTERS[mon.defId];
       const elemMult = getElementMultiplierVsMonster('poison', mDef, mon) * elementDmgMult('poison');
-      const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult) * state.venominfusionDmgMult, ...defOf(mDef));
+      const procSkill = findSkillById('venominfusion');
+      const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult, procSkill) * state.venominfusionDmgMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(mDef) * ailDmgTakenMult(mon), ...defOf(mDef, 1, false, mon)) + raceFlatBonus(mDef);
       mon.hp -= dmg;
       logMsg(`  → 對 ${mDef.name} 造成 ${dmg} 點傷害！`);
       if (mon.hp <= 0) killMonster(mDef, mon);
@@ -6959,7 +6959,7 @@ function playerAttackInner() {
       const bbSkill = findSkillById('blitzbeat');
       const passiveMultVal = bbSkill.passiveMult[bbLv - 1];
       const bbElemMult = getElementMultiplierVsMonster(bbSkill.element || 'none', monDef, target);
-      let bbDmg = mitigateDamage(skillBaseDamage(false, monDef, bbElemMult) * passiveMultVal, ...defOf(monDef));
+      let bbDmg = mitigateDamage(skillBaseDamage(false, monDef, bbElemMult, bbSkill) * passiveMultVal, ...defOf(monDef));
       if (state.falconFlatBonus) bbDmg += state.falconFlatBonus;
       target.hp -= bbDmg;
       logMsg(`🦅 獵鷹突襲！對 ${monDef.name} 造成 ${bbDmg} 點傷害！`);
@@ -7310,7 +7310,8 @@ function monsterAttackSingle(mon) {
   // 毒性反彈被動：被毒屬性怪物攻擊時觸發反擊（10秒冷卻，目前遊戲無毒屬性怪物，暫無實際效果）
   if (state.hasPoisonReact && monDef.element === 'poison' && Date.now() >= (state.poisonReactReadyAt || 0)) {
     logMsg(`🛡️ 毒性反彈發動！完全迴避了 ${monDef.name} 的攻擊！`);
-    const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.poisonReactMult * elementDmgMult('poison'), ...defOf(monDef));
+    const procSkill = findSkillById('poisonreact');
+    const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, elementDmgMult('poison'), procSkill) * state.poisonReactMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
     mon.hp -= counterDmg;
     logMsg(`⚔️ 反擊造成 ${counterDmg} 點傷害！`);
     state.poisonReactReadyAt = Date.now() + state.poisonReactCooldownSec * 1000;
@@ -7325,7 +7326,8 @@ function monsterAttackSingle(mon) {
     const counterChance = state.counterAttackChance || 15;
     if (Math.random() * 100 < counterChance) {
       logMsg(`🛡️ 反擊發動！完全迴避了 ${monDef.name} 的攻擊！`);
-      const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * 1.5, ...defOf(monDef));
+      const procSkill = findSkillById('counter');
+      const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * 1.5 * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
       mon.hp -= counterDmg;
       logMsg(`⚔️ 反擊造成 ${counterDmg} 點傷害（暴擊）！`);
       if (mon.hp <= 0) {
@@ -12586,10 +12588,13 @@ function getSkillDamageBonus(sk) {
   // 僅列出可由現有技能名稱／職業資料直接確認的對應，不猜測其他缺失技能。
   const legacySkillAliases = {
     tigercannon: 'v2_in_tiger_cannon', // 虎砲詞條對應本專案四轉審判者的猛虎砲
-    axe_tornado: 'v2_me_tornado_swing', // 龍捲風斧詞條對應本專案機匠的迴旋重斬
+    axe_tornado: 'me_tornado', // 龍捲風斧詞條對應本專案機匠既有的龍捲風斧技能
     crimson_rock: 'v2_am_crimson_rock', // 碧血隕石詞條對應本專案大法師的緋紅岩爆
     cannonattack: 'gn_cartcannon', // 手推車加農砲，對應基因學者技能本體
     heavymetal: 'mi_soundblend', // 重金屬音浪，對應宮廷樂師技能本體
+    holyspear: 'v2_ca_holy_spear', // 聖光之槍，對應元素使武器詞條的既有技能本體
+    counterSlash: 'gx_counter', // 裝備說明明確寫「反擊斬」，對應十字斬首者技能
+    melodystrike: 'cg_arrowvulcan', // 套裝條件明確寫「奧義箭亂舞」，對應既有技能
   };
   const mappedId = legacySkillAliases[shortId] || legacySkillAliases[sk.id];
   // 僅在目標技能確實存在時套用別名；防止舊版曾使用的虛構／不存在 ID 吃掉裝備加成。
@@ -13726,6 +13731,8 @@ function loadGame() {
     const raw = localStorage.getItem(getSlotKey(currentSlot));
     if (!raw) return false;
     state = JSON.parse(raw);
+    // 舊存檔若含已移除的被動觸發統計，讀檔時一併清除。
+    delete state.rangerProcStats;
     if (!state.lastActiveAt) state.lastActiveAt = Date.now();
     if (!state.autoPotion) state.autoPotion = { enabled: true, primary: '', fallback: 'red_potion', hpThreshold: 50 };
     if (typeof state.autoPotion.hpThreshold !== 'number') state.autoPotion.hpThreshold = 50;
