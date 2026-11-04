@@ -7,13 +7,19 @@
   const skill = (id, name, type, element, mult, spCost, cooldown, desc, extra = {}) => ({
     id, name, maxLv: 5, type, element, mult, spCost, cooldown, desc, ...extra,
   });
-  const active = (id, name, type, element, desc, extra = {}) => skill(
-    id, name, type, element,
-    type.endsWith('_aoe') ? [2.6, 3.1, 3.6, 4.1, 4.6] : [4.2, 5.2, 6.2, 7.2, 8.2],
-    type.endsWith('_aoe') ? [45, 50, 55, 60, 65] : [35, 40, 45, 50, 55],
-    type.endsWith('_aoe') ? [8, 8, 8, 8, 8] : [7, 7, 7, 7, 7],
-    desc, extra,
-  );
+  const active = (id, name, type, element, desc, extra = {}) => {
+    const aoe = type.endsWith('_aoe');
+    // 四轉主動技能定位為終階輸出：範圍技能以較低單段倍率換取全體命中，
+    // 單體技能倍率更高；冷卻 7～8 秒，倍率與描述共用同一組 mult 資料。
+    const mult = aoe ? [8.0, 9.2, 10.4, 11.6, 12.8] : [12.0, 13.6, 15.2, 16.8, 18.4];
+    const first = Math.round(mult[0] * 100), last = Math.round(mult[mult.length - 1] * 100);
+    const kind = ['magic','magic_aoe'].includes(type) ? '魔法傷害' : '物理傷害';
+    const target = aoe ? '攻擊全體敵人' : '攻擊單一目標';
+    const detail = `${name}：${kind} ${first}%～${last}%，${target}。${desc}`;
+    return skill(id, name, type, element, mult,
+      aoe ? [45, 50, 55, 60, 65] : [35, 40, 45, 50, 55],
+      aoe ? [8, 8, 8, 8, 8] : [7, 7, 7, 7, 7], detail, extra);
+  };
   const passive = (id, name, passiveStat, values, desc, extra = {}) => ({
     id, name, maxLv: 5, type: 'passive', passiveStat, element: 'neutral',
     spCost: [0], cooldown: [0], mult: values, desc, ...extra,
@@ -150,7 +156,8 @@
   }
   const addItem = (id, def) => {
     if (ITEMS[id]) throw new Error(`V2 duplicate item id: ${id}`);
-    ITEMS[id] = { id, ...def };
+    const imageId = 990000 + [...id].reduce((n,c)=>((n*31+c.charCodeAt(0))>>>0)%9000, 7);
+    ITEMS[id] = { id, ...def, imgId: imageId };
   };
   const addCard = (id, def) => {
     if (CARDS[id] || ITEMS[id]) throw new Error(`V2 duplicate card id: ${id}`);
@@ -213,7 +220,8 @@
   const resistance = {none:100,water:100,earth:100,fire:100,wind:100,poison:100,holy:100,shadow:100,ghost:100,undead:100};
   const addMonster = (id, def) => {
     if (MONSTERS[id]) throw new Error(`V2 duplicate monster id: ${id}`);
-    MONSTERS[id] = {id, imgId:0, icon:'👿', element:'none', elementResistance:{...resistance},
+    const imageId = 980000 + [...id].reduce((n,c)=>((n*31+c.charCodeAt(0))>>>0)%9000, 11);
+    MONSTERS[id] = {id, imgId:imageId, icon:'👿', element:'none', elementResistance:{...resistance},
       race:'formless', size:'medium', isBoss:false, ...def};
   };
   addMonster('v2_rift_sentinel',{name:'裂隙守衛',level:205,hp:820000,atk:2800,def:185,defSoft:160,mdef:120,mdefSoft:130,element:'earth',race:'formless',size:'large',exp:180000,jobExp:160000,hit:510,flee:410,atkInterval:1.4,drops:[{item:'v2_rift_plate',chance:0.002},{item:'v2_rift_core',chance:0.08},{item:'v2_imperial_lance',chance:0.0015}]});

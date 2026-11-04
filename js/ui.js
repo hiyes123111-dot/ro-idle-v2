@@ -2701,10 +2701,11 @@ function renderSkillsTab() {
            以前只擋了 'none'，所以那 60 個技能全都印出 `undefined` 當圖示。 */
         const elemTag = sk.element && sk.element !== 'none' && sk.element !== 'neutral'
           ? `<span class="skill-element elem-${sk.element}">${ELEMENT_ICONS[sk.element] || '⚪'}</span>` : '';
+        const skillArt = sk.type === 'passive' ? 'skill-passive.svg' : (['magic','magic_aoe'].includes(sk.type) ? 'skill-magic.svg' : 'skill-physical.svg');
 
         html += `<div class="skill-row ${lv > 0 ? 'learned' : ''}">
           <div class="skill-info">
-            <div class="skill-name">${sk.name} ${statusTag} ${typeTag} ${elemTag}</div>
+            <div class="skill-name"><img src="images/skills/${skillArt}" alt="" style="width:24px;height:24px;vertical-align:middle;margin-right:5px">${sk.name} ${statusTag} ${typeTag} ${elemTag}</div>
             <div class="skill-desc">${sk.desc}</div>
             <div class="skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</div>
           </div>

@@ -1933,7 +1933,7 @@ function recomputeDerived(fullHeal) {
             id: sk.id,
             name: sk.name,
             chance: Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance,
-            mult: val,
+            mult: val * (1 + getSkillDamageBonus(sk) / 100),
             cdSec: Array.isArray(sk.internalCooldown) ? sk.internalCooldown[lv - 1] : (sk.internalCooldown || 5),
             inflict: sk.inflict || null,
             lv,
@@ -2229,7 +2229,7 @@ function recomputeDerived(fullHeal) {
           // 火柱攻擊在本作做成被動（普攻機率觸發），不走 castSkill，
           // 所以卡片的 skillDmg_firepillar 要在這裡自己套上去
           {
-            const fpBonus = 1 + getCardBonus('skillDmg_' + sk.id) / 100;
+            const fpBonus = 1 + getSkillDamageBonus(sk) / 100;
             state.onAttackAoeFlatDmg = Math.round((Array.isArray(sk.flatDmg) ? sk.flatDmg[lv - 1] : (sk.flatDmg || 0)) * fpBonus);
             state.onAttackAoeMult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : (sk.mult || 0)) * fpBonus;
           }
@@ -3863,7 +3863,7 @@ function tryCardAilments(trigger, mon) {
 }
 
 /* ---------------- 獵人陷阱：被動觸發（攻擊時機率/固定觸發，各自獨立冷卻）---------------- */
-const TRAP_SKILL_IDS = ['trap', 'skidtrap', 'flasher', 'sleeptrap', 'freezingtrap', 'blastmine', 'claymoretrap', 'magnumbreak_h'];
+const TRAP_SKILL_IDS = ['trap', 'skidtrap', 'flasher', 'sleeptrap', 'freezingtrap', 'blastmine', 'claymoretrap', 'magnumbreak_h', 'v25_wind_hawk_7', 'v25_wind_hawk_8', 'v25_wind_hawk_9', 'v25_wind_hawk_10'];
 function tryTrapProcs(target, monDef) {
   if (!state.learnedSkills) return;
   if (!state.trapReadyAt) state.trapReadyAt = {};
@@ -3917,6 +3917,41 @@ function tryTrapProcs(target, monDef) {
       }
     }
   });
+}
+
+/* ---------------- 遊俠三轉／四轉被動技能：普攻自動觸發 ---------------- */
+const RANGER_PASSIVE_SKILL_IDS = ['ra_arrowstorm','ra_aimedbolt','ra_fearbreeze','v25_wind_hawk_3','v25_wind_hawk_4','v25_wind_hawk_5','v25_wind_hawk_12','v25_wind_hawk_13'];
+function tryRangerPassiveProcs(target, monDef) {
+  if (!state.learnedSkills || !isBowWeapon(getEquipBaseItemId('weapon'))) return;
+  if (!state.rangerPassiveReadyAt) state.rangerPassiveReadyAt = {};
+  const now = Date.now();
+  for (const id of RANGER_PASSIVE_SKILL_IDS) {
+    const lv = state.learnedSkills[id] || 0;
+    if (!lv || !target || target.hp <= 0) continue;
+    const sk = findSkillById(id);
+    if (!sk || !sk.rangerPassiveProc) continue;
+    if (now < (state.rangerPassiveReadyAt[id] || 0)) continue;
+    const chance = Array.isArray(sk.procChance) ? sk.procChance[Math.min(lv-1,sk.procChance.length-1)] : (sk.procChance || 0);
+    if (Math.random()*100 >= chance) continue;
+    const cd = Array.isArray(sk.internalCooldown) ? sk.internalCooldown[Math.min(lv-1,sk.internalCooldown.length-1)] : (sk.internalCooldown || 0);
+    state.rangerPassiveReadyAt[id] = now + Math.max(0,cd)*1000;
+    const mult = Array.isArray(sk.mult) ? sk.mult[Math.min(lv-1,sk.mult.length-1)] : (sk.mult || 1);
+    const bonus = 1 + getSkillDamageBonus(sk)/100;
+    const hitOne = (mon, def) => {
+      const elem = getElementMultiplierVsMonster(sk.element || 'neutral', def, mon);
+      const dmg = mitigateDamage(skillBaseDamage(false, def, elem) * mult * bonus, ...defOf(def,1,false,mon));
+      mon.hp -= dmg;
+      if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, 'normal', sk.element || null);
+      logMsg(`🏹「${sk.name}」被動觸發！對 ${def.name} 造成 ${dmg} 點傷害！`);
+      if (mon.hp <= 0) killMonster(def,mon);
+    };
+    if (sk.aoe) {
+      for (let i=state.monsters.length-1;i>=0;i--) {
+        const mon=state.monsters[i]; const def=MONSTERS[mon.defId];
+        if (mon.hp>0) hitOne(mon,def);
+      }
+    } else hitOne(target,monDef);
+  }
 }
 
 /* ---------------- 冰凍術/石化術：被攻擊時機率反制暈眩並造成魔法傷害（各自獨立冷卻）---------------- */
@@ -6859,6 +6894,7 @@ function playerAttackInner() {
   // 獵人陷阱被動：攻擊時各陷阱獨立判定觸發
   if (state.monsters.includes(target)) {
     tryTrapProcs(target, monDef);
+    tryRangerPassiveProcs(target, monDef);
   }
 
   // 閃電衝擊被動：普攻時依LUK機率額外觸發一次獵鷹單體攻擊
@@ -7455,6 +7491,16 @@ function getCodexPool() {
   // V2 職業裝備／四轉裝備即使尚未掛到地圖掉落表，也必須可在圖鑑查詢。
   Object.keys(ITEMS).forEach(id => {
     if (/^v2[45]_/.test(id) || /^v24_/.test(id)) itemSet.add(id);
+  });
+  // 全裝備圖鑑：不再只依賴掉落表、商店或 V2 前綴。
+  // 新增裝備只要已登錄 ITEMS 且為武器／防具，就一定能在圖鑑查到；
+  // 取得來源仍由 getItemSources() 顯示，沒有來源時由明細標示製作／兌換方式。
+  Object.entries(ITEMS).forEach(([id, def]) => {
+    if (def && (def.type === 'weapon' || def.type === 'armor')) itemSet.add(id);
+  });
+  // 神器、套裝裝備也明確保留（包含未設定標準 type 的舊資料相容）。
+  ['magingiorde','half_megin','helm_of_mid_sol_god'].forEach(id => {
+    if (ITEMS[id]) itemSet.add(id);
   });
   const cardSet = new Set([...itemSet].filter(id => CARDS[id]));
   _codexPoolCache = {
@@ -9473,7 +9519,7 @@ function castSkillInner(skillId, opts) {
 
   const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time';
   const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
-  const needsMonster = ['damage', 'magic', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'special_charge', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
+  const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'special_charge', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
   /* 易燃之網對 BOSS 無效（官方）。**要擋在扣 SP 之前**——寫在 case 裡用 break
      只是跳出 switch，SP 已經扣掉了而且函式還是回傳 true。 */
@@ -9506,7 +9552,7 @@ function castSkillInner(skillId, opts) {
      乘在 mult 上而不是傷害基底上：直接傷害的 case 都是算 基底 × mult，
      但場地類（隕石術）與持續傷害類（火焰之壁）是把 mult 存進 activeFieldEffects
      之後才結算的，只改基底會漏掉那些。乘 mult 才是唯一涵蓋全部的位置。 */
-  const skillDmgPct = getCardBonus('skillDmg_' + sk.id);
+  const skillDmgPct = getSkillDamageBonus(sk);
   // 'magic_aoe'（例如火球術、雷爆術、光獵、怒雷強擊）先前漏判，導致誤用ATK而非MATK計算傷害
   // 傷害基底一律走 skillBaseDamage(useMag, 怪, 屬性倍率)，物理走官方武器鏈、魔法用 MATK
   const useMag = sk.type === 'magic' || sk.type === 'magic_aoe';
@@ -9583,6 +9629,11 @@ function castSkillInner(skillId, opts) {
          本作怪物沒有 vit 欄位，用 defSoft 代替——軟防就是從 VIT 推導出來的。 */
       if (sk.targetSoftDefScale) {
         skillMult *= 1 + (def.defSoft || 0) * sk.targetSoftDefScale / 100;
+      }
+      // 遊俠「瞄準標靶」：依目標體型增加攻擊段數（小／中／大 = 1／2／3 段）。
+      if (sk.id === 'ra_aimedbolt') {
+        const sizeHits = { small: 1, medium: 2, large: 3 };
+        skillMult *= sizeHits[def.size] || 1;
       }
       // 聖靈召喚：對不死種族額外加成
       if (sk.id === 'soulstrike' && def.race === 'undead' && sk.undeadBonusPct) {
@@ -12460,9 +12511,65 @@ function condMet(when, host, lo) {
   return true;
 }
 
+/* 統一裝備／卡片 bonus key。資料來源可能混用 patk/pAtk、smatk/sMatk，
+   JavaScript 屬性區分大小寫；若不正規化，說明有寫但消費端讀不到。 */
+/* 技能增傷鍵相容：舊裝備資料常用短技能代碼（例如 arrowstorm），
+   但 SKILLS 的實際 ID 可能帶職業前綴（ra_arrowstorm）。
+   優先使用完整 ID；沒有完整鍵時才回退短代碼，避免同一加成重複計算。 */
+function getSkillDamageBonus(sk) {
+  if (!sk || !sk.id || typeof getCardBonus !== 'function') return 0;
+  const exactKey = 'skillDmg_' + sk.id;
+  const exact = getCardBonus(exactKey);
+  if (exact) return exact;
+  const shortId = String(sk.id).replace(/^[a-z]{1,4}_/, '');
+  if (shortId !== sk.id) {
+    const shortValue = getCardBonus('skillDmg_' + shortId);
+    if (shortValue) return shortValue;
+  }
+  // 舊裝備資料使用的官方技能短名，對應本專案既有 SKILLS ID。
+  // 僅列出可由現有技能名稱／職業資料直接確認的對應，不猜測其他缺失技能。
+  const legacySkillAliases = {
+    tigercannon: 'v2_in_tiger_cannon', // 虎砲詞條對應本專案四轉審判者的猛虎砲
+    axe_tornado: 'v2_me_tornado_swing', // 龍捲風斧詞條對應本專案機匠的迴旋重斬
+    crimson_rock: 'v2_am_crimson_rock', // 碧血隕石詞條對應本專案大法師的緋紅岩爆
+    cannonattack: 'gn_cartcannon', // 手推車加農砲，對應基因學者技能本體
+    heavymetal: 'mi_soundblend', // 重金屬音浪，對應宮廷樂師技能本體
+  };
+  const mappedId = legacySkillAliases[shortId] || legacySkillAliases[sk.id];
+  // 僅在目標技能確實存在時套用別名；防止舊版曾使用的虛構／不存在 ID 吃掉裝備加成。
+  if (mappedId && typeof SKILLS !== 'undefined' && SKILLS[mappedId]) {
+    return getCardBonus('skillDmg_' + mappedId);
+  }
+  const legacyKey = Object.keys(legacySkillAliases).find(key => legacySkillAliases[key] === sk.id);
+  return legacyKey ? getCardBonus('skillDmg_' + legacyKey) : 0;
+}
+
+function canonicalBonusKey(key) {
+  const aliases = { patk: 'pAtk', 'p.atk': 'pAtk', p_atk: 'pAtk',
+    smatk: 'sMatk', 's.matk': 'sMatk', s_matk: 'sMatk' };
+  const raw = String(key || '');
+  const lower = raw.toLowerCase();
+  if (aliases[lower]) return aliases[lower];
+  const prefixes = ['perBaseLv1_', 'perBaseLv5_', 'perBaseLv10_', 'perBaseLv15_',
+    'perBaseLv210_', 'perJobLv10_', 'perStat_', 'perSkill_'];
+  for (const prefix of prefixes) {
+    if (!raw.startsWith(prefix)) continue;
+    const suffix = raw.slice(prefix.length);
+    const bits = suffix.split('_');
+    if (bits.length) {
+      const last = bits[bits.length - 1];
+      bits[bits.length - 1] = aliases[last.toLowerCase()] || last;
+      return prefix + bits.join('_');
+    }
+  }
+  return raw;
+}
 function mergeBonus(target, bonus, scale) {
   if (!bonus) return;
-  for (const [k, v] of Object.entries(bonus)) target[k] = (target[k] || 0) + v * (scale == null ? 1 : scale);
+  for (const [rawKey, v] of Object.entries(bonus)) {
+    const k = canonicalBonusKey(rawKey);
+    target[k] = (target[k] || 0) + v * (scale == null ? 1 : scale);
+  }
 }
 
 /* 全身裝備提供的加成總表（卡片無條件 + 卡片條件式 + 依精煉倍增 + 套裝）。
@@ -12515,7 +12622,7 @@ function effectiveGearBonuses() {
     /* 平鋪的特殊鍵（perBaseLv10_atk 等）也要進總表——getCardBonus() 會按前綴解析。
        只挑底線開頭的鍵，避免把 atk/def 那些平鋪數值重複算一次。 */
     for (const [k, v] of Object.entries(def)) {
-      if (/^per(BaseLv1|BaseLv5|BaseLv10|BaseLv15|BaseLv210|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') total[k] = (total[k] || 0) + v;
+      if (/^per(BaseLv1|BaseLv5|BaseLv10|BaseLv15|BaseLv210|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') { const nk = canonicalBonusKey(k); total[nk] = (total[nk] || 0) + v; }
       if (k.startsWith('spCost_') && typeof v === 'number') total[k] = (total[k] || 0) + v;
     }
     if (def.perRefine) {
@@ -12630,10 +12737,16 @@ function effectiveGearBonuses() {
     sets.push({ id: 'relic_' + set.id + '_' + tier.need, name: `${set.name} ${tier.need} 件`, bonus: tier.bonus });
   });
 
+  /* 最後再正規化一次，涵蓋條件式、套裝、遺物及舊資料直接寫入的鍵。 */
+  const normalizedTotal = {};
+  for (const [k, v] of Object.entries(total)) {
+    const nk = canonicalBonusKey(k);
+    normalizedTotal[nk] = (normalizedTotal[nk] || 0) + v;
+  }
   _gearBonusKey = key;
   _activeSets = sets;
-  _gearBonusCache = total;
-  return total;
+  _gearBonusCache = normalizedTotal;
+  return normalizedTotal;
 }
 function activeEquipSets() { effectiveGearBonuses(); return _activeSets; }
 

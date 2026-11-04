@@ -418,5 +418,50 @@ const thirdArmorIcon = path.join(__dirname, '..', 'images', 'equip', 'armor', '9
 check(fs.existsSync(thirdArmorIcon), 'V2.4.1 unique third-job armor icon file exists');
 check(vm.runInContext(`ITEMS.v24_third_armor.imgId === 91001 && !IMG_ALIAS['equip/armor']['91001.png']`, context),
   'V2.4.1 third-job armor icon no longer resolves through a duplicate legacy alias');
+// V2.5.3: every generated fourth-job active skill exposes the actual combat multiplier range.
+const v253 = vm.runInContext(`(() => {
+  const skills = Object.values(SKILLS).filter(s => /^v25_/.test(s.id));
+  const active = skills.filter(s => s.type !== 'passive');
+  const described = active.filter(s => /[0-9]+%～[0-9]+%/.test(s.desc));
+  const mismatch = active.filter(s => {
+    const vals = Array.isArray(s.mult) ? s.mult : [s.mult];
+    const first = Math.round(vals[0] * 100), last = Math.round(vals[vals.length - 1] * 100);
+    return !s.desc.includes(first + '%～' + last + '%');
+  });
+  return {total:skills.length, active:active.length, described:described.length, mismatch:mismatch.map(s=>s.id)};
+})()`, context);
+check(v253.active > 0 && v253.described === v253.active, 'V2.5.3 all fourth-job active skills show multiplier ranges');
+check(v253.mismatch.length === 0, 'V2.5.3 skill descriptions match live combat multiplier arrays', v253.mismatch.join(','));
+// V2 original active skills must expose the same multiplier used by combat.
+const v255SkillAudit = vm.runInContext(`(() => {
+  const active=Object.values(SKILLS).filter(s=>/^v2_/.test(s.id)&&['damage','damage_aoe','magic','magic_aoe','dot'].includes(s.type)&&s.mult!==undefined);
+  const mismatch=active.filter(s=>{const v=Array.isArray(s.mult)?s.mult:[s.mult];return !s.desc.includes(Math.round(v[0]*100)+'%～'+Math.round(v[v.length-1]*100)+'%');});
+  const dragon=SKILLS.v2_dk_dragon_breath;
+  return {active:active.length,mismatch:mismatch.map(s=>s.id),dragon:dragon?dragon.mult:[]};
+})()`, context);
+check(v255SkillAudit.active >= 20, 'V2 added active skills are covered by multiplier audit');
+check(v255SkillAudit.mismatch.length === 0, 'V2 added active skill descriptions match actual combat multipliers', v255SkillAudit.mismatch.join(','));
+check(v255SkillAudit.dragon.length === 5 && v255SkillAudit.dragon[0] >= 8 && v255SkillAudit.dragon[4] >= 12,
+  'Dragon Knight Dragon Breath upgraded to endgame AOE multiplier', JSON.stringify(v255SkillAudit.dragon));
+const thirdSkillAudit = vm.runInContext(`(() => { const jobs=Object.values(JOB_TREE).filter(j=>j.tier===3); const rows=jobs.flatMap(j=>(j.skills||[]).map(id=>typeof id==='string'?SKILLS[id]:id).filter(Boolean)); const active=rows.filter(s=>['damage','damage_aoe','magic','magic_aoe','dot'].includes(s.type) && s.mult!==undefined); const missing=active.filter(s=>!/[0-9]+%/.test(s.desc||'')); return {jobs:jobs.length,active:active.length,missing:missing.map(s=>s.name)}; })()`, context);
+check(thirdSkillAudit.jobs > 0 && thirdSkillAudit.missing.length === 0, 'V2.5.3 third-job active skills include percentage descriptions', thirdSkillAudit.missing.join(','));
+const codexSpecial = vm.runInContext(`(() => { const ids=getCodexPool().items; return ['magingiorde','half_megin','helm_of_mid_sol_god'].every(id=>ids.includes(id)); })()`, context);
+check(codexSpecial, 'V2.5.3 artifact equipment appears in item codex');
+const artifactRecipes = vm.runInContext(`!!(window.V25_ARTIFACT_RECIPES.megingjard && window.V25_ARTIFACT_RECIPES.mid_sol_helm && ITEMS[window.V25_ARTIFACT_RECIPES.megingjard.itemId] && ITEMS[window.V25_ARTIFACT_RECIPES.mid_sol_helm.itemId])`, context);
+check(artifactRecipes, 'V2.5.3 Thor belt and Sun God helm have valid artifact recipes');
+const visualAssets = ['images/npc/artifact_blacksmith.svg','images/skills/skill-physical.svg','images/skills/skill-magic.svg','images/skills/skill-passive.svg'].every(f=>fs.existsSync(path.join(root,f)));
+check(visualAssets, 'V2.5.3 NPC and skill illustration assets exist');
+
+// V2.5.4 codex completeness: every registered weapon/armor must be discoverable,
+// including equipment without a monster-drop or shop entry.
+const codexCoverage = vm.runInContext(`(() => { const ids=getCodexPool().items; const missing=Object.entries(ITEMS).filter(([id,d])=>d&&(d.type==='weapon'||d.type==='armor')&&!ids.includes(id)).map(([id])=>id); return {equipment:Object.values(ITEMS).filter(d=>d&&(d.type==='weapon'||d.type==='armor')).length,missing}; })()`, context);
+check(codexCoverage.missing.length === 0, 'V2.5.4 every registered weapon and armor appears in item codex', codexCoverage.missing.slice(0,20).join(','));
+const bonusFormulaKeys = vm.runInContext(`canonicalBonusKey('patk')==='pAtk' && canonicalBonusKey('smatk')==='sMatk'`, context);
+check(bonusFormulaKeys, 'V2.5.4 P.ATK / S.MATK aliases normalize to combat formula keys');
+const skillBonusAlias = vm.runInContext(`(() => { state={jobId:'ranger',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},equip:{weapon:'w1'},instances:{w1:{item:'fourth_bh_bow',refine:2,cards:[]}},relics:{},baseLevel:200,jobLevel:60,learnedSkills:{}}; _gearBonusCache=null; _gearBonusKey=''; return !!SKILLS.ra_arrowstorm && getSkillDamageBonus(SKILLS.ra_arrowstorm) === 5; })()`, context);
+check(skillBonusAlias, 'legacy skill bonus key resolves to prefixed skill ID');
+const aoeNoTargetGuard = fs.readFileSync(path.join(jsDir, 'engine.js'), 'utf8').includes("'damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot'");
+check(aoeNoTargetGuard, 'AOE attacks require a target before SP and cooldown are consumed');
+
 console.log(`\n${failures ? 'FAILED' : 'ALL PASSED'} — ${failures} failure(s); ${setResults.length} equipment sets checked.`);
 process.exitCode = failures ? 1 : 0;

@@ -84,8 +84,39 @@
         // AOE 單段係數略低於單體，但以高階職業屬性、武器與技能等級共同放大。
         mult: active ? Array.from({length:maxLv},(_,i)=>((type.endsWith('_aoe')?8.0:12.0)+(i*(type.endsWith('_aoe')?1.2:1.6)))) : Array.from({length:maxLv},(_,i)=> (stat === 'maxHpMult' || stat === 'maxSpMult') ? 1 + (i+1)*0.02 : (i+1)*5),
         ...(active ? {} : {passiveStat:stat}),
-        desc: `${name}（四轉技能，最高 Lv${maxLv}；依本作戰鬥系統換算效果）`
+        desc: active
+          ? `${name}：${isMagic.has(type) ? '魔法傷害' : '物理傷害'} ${Math.round((type.endsWith('_aoe') ? 8.0 : 12.0) * 100)}%～${Math.round(((type.endsWith('_aoe') ? 8.0 : 12.0) + (maxLv - 1) * (type.endsWith('_aoe') ? 1.2 : 1.6)) * 100)}%。${type.endsWith('_aoe') ? '攻擊全體敵人。' : '攻擊單一目標。'}技能等級越高，傷害倍率越高。`
+          : `${name}：被動技能，最高 Lv${maxLv}。${stat === 'atkFlat' ? '每級 ATK +5。' : stat === 'matkFlat' ? '每級 MATK +5。' : stat === 'defFlat' ? '每級 DEF +5。' : stat === 'maxHpMult' ? '每級最大 HP +2%。' : stat === 'maxSpMult' ? '每級最大 SP +2%。' : '每級提升對應能力。'}`
       };
+      // 使用者指定：遊俠三轉／四轉攻擊技及陷阱統一改成二轉式被動，普攻自動觸發。
+      if (jobId === 'wind_hawk') {
+        const attackProc = new Set(['漸進狙擊','毀滅風暴','憤怒暴風','獵鷹奇襲','獵鷹狙擊']);
+        const trapRows = {
+          '磐石陷阱': {effect:'stun',chance:[10,12,14,16,18],cd:12,stun:1.5},
+          '火焰陷阱': {effect:'damage',element:'fire',chance:[12,14,16,18,20],cd:10,mult:[1.5,1.8,2.1,2.4,2.7]},
+          '深盲陷阱': {effect:'hitDebuff',chance:[10,12,14,16,18],cd:12,hit:[20,25,30,35,40],duration:5},
+          '急速陷阱': {effect:'damageAoe',element:'wind',chance:[10,12,14,16,18],cd:12,mult:[1.0,1.2,1.4,1.6,1.8]}
+        };
+        if (attackProc.has(name)) {
+          sk.type = 'passive'; sk.passiveStat = 'rangerAttackProc'; sk.rangerPassiveProc = true;
+          sk.spCost = [0]; sk.cooldown = [0];
+          sk.procChance = Array.from({length:maxLv},(_,i)=>Math.min(25,10+i*2));
+          sk.internalCooldown = Array.from({length:maxLv},()=> name === '憤怒暴風' ? 12 : 5);
+          sk.mult = Array.from({length:maxLv},(_,i)=> name === '毀滅風暴' ? 4.0+i*0.5 : name === '憤怒暴風' ? 8.0 : name === '獵鷹奇襲' ? 2.0+i*0.4 : name === '獵鷹狙擊' ? 3.0+i*0.5 : 2.5+i*0.3);
+          sk.aoe = ['毀滅風暴','憤怒暴風','獵鷹奇襲'].includes(name);
+          sk.desc = `被動技能：裝備弓時，普通攻擊有 ${sk.procChance[0]}%～${sk.procChance[maxLv-1]}% 機率自動觸發「${name}」，造成 ${Math.round(sk.mult[0]*100)}%～${Math.round(sk.mult[maxLv-1]*100)}% 傷害；不消耗 SP，內部冷卻 ${sk.internalCooldown[0]} 秒。`;
+        } else if (trapRows[name]) {
+          const t = trapRows[name];
+          sk.type = 'passive'; sk.passiveStat = 'rangerTrapProc'; sk.rangerTrapProc = true;
+          sk.spCost = [0]; sk.cooldown = [0]; sk.trapEffect = t.effect; sk.element = t.element || 'neutral';
+          sk.procChance = t.chance; sk.internalCooldown = t.cd;
+          if (t.mult) sk.mult = t.mult;
+          if (t.stun) sk.stunSec = t.stun;
+          if (t.hit) sk.hitDebuff = t.hit;
+          if (t.duration) sk.duration = Array.from({length:maxLv},()=>t.duration);
+          sk.desc = `被動陷阱：普通攻擊時有 ${t.chance[0]}%～${t.chance[t.chance.length-1]}% 機率自動觸發「${name}」，不需手動設置、不消耗 SP，內部冷卻 ${t.cd} 秒。`;
+        }
+      }
       const req = (weaponGates[jobId]||{})[name];
       if (req === 'shield') sk.requiresEquip = 'shield';
       else if (req) sk.requiresWeapon = req;
@@ -101,6 +132,21 @@
     // 讓四轉技能樹以完整正式技能清單取代早期三招示範技能。
     job.skills = nextSkills;
     job.jobLevelMax = 60;
+  }
+  // 三轉技能也統一補上可直接閱讀的倍率；沿用既有 SKILLS.mult，避免描述與結算各寫一套。
+  for (const job of Object.values(JOB_TREE)) {
+    if (job.tier !== 3) continue;
+    for (const ref of (job.skills || [])) {
+      const sk = typeof ref === 'string' ? SKILLS[ref] : ref;
+      if (!sk || sk.type === 'passive' || !['damage','damage_aoe','magic','magic_aoe','dot'].includes(sk.type)) continue;
+      const vals = Array.isArray(sk.mult) ? sk.mult : (sk.mult == null ? [] : [sk.mult]);
+      if (!vals.length || /[0-9]+%/.test(sk.desc || '')) continue;
+      const first = Math.round(Number(vals[0]) * 100);
+      const last = Math.round(Number(vals[vals.length - 1]) * 100);
+      const kind = ['magic','magic_aoe'].includes(sk.type) ? '魔法傷害' : '物理傷害';
+      const target = sk.type.endsWith('_aoe') ? '攻擊全體敵人' : '攻擊單一目標';
+      sk.desc = `${sk.name}：${kind} ${first}%～${last}%，${target}。` + (sk.desc ? ` ${sk.desc}` : '');
+    }
   }
   window.V25_FOURTH_JOB_AUDIT = Object.fromEntries(Object.entries(catalogs).map(([id, rows]) => [id, rows.length]));
 })();
