@@ -1,0 +1,1984 @@
+/* ============================================================
+   RO 放置世界 — 視覺設計
+   色彩: 深夜藍黑 / 羊皮卷米黃 / 鎏金 / 緋紅(HP) / 藍綠(SP)
+   字體: Noto Serif TC(標題, 雕刻感) / Noto Sans TC(內文)
+   ============================================================ */
+
+:root {
+  --bg-deep: #12141c;
+  --bg-panel: #1c2030;
+  --bg-panel-2: #232842;
+  --parchment: #ead9b3;
+  --parchment-dim: #c9b98c;
+  --gold: #d4af37;
+  --gold-soft: #e8c96a;
+  --crimson: #b0332f;
+  --crimson-soft: #d9564f;
+  --teal: #3f8f8a;
+  --teal-soft: #5cb3ad;
+  --ink: #e7e2d3;
+  --ink-dim: #9aa0b4;
+  --line: #343a56;
+  --font-display: 'Noto Serif TC', serif;
+  --font-body: 'Noto Sans TC', sans-serif;
+}
+
+/* 打寶模式的介面染色（#111）。**只覆寫三個底色 + 分隔線**——
+   金／緋紅／藍綠那幾個是狀態色（HP、SP、按鈕、警告），整份重畫的話
+   會全部失去對比，玩家反而看不出哪裡是可按的。
+   一般＝微紅、瘋狂＝暗紅，用色深度區分兩檔。 */
+body.farm-normal {
+  --bg-deep: #1a1218;
+  --bg-panel: #271a24;
+  --bg-panel-2: #32222e;
+  --line: #452a38;
+}
+body.farm-mad {
+  --bg-deep: #1c0c0f;
+  --bg-panel: #2d1014;
+  --bg-panel-2: #3b151b;
+  --line: #5a1d24;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); color: var(--ink); font-family: var(--font-body); }
+
+.hidden { display: none !important; }
+
+.screen { display: none; width: 100%; min-height: 100vh; }
+.screen.active { display: block; }
+
+/* ---------------- 標題畫面 ---------------- */
+#screen-title.active { display: flex; align-items: center; justify-content: center; }
+.title-stage {
+  position: relative;
+  text-align: center;
+  padding: 64px 32px;
+  max-width: 640px;
+}
+.title-glow {
+  position: absolute; inset: -80px;
+  background: radial-gradient(ellipse at center, rgba(212,175,55,0.16), transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+.game-title {
+  position: relative; z-index: 1;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 56px;
+  letter-spacing: 0.08em;
+  color: var(--gold-soft);
+  text-shadow: 0 0 24px rgba(212,175,55,0.35), 0 2px 0 #00000066;
+  margin: 0;
+}
+.game-subtitle {
+  position: relative; z-index: 1;
+  letter-spacing: 0.32em;
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin: 10px 0 40px;
+}
+.title-menu { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+/* 存檔欄位 */
+.slot-title { font-family: var(--font-display); color: var(--gold-soft); font-size: 18px; margin-bottom: 16px; }
+.slot-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; padding: 0 10px; }
+.slot-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.slot-item:hover { border-color: var(--gold); background: var(--bg-panel-2); }
+.slot-item.has-save { border-color: var(--gold); }
+.slot-header { font-weight: 700; color: var(--gold-soft); min-width: 50px; }
+.slot-info { flex: 1; font-size: 13px; color: var(--ink); }
+.slot-item.empty-slot { opacity: 0.5; border-style: dashed; }
+.slot-pagination { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.slot-pagination .btn-small.active { background: var(--gold); color: var(--bg-deep); }
+.slot-backup-btns { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+
+.title-disclaimer {
+  position: relative; z-index: 1;
+  margin-top: 44px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+  opacity: 0.75;
+}
+
+/* ---------------- 按鈕通用 ---------------- */
+.btn {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 16px;
+  padding: 13px 40px;
+  border-radius: 8px;
+  border: 1px solid var(--gold);
+  cursor: pointer;
+  min-width: 220px;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { background: linear-gradient(180deg, var(--gold-soft), var(--gold)); color: #201603; box-shadow: 0 4px 14px rgba(212,175,55,0.3); }
+.btn-secondary { background: transparent; color: var(--gold-soft); }
+.btn-small { font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--gold); background: var(--bg-panel-2); color: var(--gold-soft); cursor: pointer; }
+.btn-small.ghost { border-color: var(--line); color: var(--ink-dim); }
+.btn-small:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-tiny { font-size: 13px; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--gold); background: var(--bg-panel-2); color: var(--gold-soft); cursor: pointer; }
+.btn-tiny:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ---------------- 創角畫面 ---------------- */
+#screen-create.active { display: flex; align-items: center; justify-content: center; }
+.create-stage { width: 520px; max-width: 92vw; padding: 32px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: 14px; }
+.section-title { font-family: var(--font-display); font-weight: 700; color: var(--gold-soft); text-align: center; margin: 0 0 20px; }
+.name-input {
+  width: 100%; padding: 12px 14px; margin-bottom: 20px;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); font-family: var(--font-body); font-size: 15px;
+}
+.create-budget { text-align: center; color: var(--gold-soft); font-weight: 700; margin-bottom: 14px; }
+.create-cap-hint { color: var(--ink-dim); font-weight: 400; font-size: 12px; }
+.create-stat-row { display: grid; grid-template-columns: 1fr 26px 34px 26px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.cs-name { font-size: 14px; color: var(--ink); }
+.cs-desc { display: block; font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+.cs-val { text-align: center; font-weight: 700; color: var(--gold-soft); }
+.create-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; }
+.create-actions .btn { min-width: 140px; padding: 11px 20px; }
+
+/* ---------------- 遊戲主畫面 ---------------- */
+.game-shell { display: flex; flex-direction: column; height: 100vh; }
+
+.hud-bar {
+  display: flex; align-items: center; gap: 20px;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, var(--bg-panel-2), var(--bg-panel));
+  border-bottom: 2px solid var(--gold);
+}
+.hud-left { min-width: 150px; }
+.hud-name-row { font-weight: 700; color: var(--gold-soft); display: flex; gap: 8px; align-items: baseline; }
+.hud-job-tag { font-size: 12px; color: var(--ink-dim); }
+.hud-lv { font-size: 12px; color: var(--ink-dim); }
+.hud-bars { flex: 1; display: flex; flex-direction: column; gap: 4px; max-width: 460px; }
+.hud-right { display: flex; align-items: center; gap: 12px; }
+.hud-gold { color: var(--gold-soft); font-weight: 700; font-size: 14px; white-space: nowrap; }
+.btn-save { background: var(--bg-panel-2); color: var(--gold-soft); border: 1px solid var(--gold); border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.btn-save:hover { background: #2a2f4e; }
+.volume-controls { display: flex; flex-direction: column; gap: 2px; }
+.volume-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--gold-soft); cursor: pointer; }
+.volume-label input[type="range"] { width: 70px; height: 12px; accent-color: var(--gold); cursor: pointer; }
+.volume-label span { width: 30px; text-align: right; font-size: 10px; }
+.btn-equip-recalc-mode {
+  display: block; width: 100%; margin-top: 3px; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg-panel-2); color: var(--ink-dim);
+  font-size: 10px; line-height: 1.25; white-space: nowrap; cursor: pointer;
+}
+.btn-equip-recalc-mode.active {
+  border-color: var(--gold); color: var(--gold-soft);
+  background: color-mix(in srgb, var(--gold) 12%, var(--bg-panel-2));
+}
+
+
+/* 性別選擇 */
+.create-gender-select { display: flex; align-items: center; gap: 12px; margin: 14px 0; justify-content: center; }
+.btn-gender { background: var(--bg-panel-2); color: var(--ink-dim); border: 2px solid var(--line); border-radius: 8px; padding: 8px 20px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.btn-gender:hover { border-color: var(--gold); color: var(--gold-soft); }
+.btn-gender.active { background: var(--gold); color: #111; border-color: var(--gold); }
+.btn-jobchange { background: var(--crimson); color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; animation: pulse 1.4s infinite; }
+@keyframes pulse { 0%,100%{ opacity:1;} 50%{ opacity:.6;} }
+
+.bar-track { position: relative; height: 16px; background: #0c0e16; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.bar-track.small { height: 10px; }
+.bar-fill { height: 100%; transition: width .3s ease; }
+.hp-fill { background: linear-gradient(90deg, var(--crimson), var(--crimson-soft)); }
+.sp-fill { background: linear-gradient(90deg, var(--teal), var(--teal-soft)); }
+.bexp-fill { background: linear-gradient(90deg, #8a6d1f, var(--gold)); }
+.jexp-fill { background: linear-gradient(90deg, #5b6b9c, #8ea0dd); }
+.bar-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--ink); text-shadow: 0 1px 2px #000; letter-spacing: .02em; }
+.exp-track.small .bar-text { font-size: 9px; }
+
+.game-body { flex: 1; display: flex; min-height: 0; }
+
+.battle-panel {
+  flex: 1.3; display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(212,175,55,0.06), transparent 60%),
+    var(--bg-deep);
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.map-bg-layer { position: absolute; inset: 0; z-index: 0; }
+.map-bg-layer img { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; filter: saturate(0.8) brightness(0.75); }
+.battle-panel > .monster-area, .battle-panel > .combat-log { position: relative; z-index: 1; }
+.btn-mute {
+  position: absolute; top: 10px; right: 12px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(18,20,28,0.65); border: 1px solid var(--gold);
+  color: var(--gold-soft); font-size: 15px; cursor: pointer;
+}
+/* GM 測試面板：疊在靜音鈕下面，只有安全區才出現 */
+.gm-panel {
+  position: absolute; top: 52px; right: 12px; z-index: 2;
+  display: flex; flex-direction: column; gap: 4px; width: 116px;
+  padding: 6px; border-radius: 8px;
+  background: rgba(18,20,28,0.78); border: 1px solid var(--gold);
+}
+.gm-title { font-size: 10px; letter-spacing: 1px; color: var(--gold-soft); text-align: center; }
+.gm-btn {
+  font-size: 11px; padding: 4px 6px; border-radius: 6px; cursor: pointer;
+  background: rgba(212,175,55,0.12); border: 1px solid var(--gold-soft); color: var(--ink);
+}
+.gm-btn:hover { background: rgba(212,175,55,0.28); }
+
+/* ---------------- 隊友（#83）---------------- */
+.btn-ally {
+  position: absolute; top: 52px; right: 136px; z-index: 2;
+  padding: 6px 10px; font-size: 12px; border-radius: 8px; cursor: pointer;
+  background: rgba(18,20,28,0.78); border: 1px solid var(--gold); color: var(--gold-soft);
+}
+.btn-ally:hover { background: rgba(212,175,55,0.25); color: var(--ink); }
+/* 站在玩家的上下方、往後靠（left 小一點），縮小一號才不會搶掉玩家 */
+.ally-sprite { position: absolute; left: 4%; width: 84px; height: 112px; z-index: 1; }
+#ally-sprite-0 { top: 8%; }
+#ally-sprite-1 { bottom: 8%; }
+.ally-figure { position: relative; width: 100%; height: 100%; filter: drop-shadow(0 3px 8px rgba(0,0,0,0.5)); }
+.ally-figure.downed { filter: grayscale(1) brightness(.6); }
+.ally-figure img { width: 100%; height: 76%; object-fit: contain; image-rendering: pixelated; }
+.ally-tag {
+  font-size: 10px; color: var(--ink-dim); text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ally-hp { height: 3px; border-radius: 2px; background: rgba(0,0,0,0.55); overflow: hidden; }
+.ally-hp-fill { height: 100%; background: linear-gradient(90deg, #d94f4f, #ff8a6b); }
+
+/* 浮動面板：疊在戰鬥區右側，遊戲照跑（不是 modal-overlay） */
+/* 標題列（🤝 隊友 ＋ ✕）要釘住不動（#109）：以前整個面板是捲動容器，
+   標題跟著內容一起捲走，加了自動戰鬥設定之後內容變長，往下捲就找不到關閉鈕。
+   改成外層不捲、只有 body 捲——跟倉庫／鍛造那兩個浮動視窗同一個結構。 */
+.ally-panel {
+  position: absolute; top: 52px; right: 12px; z-index: 6;
+  width: 380px; max-height: calc(100% - 76px);
+  display: flex; flex-direction: column; overflow: hidden;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(18,20,28,0.94); border: 1px solid var(--gold);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+}
+.ally-panel-head {
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--gold-soft); margin-bottom: 6px;
+}
+/* min-height:0 少了的話 flex 子元素不會縮，body 撐爆外層就等於沒有捲動 */
+#ally-panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.ally-panel-close {
+  background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 13px;
+}
+.ally-panel-close:hover { color: var(--gold); }
+.ally-num { width: 46px; padding: 1px 3px; font-size: 11px; background: var(--bg-panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: 4px; }
+.ally-sel { max-width: 150px; padding: 1px 3px; font-size: 11px; background: var(--bg-panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: 4px; }
+.ally-opt label { flex-wrap: wrap; }
+.ally-range { width: 110px; vertical-align: middle; }
+.ally-sec-toggle { cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; }
+/* 隊友自動戰鬥區塊裡的說明小字（#105） */
+.ally-note-sm { font-size: 11px; color: var(--ink-dim); margin: 4px 0 2px; line-height: 1.5; }
+.ally-sec-toggle:hover { color: var(--gold); }
+.ally-note { font-size: 11px; color: var(--ink-dim); line-height: 1.7; margin-bottom: 10px; }
+.ally-sec {
+  font-size: 11px; color: var(--gold-soft); margin: 12px 0 6px;
+  border-bottom: 1px solid var(--line); padding-bottom: 4px;
+}
+.ally-empty { font-size: 11px; color: var(--ink-dim); padding: 4px 2px; }
+.ally-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px; margin-bottom: 4px;
+  background: var(--bg-panel-2); border-radius: 6px; font-size: 11px;
+}
+.ally-row.downed { opacity: .6; }
+.ally-row-name { width: 100px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ally-row-job { width: 104px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ally-row-hp { width: 96px; color: var(--ink-dim); }
+.ally-row-exp { flex: 1; color: var(--teal-soft); text-align: right; }
+.ally-row .btn-small.danger { border-color: #a35; color: #e79; }
+.ally-opt { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--ink-dim); }
+.ally-opt label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.ally-stock { color: var(--gold-soft); }
+
+.monster-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+.monster-area-multi { display: flex; gap: 16px; justify-content: center; align-items: flex-end; flex-wrap: wrap; padding: 10px; }
+.monster-empty { color: var(--ink-dim); font-size: 13px; }
+.monster-card { text-align: center; min-width: 100px; }
+.monster-card.target { border: 2px solid var(--gold); border-radius: 12px; padding: 8px; background: rgba(212,175,55,0.05); }
+
+/* 戰鬥場景佈局：左1/3玩家 + 右2/3怪物半圓 */
+.battle-scene {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.player-area {
+  flex: 0 0 33%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.player-sprite {
+  width: 120px;
+  height: 160px;
+  position: relative;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+}
+.player-sprite img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* 動畫畫布靠底置中：基本姿勢與施放姿勢的原圖尺寸不同，等比縮放後
+   要對齊腳底，人才不會在切換姿勢時上下跳。 */
+.player-anim-canvas {
+  position: absolute; image-rendering: auto;
+  /* left / margin-left / bottom 由 sizeAnimCanvas() 依非透明邊界框算出來 */
+}
+
+/* ---- 技能特效 ---- */
+/* 施放瞬間疊上去的詠唱姿勢。原圖是 56×74 的點陣素材，放大要用 pixelated，
+   不然會糊掉跟旁邊的角色動畫對不上風格。 */
+.skill-cast-sprite {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  pointer-events: none;
+  animation: skillCastFade 0.9s ease-out forwards;
+}
+@keyframes skillCastFade {
+  0%   { opacity: 0;    transform: scale(1.12); }
+  15%  { opacity: 1;    transform: scale(1); }
+  70%  { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0;    transform: scale(1.04); }
+}
+
+/* 雙手劍加速：效果持續中角色整個散發金黃色光芒。三層疊出來：
+     ::before  背後的發散光暈（z-index:-1）
+     filter    角色本體染成金色 + 沿輪廓的描邊光
+               色彩那幾道要放在 drop-shadow 前面，才不會連影子一起被染
+     ::after   壓在人物之上的金色光斑（z-index:2，screen 疊加）
+               父層有 filter 會自成一個合成群組，所以 mix-blend-mode 是跟角色本身混色
+   不做呼吸動畫，三層都固定在較淡的那組數值（原本脈動的最暗端）。 */
+.player-sprite.aura-quicken {
+  filter: sepia(0.32) saturate(1.9) hue-rotate(-8deg) brightness(1.10)
+          drop-shadow(0 4px 12px rgba(0,0,0,0.5))
+          drop-shadow(0 0 4px rgba(255, 218, 110, 0.85))
+          drop-shadow(0 0 10px rgba(255, 176, 30, 0.55));
+}
+.player-sprite.aura-quicken::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  /* 尺寸已經把原本脈動最暗端的 scale(0.94) 乘進去了，所以不再另外縮放 */
+  width: 122%; height: 111%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+              rgba(255, 214, 92, 0.42) 0%,
+              rgba(255, 176, 32, 0.20) 45%,
+              rgba(255, 160, 20, 0) 72%);
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: -1;
+}
+.player-sprite.aura-quicken::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 52%;
+  width: 112%; height: 104%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+              rgba(255, 240, 175, 0.50) 0%,
+              rgba(255, 205, 70, 0.30) 42%,
+              rgba(255, 170, 20, 0) 72%);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 2;
+}
+.monster-area-right {
+  flex: 0 0 67%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.monster-semi-circle {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.monster-slot {
+  position: absolute;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+.monster-slot img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
+  image-rendering: pixelated;
+}
+.monster-slot .monster-name {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.monster-slot .monster-hp-bar {
+  width: 70px;
+  height: 6px;
+  background: #0c0e16;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  margin: 2px auto;
+  overflow: hidden;
+}
+.monster-slot .monster-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--crimson), var(--crimson-soft));
+  transition: width 0.2s ease;
+}
+/* 玩家的異常狀態圖示：跟在 HP／SP 條旁邊，沒有狀態時整列不佔高度 */
+.hud-ail {
+  display: flex;
+  gap: 3px;
+  font-size: 14px;
+  line-height: 1;
+  min-height: 0;
+}
+.hud-ail:not(:empty) { margin: 2px 0; }
+/* 臨時減益（挑釁／緩緩移動／永恆之光）：跟異常狀態同一排，用底色區分
+   ——那些是有名字的十種狀態，這些是純數值削弱 */
+.hud-ail .p-debuff {
+  background: rgba(200, 60, 60, 0.25);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* 怪物的異常狀態圖示：跟在 HP 數字下面，沒有狀態時整列不佔高度 */
+.monster-slot .monster-ail {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1;
+  min-height: 0;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}
+.monster-slot .monster-ail:not(:empty) { margin-top: 2px; }
+/* 怪物自己的增益（#36）：跟異常狀態同一排，加個底色區分敵我 */
+.monster-slot .monster-ail .mon-buff {
+  background: rgba(255, 200, 60, 0.22);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.monster-slot.target .monster-ail { font-size: 16px; }
+.monster-slot.target {
+  /* transform handled by inline style */
+}
+.monster-slot.target img {
+  width: 96px;
+  height: 96px;
+}
+.monster-icon { width: 96px; height: 96px; margin: 0 auto; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.5)); }
+.monster-icon img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; border-radius: 10px; }
+.monster-name { font-weight: 700; margin-top: 6px; color: var(--ink); }
+.monster-lv { color: var(--ink-dim); font-weight: 400; font-size: 12px; }
+.monster-hp-track { width: 220px; height: 12px; margin: 10px auto 4px; }
+.monster-hp-text { font-size: 11px; color: var(--ink-dim); text-align: center; }
+.monster-element { font-size: 11px; padding: 2px 6px; border-radius: 10px; font-weight: 600; vertical-align: middle; }
+.elem-none { background: #444; color: #ccc; }
+.elem-water { background: #1a5276; color: #85c1e9; }
+.elem-earth { background: #7d6608; color: #f9e79f; }
+.elem-fire { background: #922b21; color: #f5b7b1; }
+.elem-wind { background: #1e8449; color: #abebc6; }
+.elem-poison { background: #4a235a; color: #d2b4de; }
+.elem-holy { background: #7d6608; color: #fef9e7; }
+.elem-shadow { background: #1b2631; color: #aeb6bf; }
+.elem-ghost { background: #4a235a; color: #d7bde2; }
+.elem-undead { background: #1c2833; color: #f1948a; }
+
+/* .skill-bar / .skill-btn 已移除（#101）：畫面上不再有技能按鈕列，
+   技能一律在自動戰鬥分頁設定。 */
+
+.combat-log {
+  height: 130px; display: flex;
+  background: #0c0e16; border-top: 1px solid var(--line);
+  font-size: 12px; color: var(--ink-dim); font-family: var(--font-body);
+}
+.log-pane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.log-pane:last-child { border-right: none; }
+.log-pane-head {
+  flex: none; padding: 3px 10px; font-size: 10px; letter-spacing: 1px;
+  color: var(--gold-soft); background: rgba(212,175,55,0.06); border-bottom: 1px solid var(--line);
+}
+.log-pane-body { flex: 1; overflow-y: auto; padding: 4px 10px; }
+.log-line { padding: 1px 0; word-break: break-all; }
+
+.side-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg-panel); min-width: 320px; max-width: 460px; }
+/* 分頁列是三欄的格子。**列數不固定**：鐵匠多一顆「鍛造」（#103），所以是 9 或 10 顆。
+   下緣的線交給每一顆自己畫（最後一列的線就是分頁列的下緣），
+   不要用 `:nth-child(n+7)` 去猜哪一列是最後一列——顆數一變就會漏一條線或多一條。 */
+.tab-nav { display: grid; grid-template-columns: repeat(3, 1fr); }
+.tab-btn {
+  padding: 10px 4px; background: transparent; color: var(--ink-dim);
+  font-size: 12px; cursor: pointer; white-space: nowrap;
+  border: none; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  transition: background 0.15s, color 0.15s;
+}
+.tab-btn:nth-child(3n) { border-right: none; }
+.tab-btn:hover { background: var(--bg-panel-2); color: var(--ink); }
+.tab-btn.active { color: var(--gold-soft); background: var(--bg-panel-2); box-shadow: inset 0 0 0 1px var(--gold); }
+.tab-content { flex: 1; overflow-y: auto; padding: 16px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.panel-title { font-family: var(--font-display); color: var(--gold-soft); font-size: 15px; margin: 0 0 12px; }
+.empty-hint { color: var(--ink-dim); font-size: 13px; padding: 20px 0; text-align: center; }
+
+/* 地圖分頁 */
+.map-list { display: flex; flex-direction: column; gap: 8px; }
+.map-item { text-align: left; padding: 10px 12px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; color: var(--ink); }
+.map-item.active { border-color: var(--gold); background: #2a2f4e; }
+.map-item.locked { opacity: 0.45; cursor: not-allowed; }
+.map-item-name { font-weight: 700; }
+.map-item-req { font-size: 12px; color: var(--ink-dim); margin-top: 3px; }
+.auto-toggle { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; color: var(--ink-dim); }
+
+/* 地區選單（兩層導覽：地區列表 → 城鎮/原野） */
+.region-list { display: flex; flex-direction: column; gap: 8px; }
+.region-item { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--ink); }
+.region-item:hover:not(.locked) { border-color: var(--gold); }
+.region-item.locked { opacity: 0.45; cursor: not-allowed; }
+.region-icon { font-size: 28px; flex-shrink: 0; }
+.region-info { flex: 1; min-width: 0; }
+.region-name { font-weight: 700; font-size: 14px; }
+.region-subtitle { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+.region-arrow { font-size: 20px; color: var(--gold-soft); flex-shrink: 0; }
+.region-back { background: none; border: none; color: var(--gold-soft); font-size: 13px; cursor: pointer; padding: 0; margin-bottom: 10px; }
+.region-back:hover { text-decoration: underline; }
+.region-subtitle-detail { font-size: 12px; color: var(--ink-dim); margin: -6px 0 14px; }
+
+/* 地圖下拉選單 */
+.map-select-group { margin-bottom: 12px; }
+.map-select-label { display: block; font-size: 11px; color: var(--ink-dim); margin-bottom: 4px; }
+.map-select {
+  width: 100%; padding: 10px 12px; font-size: 14px; font-family: var(--font-body);
+  background: var(--bg-panel-2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px;
+  cursor: pointer;
+}
+.map-select:focus { outline: none; border-color: var(--gold-soft); }
+.map-preview-box { background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 14px 0; }
+.map-preview-title { font-size: 12px; color: var(--gold-soft); font-weight: 700; margin-bottom: 6px; }
+.map-preview-body { font-size: 14px; line-height: 1.8; }
+.map-preview-hint { font-size: 11px; color: var(--ink-dim); margin-top: 8px; line-height: 1.6; }
+.monster-safe { font-size: 14px; color: var(--ink-dim); text-align: center; padding: 0 20px; }
+
+/* 地圖產出估算 */
+.map-yield-box { background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 14px 0; }
+.map-yield-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.map-yield-title { font-size: 12px; color: var(--gold-soft); font-weight: 700; }
+.yield-reset-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  background: var(--bg-panel); border: 1px solid var(--line); color: var(--ink-dim); }
+.yield-reset-btn:hover { border-color: var(--gold); color: var(--gold-soft); }
+/* 兩欄並排，窄畫面時自動疊成上下 */
+.map-yield-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.yield-col { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.yield-col-title { font-size: 11px; color: var(--ink-dim); margin-bottom: 6px; }
+.yield-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px; padding: 2px 0; }
+.yield-row span { color: var(--ink-dim); }
+.yield-row b { color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.yield-empty { font-size: 11px; color: var(--ink-dim); padding: 6px 0; }
+.map-yield-hint { font-size: 11px; color: var(--ink-dim); margin-top: 8px; line-height: 1.6; }
+
+/* 技能分頁 */
+.skill-list { display: flex; flex-direction: column; gap: 10px; }
+.skill-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.skill-row.learned { border-color: var(--gold); }
+.skill-name { font-weight: 700; }
+.skill-desc { font-size: 12px; color: var(--ink-dim); margin: 3px 0; }
+.skill-cost { font-size: 11px; color: var(--teal-soft); }
+.skill-tag { font-size: 11px; color: var(--gold-soft); border: 1px solid var(--gold); padding: 3px 8px; border-radius: 12px; white-space: nowrap; }
+
+/* 背包分頁 */
+.equip-row { display: flex; gap: 10px; margin-bottom: 16px; }
+.equip-slot { flex: 1; padding: 10px; background: var(--bg-panel-2); border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.equip-icon { width: 26px; height: 26px; object-fit: contain; border-radius: 5px; }
+.inv-list { display: flex; flex-direction: column; gap: 8px; }
+.inv-row { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.inv-row-main { display: flex; align-items: center; gap: 10px; }
+.inv-icon { width: 34px; height: 34px; flex-shrink: 0; }
+.inv-icon img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+.inv-info { flex: 1; min-width: 0; }
+.inv-name { font-size: 13px; font-weight: 700; }
+.inv-desc { font-size: 11px; color: var(--ink-dim); }
+.inv-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* 藥水設定 */
+.potion-toggles { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.potion-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.potion-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.potion-row.selected { border-color: var(--gold); }
+.potion-radio { display: flex; align-items: center; gap: 6px; flex: 1; font-size: 13px; cursor: pointer; }
+.potion-icon-img { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; }
+.potion-heal { color: var(--teal-soft); font-size: 11px; }
+.potion-qty { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+
+/* 角色分頁 */
+.job-name { font-size: 13px; color: var(--ink-dim); }
+.stat-grid { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+/* 數值欄改成 auto：素質加上職業與裝備加成後會變成「1123+8」這種長字串，
+   原本固定 34px 會撐爆並蓋掉右邊的消耗點數 */
+.stat-row { display: grid; grid-template-columns: 1fr auto auto 30px; align-items: center; gap: 10px; }
+.stat-cost { font-size: 11px; color: var(--teal-soft); text-align: right; white-space: nowrap; min-width: 30px; }
+.stat-label { font-size: 13px; color: var(--ink-dim); }
+.stat-value { text-align: right; font-weight: 700; color: var(--gold-soft); white-space: nowrap; }
+/* 有加成來源的區段：提示可以指上去看明細 */
+.stat-seg { cursor: help; }
+.stat-points-left { font-size: 12px; color: var(--ink-dim); margin-bottom: 14px; }
+.derived-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: var(--ink); background: var(--bg-panel-2); padding: 12px; border-radius: 8px; border: 1px solid var(--line); }
+.stat-formula-hint { font-size: 11px; color: var(--ink-dim); line-height: 1.6; margin-top: 10px; }
+
+/* Active buffs display */
+.active-buffs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.buff-tag { font-size: 11px; background: #2a4a3a; color: #5dade2; padding: 3px 8px; border-radius: 10px; border: 1px solid var(--teal); }
+.buff-active { font-size: 10px; color: #5dade2; font-weight: 700; }
+/* 生效中的裝備套裝：跟 buff 分開配色——buff 會過期，套裝是穿著就有 */
+.active-sets { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.set-tag {
+  font-size: 11px; background: #3a2f18; color: var(--gold);
+  padding: 3px 8px; border-radius: 10px; border: 1px solid var(--gold);
+}
+
+/* 轉職樹（簽名視覺） */
+.job-tree-wrap { background: #0c0e16; border: 1px solid var(--line); border-radius: 10px; padding: 8px; overflow-x: auto; }
+.job-tree-svg { width: 100%; height: auto; display: block; }
+.tree-line { stroke: #3a3f5c; stroke-width: 2; }
+.tree-line-active { stroke: var(--gold); stroke-width: 2.5; }
+.tree-rect { fill: var(--bg-panel-2); stroke: #3a3f5c; stroke-width: 1.5; }
+.tree-node-unlocked .tree-rect { stroke: var(--gold); fill: #2a2f4e; }
+.tree-node-current .tree-rect { fill: #3a2f10; stroke: var(--gold-soft); stroke-width: 2.5; filter: drop-shadow(0 0 6px rgba(212,175,55,0.6)); }
+.tree-icon { font-size: 20px; }
+.tree-label { font-size: 11px; fill: var(--ink); font-family: var(--font-body); font-weight: 700; }
+.tree-cta { font-size: 8px; fill: var(--gold-soft); }
+/* 進階二轉的技能分批補，還沒補到的節點標這個 */
+.tree-wip { font-size: 8px; fill: #7a8496; }
+.tree-hint { font-size: 12px; color: var(--ink-dim); line-height: 1.7; margin-top: 12px; }
+
+/* 轉生面板（#56）：條件沒到是暗的，到了才亮金框——一眼看得出現在能不能轉 */
+.rebirth-panel { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line);
+  border-radius: 10px; background: #0c0e16; }
+.rebirth-panel.rebirth-ready { border-color: var(--gold-soft); box-shadow: 0 0 12px rgba(212,175,55,.18); }
+.rebirth-panel.rebirth-done { border-color: #4a5a7a; }
+/* 轉職樹上的指路（面板本體在地圖分頁的安全區） */
+.rebirth-pointer {
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  border: 1px dashed #4a5a7a; color: var(--ink-dim); font-size: 12px;
+}
+.rebirth-panel h4 { margin: 0 0 8px; font-size: 14px; color: var(--gold-soft); }
+.rebirth-req { font-size: 12px; color: var(--ink); margin-bottom: 6px; }
+.rebirth-gain { font-size: 12px; color: var(--ink-dim); line-height: 1.7; margin-bottom: 10px; }
+.rebirth-block { font-size: 12px; color: #e0674f; }
+
+/* ---------------- RWD ---------------- */
+@media (max-width: 860px) {
+  .game-shell { height: auto; min-height: 100vh; }
+  .game-body { flex-direction: column; min-height: 0; height: auto; }
+
+  .hud-bar { flex-wrap: wrap; padding: 8px 12px; gap: 8px 14px; }
+  .hud-left { min-width: 0; flex: 1 1 auto; }
+  .hud-right { flex: 0 0 auto; }
+  .hud-bars { order: 3; max-width: none; width: 100%; flex-basis: 100%; }
+
+  .battle-panel { flex: 0 0 auto; border-right: none; border-bottom: 1px solid var(--line); min-height: 320px; }
+  .monster-area { min-height: 150px; }
+  .combat-log { height: 96px; }
+
+  .side-panel { max-width: none; min-width: 0; flex: 1 1 auto; }
+  .tab-content { max-height: 46vh; }
+
+  .create-stat-row { grid-template-columns: 1fr 26px 30px 26px; }
+}
+
+@media (max-width: 420px) {
+  .game-title { font-size: 40px; }
+  .btn { min-width: 200px; padding: 12px 24px; }
+  .monster-icon { font-size: 64px; }
+}
+
+/* ---------------- Toast 提示 ---------------- */
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px);
+  background: #262c48; border: 1px solid var(--gold); color: var(--gold-soft);
+  padding: 10px 22px; border-radius: 24px; font-size: 13px; font-weight: 700;
+  opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease;
+  z-index: 200; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------------- 傷害飄字 ---------------- */
+.damage-container {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 15;
+  overflow: visible;
+}
+.damage-float {
+  position: fixed;
+  font-weight: 900;
+  font-size: 22px;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.9);
+  -webkit-font-smoothing: antialiased;
+  pointer-events: none;
+  z-index: 9999;
+  animation: floatUp 1s ease-out forwards;
+  white-space: nowrap;
+  overflow: visible;
+}
+.damage-float.crit {
+  font-size: 28px;
+  color: #ff4444;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(255,68,68,0.5);
+  animation: critFloat 0.8s ease-out forwards;
+}
+@keyframes critFloat {
+  0% { opacity: 1; transform: scale(1.5) translateY(0); }
+  30% { opacity: 1; transform: scale(1.2) translateY(-20px); }
+  100% { opacity: 0; transform: scale(0.8) translateY(-80px); }
+}
+
+/* 暴擊星爆：15 張圖輪播，整組（星爆圖＋黃色數字）一起往上飄並淡出。
+   飄動掛在外層，圖與數字各自只負責自己的置中，兩者就會鎖在一起移動。 */
+.crit-burst {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  animation: critBurstFloat 0.9s ease-out forwards;
+}
+.crit-burst-img {
+  display: block;
+  width: 96px;
+  height: 66px;
+  margin: -33px 0 0 -48px;   /* 以自身中心對齊外層的定位點 */
+  image-rendering: pixelated;
+}
+.crit-burst-num {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-weight: 900;
+  font-size: 26px;
+  color: #ffd83d;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(255,200,40,0.65);
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+  transform: translate(-50%, -50%);
+  animation: critNumPop 0.25s ease-out;
+}
+/* 節奏比照原本的飄字：先快後慢往上 72px，最後三成才淡掉 */
+@keyframes critBurstFloat {
+  0%       { opacity: 1; transform: translateY(0); }
+  25%      { opacity: 1; transform: translateY(-14px); }
+  70%      { opacity: 1; transform: translateY(-48px); }
+  100%     { opacity: 0; transform: translateY(-72px); }
+}
+/* 數字起手放大彈一下，位置維持在圖正中央 */
+@keyframes critNumPop {
+  0%   { transform: translate(-50%, -50%) scale(1.8); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 暴擊閃光效果 */
+.crit-flash-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(circle, rgba(255,100,50,0.35) 0%, rgba(255,50,0,0.15) 40%, transparent 70%);
+  animation: critFlash 0.35s ease-out forwards;
+}
+@keyframes critFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.damage-float.heal {
+  color: #5dade2;
+  font-size: 20px;
+}
+.damage-float.miss {
+  color: #aaa;
+  font-size: 16px;
+  font-style: italic;
+}
+.damage-float.element-good {
+  color: #2ecc71;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 6px rgba(46,204,113,0.4);
+}
+.damage-float.element-bad {
+  color: #bb77dd;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 6px rgba(155,89,182,0.4);
+}
+.damage-float.element-immune {
+  color: #999;
+  font-size: 20px;
+}
+
+/* 魔法傷害的數字照施法屬性上色。顏色與下面的 .element-float 同一套，
+   但這裡是傷害數字，所以只換顏色與光暈，字級維持原本的 22px。
+   無屬性魔法不會拿到這些 class，看起來跟物理傷害一樣。 */
+.damage-float.ele-fire    { color: #ff4b30; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(255,75,48,0.7); }
+.damage-float.ele-water   { color: #3ba7ff; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(59,167,255,0.7); }
+.damage-float.ele-wind    { color: #2fdc6e; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(47,220,110,0.7); }
+.damage-float.ele-earth   { color: #d2a63c; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(210,166,60,0.7); }
+.damage-float.ele-poison  { color: #b45cff; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(180,92,255,0.7); }
+.damage-float.ele-holy    { color: #ffe066; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(255,224,102,0.7); }
+.damage-float.ele-shadow  { color: #8f7bd8; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(143,123,216,0.7); }
+.damage-float.ele-ghost   { color: #7fe6e0; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(127,230,224,0.7); }
+.damage-float.ele-undead  { color: #9aa88c; text-shadow: 1px 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(154,168,140,0.7); }
+
+/* ---------------- 屬性克制飄字 ----------------
+   比傷害數字大一號、位置再高一截，顏色跟著攻擊方的屬性走。 */
+.element-float {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  transform: translateX(-50%);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  color: #fff;
+  -webkit-text-stroke: 1px rgba(0,0,0,0.85);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+  animation: elementFloatUp 1.4s ease-out forwards;
+}
+/* 被克時縮小一點、透明一些——是壞消息，不該比克制還搶眼 */
+.element-float.weak { font-size: 22px; opacity: 0.9; }
+.element-float.immune { font-size: 24px; color: #b0b0b0; }
+
+.element-float.ele-fire    { color: #ff4b30; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(255,75,48,0.85); }
+.element-float.ele-water   { color: #3ba7ff; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(59,167,255,0.85); }
+.element-float.ele-wind    { color: #2fdc6e; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(47,220,110,0.85); }
+.element-float.ele-earth   { color: #d2a63c; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(210,166,60,0.85); }
+.element-float.ele-poison  { color: #b45cff; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(180,92,255,0.8); }
+.element-float.ele-holy    { color: #ffe066; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(255,224,102,0.85); }
+.element-float.ele-shadow  { color: #8f7bd8; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(143,123,216,0.8); }
+.element-float.ele-ghost   { color: #7fe6e0; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(127,230,224,0.8); }
+.element-float.ele-undead  { color: #9aa88c; text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 14px rgba(154,168,140,0.8); }
+.element-float.ele-none    { color: #e8e8e8; }
+
+@keyframes elementFloatUp {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.6); }
+  18%  { opacity: 1; transform: translateX(-50%) translateY(-6px) scale(1.25); }
+  32%  { opacity: 1; transform: translateX(-50%) translateY(-12px) scale(1); }
+  75%  { opacity: 1; transform: translateX(-50%) translateY(-34px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-58px) scale(1); }
+}
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-25px); }
+  100% { opacity: 0; transform: translateY(-70px); }
+}
+
+/* ---------------- 怪物受擊動畫 ---------------- */
+.monster-hit {
+  animation: monsterShake 0.15s ease-in-out;
+}
+@keyframes monsterShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* 攻擊閃光效果 */
+.attack-flash {
+  animation: flashWhite 0.1s ease-out;
+}
+@keyframes flashWhite {
+  0% { filter: brightness(2); }
+  100% { filter: brightness(1); }
+}
+
+/* 暴擊特效 */
+.crit-flash {
+  animation: critPulse 0.3s ease-out;
+}
+@keyframes critPulse {
+  0% { transform: scale(1); filter: brightness(1.5) saturate(1.5); }
+  50% { transform: scale(1.1); filter: brightness(2) saturate(2); }
+  100% { transform: scale(1); filter: brightness(1) saturate(1); }
+}
+
+/* 怪物死亡動畫 */
+.monster-dying {
+  animation: monsterDie 0.5s ease-out forwards;
+}
+@keyframes monsterDie {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); filter: brightness(2); }
+  100% { opacity: 0; transform: scale(0.5); filter: brightness(0); }
+}
+
+/* 玩家受擊效果 */
+.player-hit {
+  animation: playerShake 0.2s ease-in-out;
+}
+@keyframes playerShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+/* 技能施放特效 */
+.skill-cast {
+  animation: skillPulse 0.3s ease-out;
+}
+@keyframes skillPulse {
+  0% { box-shadow: 0 0 0 0 rgba(212,175,55,0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(212,175,55,0); }
+  100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); }
+}
+
+/* 屬性特效背景 */
+.element-effect {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 5;
+  animation: elementBurst 0.4s ease-out forwards;
+}
+.element-effect.fire { background: radial-gradient(circle, rgba(255,100,0,0.6), transparent); }
+.element-effect.water { background: radial-gradient(circle, rgba(0,150,255,0.6), transparent); }
+.element-effect.earth { background: radial-gradient(circle, rgba(139,100,0,0.6), transparent); }
+.element-effect.wind { background: radial-gradient(circle, rgba(100,255,100,0.6), transparent); }
+.element-effect.holy { background: radial-gradient(circle, rgba(255,255,200,0.6), transparent); }
+.element-effect.shadow { background: radial-gradient(circle, rgba(100,0,150,0.6), transparent); }
+
+@keyframes elementBurst {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+}
+
+/* ---------------- 離線結算彈窗 ---------------- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(8,9,14,0.72);
+  display: flex; align-items: center; justify-content: center; z-index: 150; padding: 20px;
+}
+.modal-box {
+  width: 420px; max-width: 100%; background: var(--bg-panel); border: 1px solid var(--gold);
+  border-radius: 14px; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+  /* 內容再長也不超過視窗高度（#123）。改成直排 flex 之後，
+     只有**中間那塊**會捲——標題與底下的按鈕永遠留在畫面上。
+     整個盒子一起捲的話，「我知道了」會被推到看不見的地方，
+     使用者得先捲到底才關得掉。 */
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 40px);   /* 40px = overlay 的上下 padding */
+}
+/* 中間可捲的那塊。用 :not() 排除固定不動的標題與按鈕，
+   免得每個彈窗都要另外加 class */
+.modal-box > *:not(.modal-title):not(.modal-confirm):not(.consent-row) {
+  overflow-y: auto; min-height: 0;
+}
+.modal-title, .modal-confirm, .consent-row { flex: 0 0 auto; }
+.modal-title { font-family: var(--font-display); color: var(--gold-soft); margin: 0 0 14px; text-align: center; }
+.offline-duration { font-size: 14px; line-height: 1.7; color: var(--ink); margin: 0 0 10px; }
+.offline-levelup { color: var(--gold-soft); font-weight: 700; margin-bottom: 10px; }
+.offline-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; margin-bottom: 12px; }
+.offline-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.offline-item { font-size: 12px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 4px 10px; }
+.offline-item-empty { font-size: 12px; color: var(--ink-dim); }
+.modal-confirm { width: 100%; min-width: 0; }
+
+/* Skills tab */
+.skills-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.skills-header .panel-title { margin: 0; }
+.btn-respec { background: var(--crimson); color: #fff; font-size: 0.7rem; padding: 2px 8px; }
+.skill-tag { font-size: 0.65rem; padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
+.skill-tag.quest { background: var(--gold); color: var(--bg-deep); }
+.skill-tag.maxed { background: var(--teal); color: #fff; }
+.skill-tag.unlearned { background: var(--ink-dim); color: var(--bg-deep); }
+.skill-actions { display: flex; align-items: center; gap: 4px; }
+.btn-levelup { width: 28px; height: 28px; font-size: 1rem; font-weight: 700; padding: 0; }
+.btn-levelup:disabled { opacity: 0.3; }
+
+/* Skill job sections */
+.skill-job-section { margin-bottom: 12px; }
+.skill-job-header { font-size: 14px; font-weight: 700; color: var(--gold-soft); padding: 10px 12px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; user-select: none; }
+.skill-job-header:hover { background: #2a2f4e; }
+.skill-job-section.current-job .skill-job-header { border-color: var(--gold); background: #2a2f4e; }
+.skill-job-toggle { font-size: 10px; width: 14px; text-align: center; flex-shrink: 0; }
+.skill-job-tier { font-size: 11px; color: var(--ink-dim); font-weight: 400; }
+.skill-job-current { font-size: 10px; color: var(--bg-deep); background: var(--gold); padding: 1px 6px; border-radius: 8px; font-weight: 700; }
+.skill-job-points { margin-left: auto; font-size: 12px; color: var(--teal-soft); font-weight: 600; }
+/* 二轉／進階二轉共用同一個技能點池時，標在數字後面（#101） */
+.skill-job-shared { margin-left: 4px; font-size: 10px; color: var(--ink-dim); font-weight: 400; }
+.skill-job-spent { font-size: 11px; color: var(--ink-dim); }
+/* 展開後標頭釘在頂端（#102）：一個職業攤開有 15~22 招，捲到一半就看不到
+   「現在看的是哪個職業、還剩幾點、已投入幾點」。做法跟裝備分頁同一套——
+   .tab-content 是外層捲動容器，負的 top 抵銷它的 16px padding 才會真的貼齊上緣。
+   只有展開的區塊需要黏；收合的整列本來就只有一行高。 */
+.skill-job-section.expanded .skill-job-header {
+  position: sticky;
+  top: -16px;
+  z-index: 5;
+}
+.skill-job-section.collapsed .skill-list { display: none; }
+.skill-job-section.expanded .skill-list { display: block; }
+.skill-type { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+.skill-type.passive { background: #5b6b9c; color: #fff; }
+.skill-type.attack { background: #c0392b; color: #fff; }
+.skill-type.heal { background: #27ae60; color: #fff; }
+.skill-type.dot { background: #8e44ad; color: #fff; }
+.skill-type.buff { background: #2980b9; color: #fff; }
+.skill-type.debuff { background: #d35400; color: #fff; }
+.skill-element { font-size: 12px; margin-left: 4px; }
+
+/* NPC Shop */
+.npc-shop { padding: 8px 0; }
+.npc-shop-list { display: flex; flex-direction: column; gap: 8px; }
+.npc-shop-card { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; transition: border-color 0.2s; }
+.npc-shop-card:hover { border-color: var(--gold); }
+.npc-shop-icon { font-size: 1.5rem; }
+.npc-shop-info { flex: 1; }
+.npc-shop-name { font-weight: 600; color: var(--gold-soft); font-size: 0.9rem; }
+.npc-shop-hint { font-size: 0.7rem; color: var(--ink-dim); margin-left: auto; }
+.npc-shop-count { font-size: 0.7rem; color: var(--ink-dim); }
+.npc-shop-arrow { color: var(--ink-dim); font-size: 0.8rem; }
+.npc-shop-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.npc-shop-header .panel-title { margin: 0; }
+.shop-category { margin-bottom: 12px; }
+.shop-category-title { font-size: 0.85rem; color: var(--gold-soft); margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.shop-items { display: flex; flex-direction: column; gap: 4px; }
+.shop-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 6px; }
+.shop-cannot-afford { opacity: 0.6; }
+.shop-item-info { display: flex; align-items: center; gap: 8px; flex: 1; }
+.shop-item-icon { font-size: 1.2rem; }
+.shop-item-details { display: flex; flex-direction: column; }
+.shop-item-name { font-weight: 500; font-size: 0.85rem; }
+.shop-item-desc { font-size: 0.7rem; color: var(--ink-dim); margin-left: 6px; }
+.shop-item-stats { font-size: 0.7rem; color: var(--teal-soft); }
+.shop-item-actions { display: flex; align-items: center; gap: 8px; }
+.shop-item-price { font-size: 0.75rem; color: var(--gold); font-weight: 600; }
+.shop-item-owned { font-size: 0.7rem; color: var(--ink-dim); }
+.equip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+.equip-slot { background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px; text-align: center; }
+.equip-slot-name { font-size: 0.65rem; color: var(--ink-dim); margin-bottom: 4px; }
+.equip-slot-item { font-size: 0.75rem; color: var(--gold-soft); display: flex; align-items: center; justify-content: center; gap: 4px; }
+.equip-icon { width: 20px; height: 20px; object-fit: contain; }
+.ref-tag { color: #5dade2; font-weight: 700; font-size: 0.7rem; }
+.equip-refine { margin-top: 4px; }
+.equip-card { font-size: 0.65rem; color: #58d68d; margin-top: 2px; }
+.equip-card-actions { margin-top: 2px; }
+
+/* ---- RO 風裝備視窗（10 格自設計） ---- */
+.ro-equip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+  max-width: 360px;
+}
+.ro-equip-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  min-height: 52px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.ro-equip-slot:hover {
+  border-color: var(--gold);
+  background: var(--bg-panel);
+}
+.ro-equip-slot.has-item {
+  border-color: var(--gold);
+  border-style: solid;
+}
+.ro-equip-slot .slot-label {
+  font-size: 9px;
+  color: var(--ink-dim);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ro-equip-slot .slot-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.ro-equip-slot .slot-empty {
+  width: 28px;
+  height: 28px;
+  border: 1px dashed var(--line);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--line);
+}
+.ro-equip-slot .slot-name {
+  font-size: 10px;
+  color: var(--gold-soft);
+  margin-top: 2px;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ro-equip-slot .slot-refine {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 9px;
+  color: #5dade2;
+  font-weight: 700;
+}
+/* ---- 裝備分頁：上半裝備欄釘住不動，下半可選清單自己捲 ---- */
+/* .tab-content 是外層捲動容器，這裡用 sticky 把「裝備欄 + 武器/防具切換鈕」
+   一起黏在頂端；負的 top 是為了抵銷 .tab-content 的 16px padding，讓它真的貼齊上緣。
+   兩者包在同一個容器裡而不是各自 sticky——分開做的話切換鈕的 top 必須等於
+   裝備欄的實際高度，而那個高度會隨外觀面板與裝備數量變動，只能靠 JS 量。 */
+.equip-sticky {
+  position: sticky;
+  top: -16px;
+  z-index: 5;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line);
+}
+.equip-fixed {
+  background: var(--bg-panel);
+  padding: 12px 0 8px;
+  margin-top: -12px;
+}
+/* 裝備分頁裡的格子縮小一點，才空得出下方選單的位置 */
+.equip-fixed .ro-equip-grid { gap: 4px; margin-bottom: 8px; max-width: 300px; }
+.equip-fixed .ro-equip-slot { min-height: 42px; padding: 4px 3px; }
+.equip-fixed .ro-equip-slot .slot-icon,
+.equip-fixed .ro-equip-slot .slot-empty { width: 22px; height: 22px; }
+.equip-fixed .ro-equip-slot .slot-label { font-size: 8px; margin-bottom: 1px; }
+.equip-fixed .ro-equip-slot .slot-name { font-size: 9px; }
+.equip-fixed .ro-equip-slot .slot-cards { margin-top: 1px; }
+
+.equip-fixed-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.equip-fixed-head .panel-title { margin: 0; display: flex; align-items: center; gap: 6px; }
+.equip-collapse-btn { padding: 0 6px; line-height: 1.4; font-size: 11px; }
+.equip-fixed.collapsed { padding-bottom: 4px; }
+.equip-skin-select { font-size: 11px; padding: 2px 4px; max-width: 150px; }
+
+/* ---- RO 原版底圖裝備視窗 ---- */
+.equipwin {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 280 / 130;   /* 底圖原始比例，格子座標才對得準 */
+  margin: 8px 0;
+}
+.equipwin-bg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+/* 深色版：同一張圖反轉，白底變深底、灰橢圓變橄欖金 */
+.equipwin--dark .equipwin-bg { filter: invert(1); }
+.equipwin-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.equipwin-slot img { width: 26px; height: 26px; object-fit: contain; image-rendering: pixelated; }
+.equipwin-slot:hover { background: rgba(212, 175, 55, 0.25); box-shadow: 0 0 0 1px var(--gold); }
+.equipwin-slot.is-empty { cursor: default; }
+.equipwin-slot.two-hand-shadow { opacity: 0.55; }
+.equipwin-refine {
+  position: absolute; top: -4px; right: -4px;
+  font-size: 9px; font-weight: 700; color: #5dade2;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+.equipwin-card {
+  position: absolute; bottom: -4px; left: -4px;
+  font-size: 8px; text-shadow: 0 0 3px #000;
+}
+.equipwin-qty {
+  position: absolute; bottom: -5px; right: -4px;
+  font-size: 9px; font-weight: 700; color: var(--gold-soft);
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+
+/* ---- 攻速藥水勾選列 ---- */
+.aspd-potion-row { display: flex; align-items: center; gap: 6px; }
+.aspd-potion-row.disabled { opacity: 0.5; }
+.aspd-potion-block { color: var(--crimson-soft); font-size: 11px; }
+
+/* ---- 箭矢狀態列 ---- */
+.ammo-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 8px; margin: 6px 0 0;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 4px;
+  font-size: 12px;
+}
+.ammo-row.warn { border-color: var(--crimson-soft); }
+.ammo-label { color: var(--ink-dim); font-size: 11px; }
+.ammo-icon { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; }
+.ammo-name { color: var(--ink); }
+.ammo-qty { color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.ammo-qty.zero { color: var(--crimson-soft); }
+.ammo-warn { color: var(--crimson-soft); font-size: 11px; }
+
+/* ---- 精煉面板（取代原本的 confirm 彈窗，可以一直按） ---- */
+.refine-panel {
+  margin: 10px 0;
+  padding: 10px;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 4px;
+}
+.refine-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.refine-step { font-size: 15px; color: var(--ink); }
+.refine-step b { color: var(--gold); }
+.refine-meta { font-size: 11px; color: var(--ink-dim); }
+.refine-mats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.refine-mat {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  min-width: 150px; padding: 6px 8px; cursor: pointer;
+  background: var(--bg-panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px;
+  font-family: inherit; text-align: left;
+}
+.refine-mat:hover:not(:disabled) { border-color: var(--gold-soft); }
+.refine-mat.active { border-color: var(--gold); background: var(--bg-panel-3, var(--bg-panel)); }
+.refine-mat:disabled, .refine-mat.out { opacity: 0.45; cursor: not-allowed; }
+.refine-mat-name { font-size: 12px; }
+.refine-mat-qty { font-size: 11px; color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.refine-mat-qty.zero { color: var(--crimson-soft); }
+.refine-mat-note { font-size: 10px; color: var(--ink-dim); }
+.refine-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.refine-hint { font-size: 11px; color: var(--crimson-soft); }
+.refine-log {
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-dim); line-height: 1.7;
+}
+
+.equip-pick-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 0; margin: 0;   /* 在 .equip-sticky 裡面，用 padding 撐開才不會露出底下的內容 */
+  background: var(--bg-panel);
+}
+.equip-pick-empty { color: var(--ink-dim); font-size: 13px; padding: 16px 0; text-align: center; }
+.equip-pick-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; margin-bottom: 6px;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 4px;
+}
+.equip-pick-row.equipped { border-color: var(--gold); }
+.equip-pick-row img { width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.equip-pick-info { flex: 1; min-width: 0; }
+.equip-pick-name { font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.equip-pick-stats { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+.equip-pick-cards { font-size: 10px; color: var(--gold-soft); margin-top: 2px; }
+
+/* 雙手武器佔住的左手格：同一把武器的分身，畫淡一點並用虛線邊框跟真正的裝備區隔 */
+.ro-equip-slot.two-hand-shadow { opacity: 0.55; border-style: dashed; }
+
+/* 頭部三格佔滿第一行 */
+.ro-equip-slot.head-slot {
+  grid-column: span 1;
+}
+/* 武器佔中間行 */
+.ro-equip-slot.weapon-slot {
+  grid-column: 2;
+}
+/* 裝備提示框 */
+.ro-equip-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  background: #1a1a2e;
+  border: 2px solid var(--gold);
+  border-radius: 4px;
+  padding: 10px 12px;
+  min-width: 200px;
+  max-width: 280px;
+  font-size: 12px;
+  color: var(--ink);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+.ro-equip-tooltip.show { display: block; }
+.ro-equip-tooltip .tt-name { font-weight: 700; color: var(--gold-soft); font-size: 13px; margin-bottom: 4px; }
+.ro-equip-tooltip .tt-type { font-size: 11px; color: var(--ink-dim); margin-bottom: 6px; }
+.ro-equip-tooltip .tt-desc { font-size: 11px; color: var(--ink); line-height: 1.5; margin-bottom: 6px; }
+.ro-equip-tooltip .tt-stats { font-size: 11px; color: #5dade2; }
+.ro-equip-tooltip .tt-stats span { display: inline-block; margin-right: 8px; }
+.ro-equip-tooltip .tt-refine { color: #f0c040; font-weight: 700; }
+.ro-equip-tooltip .tt-card { color: #58d68d; margin-top: 4px; }
+.ro-equip-tooltip .tt-hint { font-size: 10px; color: var(--ink-dim); margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
+
+/* Card system */
+.card-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.card-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.card-info { display: flex; align-items: center; gap: 8px; flex: 1; }
+.card-icon { font-size: 1.2rem; }
+.card-details { display: flex; flex-direction: column; }
+.card-name { font-weight: 500; font-size: 0.85rem; }
+.card-desc { font-size: 0.7rem; color: var(--teal-soft); }
+
+/* Town NPCs */
+.town-npcs { margin-top: 12px; }
+.town-npc-title { font-size: 0.9rem; color: var(--gold-soft); margin: 0 0 8px; }
+.town-npc-list { display: flex; gap: 8px; }
+.town-npc-card { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 8px; background: var(--bg-panel-2); border: 1px solid var(--gold); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.town-npc-card:hover { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+.town-npc-card:hover .town-npc-hint { color: var(--bg-deep); }
+.town-npc-icon { font-size: 1.5rem; }
+.town-npc-name { font-weight: 600; font-size: 0.85rem; color: var(--gold-soft); }
+.town-npc-card:hover .town-npc-name { color: var(--bg-deep); }
+.town-npc-hint { font-size: 0.7rem; color: var(--ink-dim); }
+
+/* Auto Battle Tab */
+.ab-status { background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+.ab-bar-label { font-size: 12px; color: var(--ink); margin-bottom: 4px; font-weight: 600; }
+.ab-hp, .ab-sp { margin-bottom: 8px; }
+.ab-info-row { display: flex; gap: 12px; font-size: 12px; color: var(--ink-dim); margin-top: 8px; }
+.ab-section { margin-bottom: 16px; }
+.ab-section-title { font-size: 14px; color: var(--gold-soft); margin: 0 0 10px; font-weight: 700; }
+.ab-attack-config { background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 8px; }
+.ab-config-row { margin-bottom: 10px; }
+.ab-config-row:last-child { margin-bottom: 0; }
+.ab-config-label { display: block; font-size: 12px; color: var(--ink-dim); margin-bottom: 4px; }
+.ab-select { width: 100%; padding: 8px 10px; font-size: 13px; font-family: var(--font-body); background: var(--bg-panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 6px; cursor: pointer; }
+.ab-select:focus { outline: none; border-color: var(--gold-soft); }
+.ab-mode-btns { display: flex; gap: 8px; }
+.ab-mode-btns .btn-small.active { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+.ab-slider { width: 100%; accent-color: var(--gold); }
+.ab-slider-val { font-size: 12px; color: var(--gold-soft); font-weight: 700; }
+.ab-config-hint { font-size: 12px; color: var(--ink-dim); }
+.ab-info-text { font-size: 12px; color: var(--ink-dim); margin-top: 8px; line-height: 1.5; }
+.ab-skill-slot { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.ab-skill-slot:last-child { margin-bottom: 0; }
+.ab-skill-slot-label { font-size: 12px; color: var(--gold-soft); font-weight: 700; margin-bottom: 8px; }
+
+/* Support Skills */
+.support-skill-list { display: flex; flex-direction: column; gap: 6px; }
+.support-skill-row { padding: 8px 10px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.support-skill-row.enabled { border-color: var(--teal); }
+.support-skill-toggle { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.support-skill-toggle input[type="checkbox"] { margin-top: 2px; accent-color: var(--teal); }
+.support-skill-info { display: flex; flex-direction: column; }
+.support-skill-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.support-skill-desc { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+.support-skill-cost { font-size: 11px; color: var(--teal-soft); margin-top: 2px; }
+
+/* ---------------- 圖鑑分頁 ---------------- */
+.codex-progress { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.codex-prog-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-dim); margin-bottom: 3px; }
+.codex-prog-fill { background: linear-gradient(90deg, #8a6d1f, var(--gold-soft)); }
+
+.codex-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.codex-tabs .btn-small { flex: 1; }
+.codex-tabs .btn-small.active,
+.codex-filters .btn-small.active { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+
+.codex-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.codex-search {
+  flex: 1; min-width: 140px; padding: 7px 10px;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink); font-family: var(--font-body); font-size: 12px;
+}
+.codex-search:focus { outline: none; border-color: var(--gold); }
+.codex-filters { display: flex; gap: 4px; }
+.codex-filters .btn-small { padding: 6px 9px; font-size: 11px; }
+
+.codex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.codex-cell {
+  position: relative; padding: 8px 4px 6px; text-align: center; cursor: pointer;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.codex-cell:hover { border-color: var(--gold); transform: translateY(-2px); }
+.codex-cell.open { border-color: var(--gold); background: #2a2f4e; }
+/* 圖鑑全開放之後，沒收藏過的只是淡一點，照樣點得開（不再是剪影 ？？？）*/
+.codex-cell.unfound { opacity: .62; }
+.codex-cell.unfound:hover { opacity: 1; }
+.codex-icon { width: 40px; height: 40px; object-fit: contain; image-rendering: pixelated; }
+.codex-icon.silhouette { filter: brightness(0) opacity(.45); }
+.silhouette-box {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; margin: 0 auto;
+  color: var(--ink-dim); font-size: 20px; font-weight: 700;
+}
+.codex-cell-name {
+  font-size: 11px; color: var(--ink); margin-top: 4px; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.codex-cell-sub { font-size: 10px; color: var(--ink-dim); margin-top: 2px; }
+.codex-cell-count {
+  position: absolute; top: 3px; right: 4px;
+  font-size: 9px; color: var(--gold-soft); background: rgba(0,0,0,.45);
+  padding: 1px 4px; border-radius: 4px;
+}
+.codex-cell-count.zero { color: var(--ink-dim); }
+
+.codex-pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; }
+.codex-pager-info { font-size: 11px; color: var(--ink-dim); }
+
+.codex-detail {
+  position: relative; padding: 12px; margin-bottom: 12px;
+  background: var(--bg-panel-2); border: 1px solid var(--gold); border-radius: 10px;
+}
+.codex-detail-close {
+  position: absolute; top: 8px; right: 8px; width: 22px; height: 22px;
+  background: transparent; border: 1px solid var(--line); border-radius: 5px;
+  color: var(--ink-dim); cursor: pointer; font-size: 11px; line-height: 1;
+}
+.codex-detail-close:hover { border-color: var(--gold); color: var(--gold-soft); }
+.codex-detail-head { display: flex; gap: 12px; align-items: flex-start; }
+.codex-detail-icon { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.codex-detail-name { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--gold-soft); }
+.codex-detail-lv { font-size: 12px; color: var(--ink-dim); font-weight: 400; }
+.codex-detail-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.codex-detail-tags span {
+  font-size: 10px; color: var(--ink-dim);
+  background: var(--bg-panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
+}
+.codex-detail-tags .codex-mvp { color: var(--crimson-soft); border-color: var(--crimson); }
+/* 迷你王：同樣是 BOSS 階級但不是 MVP，用金色跟正牌 MVP 的紅色區隔 */
+.codex-detail-tags .codex-miniboss { color: var(--gold-soft); border-color: var(--gold); }
+.codex-detail-kills { font-size: 11px; color: var(--ink-dim); margin-top: 6px; }
+.codex-detail-kills b { color: var(--gold-soft); font-size: 13px; }
+.codex-detail-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.codex-detail-stats span {
+  font-size: 11px; color: var(--ink);
+  background: var(--bg-panel); border-radius: 4px; padding: 2px 7px;
+}
+.codex-detail-desc { font-size: 11px; color: var(--parchment-dim); margin-top: 10px; line-height: 1.5; }
+/* 區塊標題：標題在左、說明小字靠右。
+   **用 flex 不用 float**（#136）：說明小字本來是 `float: right`，
+   而浮動元素會溢出自己的區塊、插進後面的盒子裡。
+   後面的 `.codex-spots` 是 `display:flex`（一個 BFC），而 BFC 會**避開浮動**——
+   於是整個出沒地圖列被擠成幾十 px，地圖名縮成 0、「前往」鈕被推出可視範圍。
+   畫面越窄越嚴重（使用者 2026-08-22 回報的 MVP 圖鑑就是這個）。 */
+.codex-detail-sec {
+  font-size: 11px; color: var(--gold-soft); margin: 12px 0 6px;
+  border-bottom: 1px solid var(--line); padding-bottom: 4px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.codex-maps { display: flex; flex-wrap: wrap; gap: 5px; }
+.codex-maps span { font-size: 10px; color: var(--ink-dim); background: var(--bg-panel); border-radius: 4px; padding: 2px 6px; }
+.codex-drops, .codex-srcs { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
+.codex-drop, .codex-src {
+  display: flex; align-items: center; gap: 7px; padding: 4px 6px;
+  background: var(--bg-panel); border-radius: 5px; font-size: 11px;
+}
+.codex-drop img, .codex-src img { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; }
+.codex-drop-name, .codex-src-name { flex: 1; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codex-drop.got .codex-drop-name { color: var(--ink); }
+.codex-drop.card { border: 1px solid var(--gold); }
+.codex-drop-rate { color: var(--teal-soft); font-variant-numeric: tabular-nums; }
+.codex-src-lv { color: var(--ink-dim); font-size: 10px; }
+.codex-drop-got { width: 48px; text-align: right; color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.codex-drops .dim, .codex-srcs .dim, .codex-maps .dim, .codex-spots .dim { color: var(--ink-dim); font-size: 11px; }
+
+/* 出沒地／去哪裡打：一行一個去處，最右邊是可以直接過去的按鈕 */
+.codex-sec-hint { flex: none; text-align: right; font-size: 10px; color: var(--ink-dim); font-weight: 400; }
+.codex-spots { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+.codex-spot {
+  display: flex; align-items: center; gap: 7px; padding: 4px 6px;
+  background: var(--bg-panel); border-radius: 5px; font-size: 11px;
+}
+.codex-spot-icon { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; }
+.codex-spot-mon { display: flex; align-items: baseline; gap: 4px; width: 104px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codex-spot-name { flex: 1; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codex-spot-pct { width: 34px; text-align: right; color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.codex-spot.shop .codex-spot-name { flex: none; color: var(--gold-soft); }
+.codex-spot.mvp { border-left: 2px solid var(--gold); }
+.codex-spot.mvp .codex-spot-pct { color: var(--teal-soft); }
+/* MVP 出沒地圖的「BOSS 模式」標籤（#108） */
+.codex-spot-mvp {
+  flex: none; font-size: 9px; padding: 1px 5px; border-radius: 3px;
+  color: var(--crimson-soft); border: 1px solid var(--crimson); white-space: nowrap;
+}
+/* 這一行是獨立的整句說明，不是標題旁的小字：滿行靠左，也不跟著靠右 */
+.codex-mvp-note { display: block; text-align: left; margin: 2px 0 4px; line-height: 1.5; }
+.codex-go {
+  flex: none; padding: 2px 8px; font-size: 10px; border-radius: 4px; cursor: pointer;
+  background: rgba(212,175,55,0.12); border: 1px solid var(--gold-soft); color: var(--gold-soft);
+}
+.codex-go:hover { background: rgba(212,175,55,0.3); color: var(--ink); }
+
+/* ---------------- 成就分頁 ---------------- */
+.tab-btn { position: relative; } /* 讓新成就的小紅點定位得住 */
+.tab-btn.has-new::after {
+  content: ''; position: absolute; top: 4px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--gold);
+  box-shadow: 0 0 6px var(--gold); animation: acv-pulse 1.4s ease-in-out infinite;
+}
+@keyframes acv-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .tab-btn.has-new::after { animation: none; } }
+
+.acv-summary { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.acv-points {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 74px; padding: 8px 10px;
+  background: var(--bg-panel-2); border: 1px solid var(--gold); border-radius: 10px;
+}
+.acv-points-num { font-family: var(--font-display); font-size: 22px; font-weight: 900; color: var(--gold-soft); line-height: 1; }
+.acv-points-label { font-size: 10px; color: var(--ink-dim); margin-top: 3px; }
+.acv-summary-bar { flex: 1; }
+.acv-prog-fill { background: linear-gradient(90deg, #8a6d1f, var(--gold-soft)); }
+
+.acv-cats { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.acv-cats .btn-small { padding: 5px 9px; font-size: 11px; }
+.acv-cats .btn-small.active { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+.acv-cat-n { opacity: .7; font-size: 10px; font-variant-numeric: tabular-nums; }
+.acv-hide { margin-top: 0; margin-bottom: 10px; font-size: 12px; }
+
+.acv-list { display: flex; flex-direction: column; gap: 6px; }
+.acv-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  background: var(--bg-panel-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--line); border-radius: 8px;
+}
+.acv-row.tier-1 { border-left-color: #6b7280; }
+.acv-row.tier-2 { border-left-color: var(--teal); }
+.acv-row.tier-3 { border-left-color: #7a6ad8; }
+.acv-row.tier-4 { border-left-color: var(--crimson-soft); }
+.acv-row.tier-5 { border-left-color: var(--gold); }
+.acv-row.done { border-color: var(--gold); background: #262b45; }
+.acv-icon { font-size: 22px; width: 30px; text-align: center; flex-shrink: 0; }
+.acv-row:not(.done) .acv-icon { filter: grayscale(1) opacity(.55); }
+.acv-body { flex: 1; min-width: 0; }
+.acv-name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.acv-row:not(.done) .acv-name { color: var(--ink-dim); }
+.acv-check { color: var(--gold); font-size: 12px; }
+.acv-desc { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+.acv-bar { height: 4px; background: #0c0e16; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.acv-bar-fill { height: 100%; background: linear-gradient(90deg, #8a6d1f, var(--gold-soft)); transition: width .3s ease; }
+.acv-row.done .acv-bar-fill { background: var(--gold); }
+.acv-side { text-align: right; flex-shrink: 0; }
+.acv-count { font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.acv-reward { font-size: 10px; color: var(--gold-soft); margin-top: 3px; white-space: nowrap; }
+
+/* 圖鑑：卡片插圖與未實裝效果 */
+.codex-card-art { display: flex; justify-content: center; margin: 12px 0 4px; }
+.codex-card-art img {
+  width: 180px; max-width: 100%; height: auto; border-radius: 8px;
+  border: 1px solid var(--gold); box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+.codex-unimpl { display: flex; flex-direction: column; gap: 3px; }
+.codex-unimpl div {
+  font-size: 11px; color: var(--ink-dim); line-height: 1.45;
+  padding: 3px 7px; background: var(--bg-panel); border-radius: 4px;
+  border-left: 2px solid var(--crimson);
+}
+
+/* 裝備欄位的卡片插槽 */
+.slot-cards { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.slot-pips { font-size: 9px; color: var(--gold-soft); letter-spacing: 1px; }
+.btn-pip {
+  font-size: 9px; padding: 1px 5px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg-panel); color: var(--gold-soft);
+}
+.btn-pip:hover { border-color: var(--gold); }
+.btn-pip.danger { color: var(--crimson-soft); }
+.btn-pip.danger:hover { border-color: var(--crimson); }
+.tt-slots { font-size: 11px; color: var(--gold-soft); margin-top: 6px; }
+.card-row.inserted { border-color: var(--gold); background: #262b45; }
+.card-warn {
+  font-size: 11px; color: var(--crimson-soft); line-height: 1.5;
+  margin: 8px 0; padding: 7px 9px;
+  background: var(--bg-panel); border-left: 2px solid var(--crimson); border-radius: 4px;
+}
+
+/* ---------------- 背包四分類 ---------------- */
+.inv-cats { display: flex; gap: 5px; margin-bottom: 8px; }
+.inv-cats .btn-small { flex: 1; padding: 7px 4px; font-size: 12px; }
+.inv-cats .btn-small.active { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+.inv-cat-n { opacity: .7; font-size: 10px; font-variant-numeric: tabular-nums; }
+
+.inv-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.inv-toolbar .codex-search { flex: 1; min-width: 0; }
+.inv-sort { flex-shrink: 0; width: auto; padding: 6px 8px; font-size: 12px; }
+
+.inv-subs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.btn-chip {
+  font-size: 11px; padding: 3px 9px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg-panel); color: var(--ink-dim);
+}
+.btn-chip:hover { border-color: var(--gold); color: var(--gold-soft); }
+.btn-chip.active { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+
+.inv-slots { color: var(--gold-soft); font-size: 11px; }
+.inv-cardslot { font-size: 10px; color: var(--teal-soft); margin-top: 2px; }
+
+/* ---------------- 倉庫浮動視窗 ---------------- */
+/* 外層鋪滿但不吃事件，只有 frame 收 → 遊戲在背後照跑、旁邊照樣點得到 */
+.wh-window { position: fixed; inset: 0; z-index: 72; pointer-events: none; }
+.wh-window.hidden { display: none; }
+.wh-frame {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(88vw, 900px); height: min(88vh, 700px); min-width: 320px;
+  display: flex; flex-direction: column; pointer-events: auto;
+  background: var(--bg-panel); border: 1px solid var(--gold); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.6); overflow: hidden;
+}
+.wh-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; cursor: move; user-select: none;
+  background: linear-gradient(180deg, var(--bg-panel-2), var(--bg-panel));
+  border-bottom: 1px solid var(--line);
+}
+.wh-header h3 { margin: 0; font-family: var(--font-display); font-size: 15px; color: var(--gold-soft); }
+.wh-header-btns { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.wh-sub { font-size: 11px; color: var(--ink-dim); }
+.wh-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+.wh-hint { font-size: 11px; color: var(--ink-dim); margin-bottom: 10px; line-height: 1.5; }
+
+.wh-gold {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 8px 10px; margin-bottom: 10px;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px;
+  font-size: 12px; color: var(--ink-dim);
+}
+.wh-gold b { color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+.wh-gold-input { width: 7em; padding: 4px 7px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: 5px; color: var(--ink); }
+
+.wh-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.wh-toolbar .codex-search { flex: 1; min-width: 0; }
+.wh-qty-label { font-size: 11px; color: var(--ink-dim); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wh-qty { width: 5em; padding: 5px 7px; background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 5px; color: var(--ink); }
+
+.wh-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .wh-cols { grid-template-columns: 1fr; } }
+.wh-col { display: flex; flex-direction: column; min-width: 0; }
+.wh-col-head {
+  font-size: 11px; color: var(--gold-soft); padding-bottom: 5px; margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.wh-list { display: flex; flex-direction: column; gap: 3px; max-height: 46vh; overflow-y: auto; }
+.wh-row {
+  display: flex; align-items: center; gap: 7px; padding: 5px 7px; cursor: pointer;
+  background: var(--bg-panel-2); border: 1px solid transparent; border-radius: 6px; font-size: 12px;
+}
+.wh-row:hover { border-color: var(--gold); background: #2a2f4e; }
+.wh-row img { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.wh-row-name { flex: 1; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wh-row-qty { color: var(--gold-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+/* 同步自動販賣清單的小視窗（#140）：疊在自動販賣視窗上面，所以 z-index 要更高 */
+.assync-window { z-index: 74; }
+.assync-frame { width: min(92vw, 480px); height: auto; max-height: min(80vh, 560px); }
+.assync-list { display: flex; flex-direction: column; gap: 6px; }
+.assync-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: var(--bg-panel-2); border: 1px solid var(--line); border-radius: 8px; font-size: 12px;
+}
+.assync-who { flex: 1; min-width: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assync-sub { color: var(--ink-dim); font-size: 11px; margin-left: 6px; }
+.assync-n { color: var(--gold-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.assync-btns { display: flex; gap: 4px; flex-shrink: 0; }
+.assync-btns button[disabled] { opacity: .4; cursor: not-allowed; }
+
+/* ---------------- 道具鎖定 / 裝備比較 ---------------- */
+.inv-row.locked { border-color: var(--gold); background: #262b45; }
+.inv-lock-tag { font-size: 11px; }
+.inv-compare {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+  font-size: 10px; color: var(--ink-dim); margin-top: 4px;
+}
+.inv-compare.same { color: var(--ink-dim); font-style: italic; }
+/* 一次可能列出好幾項（ATK/DEF/最大HP/攻速…），彼此要留空隙才讀得開 */
+.cmp-up, .cmp-down { display: inline-block; margin-right: 10px; font-variant-numeric: tabular-nums; }
+.cmp-up { color: #6dd47e; }
+.cmp-down { color: var(--crimson-soft); }
+
+/* ---------------- 遺物頁（#113／#115 改版）----------------
+   八格欄位釘在頂端跟著分頁鈕一起 sticky；套裝說明改走 tooltip，
+   欄位本身只用發光顏色表示湊到第幾段（2 綠／3 黃／5 紅）。 */
+.relic-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  margin: 8px 0; padding-bottom: 8px;
+}
+.relic-cell {
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 4px;
+  text-align: center; background: var(--bg-panel-2); min-height: 66px;
+}
+.relic-cell.empty { opacity: .45; }
+.relic-cell.filled { cursor: pointer; border-color: var(--gold, #c9a24a); }
+.relic-cell.filled:hover { background: var(--bg-panel); }
+.relic-cell-icon { font-size: 20px; line-height: 1.1; }
+.relic-cell-name { font-size: 11px; margin-top: 2px; }
+.relic-cell-set { font-size: 10px; color: var(--ink-dim); }
+
+/* 湊到第幾段就發什麼光。用外框＋光暈而不是改底色——
+   打寶模式已經把整個介面染紅了，改底色會分不出來 */
+.relic-cell.glow2 { border-color: #4fd07a; box-shadow: 0 0 8px rgba(79,208,122,.55); }
+.relic-cell.glow3 { border-color: #f2c744; box-shadow: 0 0 9px rgba(242,199,68,.6); }
+.relic-cell.glow5 { border-color: #ff5a4a; box-shadow: 0 0 11px rgba(255,90,74,.7); }
+
+/* 背包分頁（#116）：一次只看一套，切換鈕吃跟欄位一樣的發光顏色 */
+.relic-bag-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 6px;
+}
+.relic-tab { font-size: 12px; }
+.relic-tab-n { font-variant-numeric: tabular-nums; opacity: .75; margin-left: 2px; }
+.relic-tab.glow2 { border-color: #4fd07a; }
+.relic-tab.glow3 { border-color: #f2c744; }
+.relic-tab.glow5 { border-color: #ff5a4a; }
+.relic-bag-missing {
+  font-size: 11px; color: var(--ink-dim); margin: 0 0 6px 8px;
+}
+
+/* 這一格現在被誰佔著。空著＝可直接穿，別套＝穿上去會換掉那件 */
+.relic-occ { font-size: 11px; }
+.relic-occ.free { color: #4fd07a; }
+.relic-occ.same { color: var(--ink-dim); }
+.relic-occ.swap { color: #f2c744; }
+
+.relic-bag-group { margin-bottom: 10px; }
+.relic-bag-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-weight: 600; padding: 4px 8px; margin-bottom: 4px;
+  border-left: 3px solid var(--line); background: var(--bg-panel-2); border-radius: 0 4px 4px 0;
+}
+.relic-bag-head.glow2 { border-left-color: #4fd07a; }
+.relic-bag-head.glow3 { border-left-color: #f2c744; }
+.relic-bag-head.glow5 { border-left-color: #ff5a4a; }
+.relic-bag-count { font-weight: 400; font-size: 12px; color: var(--ink-dim); }
+
+.relic-merchant {
+  border: 1px dashed var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;
+}
+.relic-merchant-head { font-weight: 600; margin-bottom: 6px; }
+.relic-merchant-sub { font-weight: 400; font-size: 12px; color: var(--ink-dim); }
+.relic-merchant-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.relic-merchant-note { font-size: 11px; color: var(--ink-dim); }
+.relic-row-icon {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+
+/* tooltip 裡的套裝三段 */
+.tt-relic-count.glow2 { color: #4fd07a; }
+.tt-relic-count.glow3 { color: #f2c744; }
+.tt-relic-count.glow5 { color: #ff5a4a; }
+.tt-relic-tier { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; line-height: 1.35; }
+.tt-relic-tier.off { opacity: .42; }
+.tt-relic-need { flex: 0 0 52px; font-variant-numeric: tabular-nums; }
+
+/* ---- 武僧遺物的兩個特效（#113）---- */
+/* 加特林的「-1」：比一般傷害小一號、偏金色，讓一排連射看起來是同一串 */
+.damage-float.gatling {
+  font-size: 15px; color: #ffd76a; text-shadow: 0 0 4px rgba(255,180,40,.8);
+}
+/* 佛法無邊：全身黃光一秒 */
+@keyframes buddha-glow-kf {
+  0%   { filter: drop-shadow(0 0 0 rgba(255,215,90,0)); }
+  25%  { filter: drop-shadow(0 0 14px rgba(255,215,90,1)) brightness(1.35); }
+  100% { filter: drop-shadow(0 0 0 rgba(255,215,90,0)); }
+}
+.player-sprite.buddha-glow { animation: buddha-glow-kf 1s ease-out; }
+.damage-float.buddha-text {
+  color: #ffd76a; font-size: 20px; font-weight: 700;
+  text-shadow: 0 0 8px rgba(255,180,40,.9);
+}
+
+/* ---------------- 免責聲明（#118）----------------
+   標題畫面用有框的區塊（要被看到），遊戲中用細細一行（不能擋路）。
+   兩者的文字都來自 js/about.js，這裡只管長相。 */
+.disclaimer-box {
+  position: relative; z-index: 1;
+  margin: 36px auto 0; max-width: 640px;
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 16px; background: rgba(0,0,0,.28);
+}
+.disclaimer-badge {
+  font-weight: 700; font-size: 13px; letter-spacing: .5px;
+  color: var(--gold, #c9a24a); margin-bottom: 8px;
+}
+.disclaimer-lines {
+  font-size: 11px; line-height: 1.85; color: var(--ink-dim);
+}
+.disclaimer-lines div { margin: 1px 0; }
+
+/* 創角畫面：一行就好，不要擋住加點 */
+.disclaimer-inline {
+  margin-top: 14px; font-size: 11px; color: var(--ink-dim); opacity: .8; text-align: center;
+}
+
+/* 遊戲中的常駐頁尾：一直看得到，但只佔一行 */
+.disclaimer-footer {
+  flex: 0 0 auto;
+  padding: 4px 8px; font-size: 10px; line-height: 1.4;
+  color: var(--ink-dim); opacity: .7; text-align: center;
+  border-top: 1px solid var(--line); cursor: pointer;
+}
+.disclaimer-footer:hover { opacity: 1; }
+
+/* 關於視窗 */
+.about-lines { text-align: left; font-size: 13px; line-height: 1.75; margin: 10px 0; }
+.about-lines p { margin: 6px 0; }
+.about-home { font-size: 12px; color: var(--ink-dim); margin-top: 10px; }
+
+/* 授權與鳴謝（#119）*/
+.disclaimer-license {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.disclaimer-license a, .about-sec a { color: var(--gold, #c9a24a); }
+.about-sec {
+  text-align: left; margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.about-sec h4 { margin: 0 0 6px; font-size: 13px; color: var(--gold, #c9a24a); }
+.about-sec p { margin: 4px 0; font-size: 12px; line-height: 1.7; }
+
+/* 回安全區鈕（#120）：貼在「選擇地區」標題右邊 */
+.map-home-btn { float: right; font-size: 12px; }
+
+/* 首次確認視窗與法律聲明（#121）。捲動交給 .modal-box 那組規則（#123）*/
+.modal-box-tall { width: 620px; }
+.consent-row {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  margin: 14px 0 4px; font-size: 13px; cursor: pointer;
+}
+.consent-row input { width: 16px; height: 16px; cursor: pointer; }
+#consent-enter[disabled] { opacity: .45; cursor: not-allowed; }
+.legal-list { margin: 6px 0 0; padding-left: 20px; }
+.legal-list > li { margin-bottom: 8px; }
+.legal-list > li > b { color: var(--ink); }
+.legal-list p { margin: 3px 0; font-size: 12px; line-height: 1.65; color: var(--ink-dim); }
+
+/* ---------------- 掛機收益（#135）----------------
+   跟隊友面板同一套結構：按鈕釘在戰鬥區右上角（靜音鈕旁邊），
+   內容是浮動面板而不是 modal-overlay——開著的時候遊戲照跑，
+   這正是使用者要的「不影響掛機可以查看」。 */
+/* 按鈕釘在標頭的音量滑桿右邊（使用者指定），尺寸是靜音鈕的兩倍：
+   掛機遊戲的玩家一天會點它很多次，不該跟一堆 34px 的小鈕混在一起。
+   position 是 static（靠 hud-right 的 flex 排），但 ::after 的金點要 relative 才釘得住。 */
+.btn-idle-report {
+  position: relative; flex: none;
+  width: 68px; height: 68px; border-radius: 50%;
+  background: rgba(18,20,28,0.65); border: 1px solid var(--gold);
+  color: var(--gold-soft); font-size: 30px; line-height: 1; cursor: pointer;
+}
+.btn-idle-report:hover { background: rgba(212,175,55,0.25); color: var(--ink); }
+/* 有沒看過的紀錄時點一下金點，不然玩家不知道裡面有東西 */
+.btn-idle-report.has-new::after {
+  content: ''; position: absolute; top: 6px; right: 6px;
+  width: 14px; height: 14px; border-radius: 50%; background: var(--gold);
+  box-shadow: 0 0 6px var(--gold);
+}
+/* 外層不捲、只有 body 捲：跟隊友面板同一個理由（標題與勾選要釘住） */
+.idle-report-panel {
+  position: absolute; top: 52px; right: 12px; z-index: 6;
+  width: 320px; max-height: calc(100% - 76px);
+  display: flex; flex-direction: column; overflow: hidden;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(18,20,28,0.94); border: 1px solid var(--gold);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+}
+.idle-report-head {
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--gold-soft); margin-bottom: 6px;
+}
+.idle-report-opt {
+  flex: none; display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--ink-dim); cursor: pointer;
+  padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+/* min-height:0 少了的話 flex 子元素不會縮，body 撐爆外層就等於沒有捲動 */
+#idle-report-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.idle-rec {
+  background: var(--bg-panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+}
+.idle-rec-when { font-size: 11px; color: var(--ink-dim); margin-bottom: 4px; }
+.idle-rec-head { font-size: 12px; color: var(--gold-soft); margin-bottom: 6px; }
+.idle-rec-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px;
+  font-size: 12px; color: var(--ink);
+}
+.idle-rec-lv { font-size: 12px; color: var(--gold-soft); font-weight: 700; margin-top: 4px; }
+.idle-rec-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.idle-rec-items .offline-item { font-size: 11px; padding: 2px 7px; }
+.idle-rec-empty { font-size: 12px; color: var(--ink-dim); text-align: center; padding: 18px 0; line-height: 1.7; }
+
+/* 頭目的擊殺耗時（#137）：離線結算靠這個數字決定打不打得動，所以要看得到。
+   三種打寶模式各一份紀錄，左邊三顆小鈕切換。 */
+.codex-boss-time {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+  font-size: 11px; color: var(--gold-soft); margin-top: 3px;
+}
+.codex-bt-modes { display: inline-flex; gap: 2px; }
+.codex-bt-mode {
+  padding: 1px 6px; font-size: 10px; border-radius: 3px; cursor: pointer;
+  background: transparent; border: 1px solid var(--line); color: var(--ink-dim);
+}
+.codex-bt-mode.has { color: var(--gold-soft); border-color: var(--gold-soft); }
+.codex-bt-mode.active { background: rgba(212,175,55,0.22); color: var(--ink); border-color: var(--gold); }
+.codex-bt-mode:hover { border-color: var(--gold); }
+.codex-bt-none { color: var(--ink-dim); }
+
+/* 圖鑑的分類列（#138）：怪分普通／BOSS、卡分部位、道具分武防飾消素遺。
+   一頁 60 格而道具有一千四百多筆，只有「已發現／未發現」翻不完。 */
+.codex-cats { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; }
+.codex-cats .btn-small { padding: 2px 8px; font-size: 11px; }
+.codex-cats .btn-small.empty { opacity: 0.45; }
+.codex-cat-n { font-size: 10px; opacity: 0.7; margin-left: 2px; font-variant-numeric: tabular-nums; }
+
+/* V2 神器工坊 */
+.artifact-mats { display:flex; flex-wrap:wrap; gap:3px 6px; margin-top:5px; font-size:11px; }
+.artifact-mat-ok { color:var(--green, #4b9b69); }
+.artifact-mat-missing { color:var(--danger, #c45a5a); }
+.artifact-mat-sep { opacity:.35; }
+
+
+/* V2.1 裝備打洞工坊 */
+.drill-workshop{margin:12px 0 16px;padding:14px;border:1px solid rgba(205,160,85,.42);border-radius:12px;background:linear-gradient(135deg,rgba(73,48,29,.92),rgba(35,29,26,.96));color:#f4e5c8;box-shadow:inset 0 1px rgba(255,255,255,.06)}
+.drill-workshop-head{display:flex;align-items:center;gap:12px}.drill-workshop-art{width:54px;height:54px;display:grid;place-items:center;flex:0 0 54px;border-radius:10px;background:radial-gradient(circle,#b98242,#49301d 70%);font-size:32px;box-shadow:inset 0 0 12px #e5b96a55}.drill-workshop-art img{width:42px;height:42px;object-fit:contain;image-rendering:auto}.drill-workshop h3{margin:0 0 4px;color:#ffd58b}.drill-workshop p{margin:0;font-size:12px;color:#d9c7a9}.drill-workshop-cost{margin:12px 0 9px;padding:8px;border-radius:7px;background:#17120f88;font-size:12px;line-height:1.8}.drill-workshop-controls{display:flex;gap:8px;align-items:center}.drill-workshop-controls select{min-width:0;flex:1;padding:9px;border-radius:7px;background:#211b17;color:#f6e7cd;border:1px solid #82623e}.drill-workshop-controls button{white-space:nowrap}.drill-rates,.drill-note,.drill-empty{margin-top:9px;font-size:11px;line-height:1.6;color:#d4c2a4}.drill-note{color:#e9bd79}.drill-empty{padding:8px;background:#17120f66;border-radius:7px}
+@media(max-width:480px){.drill-workshop-controls{align-items:stretch;flex-direction:column}.drill-workshop-controls button{width:100%}.drill-workshop-cost{font-size:11px}}
+
+/* 圖鑑套裝總覽 */
+.codex-set-card { border:1px solid var(--line, #59434f); border-radius:12px; padding:11px 12px; margin:8px 0; background:rgba(255,255,255,.025); cursor:pointer; }
+.codex-set-card.open { border-color:var(--gold, #d7b33e); }
+.codex-set-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.codex-set-preview { color:var(--muted, #aaa); font-size:12px; margin-top:6px; line-height:1.5; }
+.codex-set-detail { margin-top:10px; padding-top:8px; border-top:1px solid var(--line, #59434f); }
+.codex-set-piece { display:flex; align-items:center; gap:9px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+.codex-set-piece img { width:30px; height:30px; object-fit:contain; image-rendering:pixelated; }
+.codex-set-piece small { margin-left:auto; color:var(--muted, #aaa); }
+.codex-set-tier,.codex-set-note { font-size:12px; color:var(--muted, #aaa); margin-top:7px; line-height:1.5; }
+
+/* 弓箭手被動技能實測統計 */
+.ab-section-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ab-table-wrap{width:100%;overflow-x:auto;margin-top:8px}
