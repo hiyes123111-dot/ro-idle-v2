@@ -199,7 +199,9 @@ const JOB_TREE = {
     bonusLevels: { str:[3,8,16,23,31,44], agi:[29,38], vit:[7,13,20,32,37,49], int:[21,34], dex:[1,4,5,9,12,19,26,28,36,39,40,47], luk:[11,46] },
     skills: [
       'weaponrepair', 'ironworking', 'steelworking', 'elementalstone',
-      'hiltbinding', 'findingore', 'weaponresearch', 'hammerfall', 'adrenaline',
+      'oridecon', 'hiltbinding', 'findingore', 'daggercraft',
+      'swordcraft', 'axecraft', 'knucklecraft', 'macecraft',
+      'spearcraft', 'weaponresearch', 'hammerfall', 'adrenaline',
       'skintemper', 'cartrevo', 'overthrust', 'overthrustbuff',
       'maximize', 'weaponfusion', 'greed',
     ],
@@ -662,7 +664,7 @@ const JOB_TREE = {
     borrowSkillsFrom: ['lordknight'],
     next: [], nextLocked: [],
     bonusLevels: { str:[1,6,7,8,19,25,33,41,46,47,52,56,57,64,70], agi:[2,10,14,17,37,53,60,65], vit:[5,12,22,29,40,43,58,68], int:[13,67], dex:[4,11,16,28,31,36,44,49,62], luk:[3,27,38] },
-    skills: ['rk_sonicwave', 'rk_dragontraining', 'rk_dragonbreath', 'rk_runeedge'],
+    skills: ['rk_sonicwave', 'rk_dragonbreath', 'rk_runeedge'],
     desc: '龍與符文的繼承者。劍上刻著看不懂的字，但敵人看得懂。'
   },
   royalguard: {

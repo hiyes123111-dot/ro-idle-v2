@@ -30,8 +30,14 @@
       SKILLS[id].desc = `${SKILLS[id].desc || ''}（使用條件：${({spear_sword2:'長矛或雙手劍',sword2:'雙手劍',spear:'長矛',bow:'弓',instrument:'樂器',whip:'鞭子',axemace:'斧頭或鈍器',katar:'拳刃',dagger:'短劍',knuckle:'拳套'})[req] || req}）`;
     }
   }
-  // 龍息先決條件改由盧恩騎士的「龍之訓練」負責；該被動本身要求騎乘術。
-  if (SKILLS.rk_dragonbreath) { SKILLS.rk_dragonbreath.requiresSkill = 'rk_dragontraining'; }
+  // 龍息需先學會騎乘術；引擎會在施放檢查中驗證前置技能。
+  if (SKILLS.rk_dragonbreath) { SKILLS.rk_dragonbreath.requiresSkill = 'riding'; SKILLS.rk_dragonbreath.desc += '（使用條件：必須學會騎乘術）'; }
+  // 龍息需先學會騎乘術；施放時由前置技能判定器驗證。
+  if (SKILLS.rk_dragonbreath) { SKILLS.rk_dragonbreath.requiresSkill = 'riding'; SKILLS.rk_dragonbreath.desc += '（使用條件：必須學會騎乘術）'; }
+  // 龍息需先學會騎乘術；施放時由前置技能判定器驗證。
+  if (SKILLS.rk_dragonbreath) { SKILLS.rk_dragonbreath.requiresSkill = 'riding'; SKILLS.rk_dragonbreath.desc += '（使用條件：必須學會騎乘術）'; }
+  // 龍息需先學會騎乘術；施放時由前置技能判定器驗證。
+  if (SKILLS.rk_dragonbreath) { SKILLS.rk_dragonbreath.requiresSkill = 'riding'; SKILLS.rk_dragonbreath.desc += '（使用條件：必須學會騎乘術）'; }
   // 盾牌限制：使用既有 requiresEquip 判定器。
   for (const id of ['rg_sacredguard']) if (SKILLS[id]) {
     SKILLS[id].requiresEquip = 'shield';

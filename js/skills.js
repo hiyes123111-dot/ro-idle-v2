@@ -119,9 +119,16 @@ const SKILLS = {
   ironworking: {"id":"ironworking","name":"鐵製造","maxLv":1,"type":"passive","passiveStat":"materialCraft","craftCategory":"iron","element":"neutral","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鍛造頁面的「鐵」選項：消耗鐵礦石×1與500鋅幣，鍛造成鐵×1，成功率50%。"},
   steelworking: {"id":"steelworking","name":"鋼製造","maxLv":1,"type":"passive","passiveStat":"materialCraft","craftCategory":"steel","element":"neutral","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鍛造頁面的「鋼鐵」選項：消耗鐵×5、煤礦×1與500鋅幣，鍛造成鋼鐵×1，成功率50%。"},
   elementalstone: {"id":"elementalstone","name":"屬性石製造","maxLv":1,"type":"passive","passiveStat":"materialCraft","craftCategory":"stone","element":"neutral","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鍛造頁面的「屬性原石」選項：消耗同屬性礦石×10與500鋅幣，鍛造成對應屬性原石×1，成功率50%。"},
+  oridecon: {"id":"oridecon","name":"神之金屬研究","maxLv":1,"type":"passive","passiveStat":"craftBonus","spCost":[0],"cooldown":[0],"mult":[5],"desc":"被動技能，永久提升鍛造武器成功率+5%。"},
   hiltbinding: {"id":"hiltbinding","name":"武器保有","maxLv":1,"type":"passive","passiveStat":"atkFlat","element":"neutral","spCost":[0],"cooldown":[0],"mult":[4],"strBonus":[1],"buffDurationBonusPct":[10],"desc":"被動技能，永久提升ATK+4、STR+1，並使速度激發與凶砍的持續時間+10%。"},
   findingore: {"id":"findingore","name":"尋找礦石","maxLv":1,"type":"passive","passiveStat":"findingoreProc","spCost":[0],"cooldown":[0],"procChance":[5],"desc":"被動技能，擊敗怪物時有5%機率額外獲得一顆隨機屬性礦石（風/水/火/地）。"},
-  weaponresearch: {"id":"weaponresearch","name":"武器研究","maxLv":10,"type":"passive","passiveStat":"atkFlat","element":"neutral","spCost":[0],"cooldown":[0],"mult":[2,4,6,8,10,12,14,16,18,20],"hitBonus":[2,4,6,8,10,12,14,16,18,20],"desc":"永久提升ATK與HIT各+2~20（依等級）。"},
+  daggercraft: {"id":"daggercraft","name":"短劍製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"dagger","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖短劍鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
+  swordcraft: {"id":"swordcraft","name":"劍製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"sword","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖單手劍與雙手劍鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
+  axecraft: {"id":"axecraft","name":"斧頭製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"axe","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖單手斧頭與雙手斧頭鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
+  knucklecraft: {"id":"knucklecraft","name":"拳套製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"knuckle","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖拳套鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
+  macecraft: {"id":"macecraft","name":"鈍器製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"mace","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鈍器鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
+  spearcraft: {"id":"spearcraft","name":"長矛製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"spear","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖單手長矛與雙手長矛鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
+  weaponresearch: {"id":"weaponresearch","name":"武器研究","maxLv":10,"type":"passive","passiveStat":"atkFlat","element":"neutral","spCost":[0],"cooldown":[0],"mult":[2,4,6,8,10,12,14,16,18,20],"hitBonus":[2,4,6,8,10,12,14,16,18,20],"craftBonusExtra":[1,2,3,4,5,6,7,8,9,10],"desc":"永久提升ATK與HIT各+2~20，並提升鍛造武器成功率+1%~10%（依等級）。"},
   hammerfall: {"id":"hammerfall","name":"大地之擊","maxLv":5,"type":"passive","passiveStat":"hammerfallProc","element":"earth","spCost":[0],"cooldown":[0],"singleStunChance":[10,12,15,18,20],"aoeStunChance":[5,6,7,8,10],"stunSec":[1,1,1,1,1],"requiresWeapon":"axemace","desc":"被動技能，裝備斧頭或鈍器攻擊時，10%~20%機率使目前敵人暈眩1秒，另有5%~10%機率使全體敵人暈眩1秒（依等級）。"},
   adrenaline: {"id":"adrenaline","name":"速度激發","maxLv":5,"type":"buff_aspd","party":true,"spCost":[20,23,26,29,32],"cooldown":[30,60,90,120,150],"mult":[1.25,1.25,1.25,1.25,1.25],"bonusHit":[8,11,14,17,20],"duration":[30,60,90,120,150],"requiresWeapon":"axemace","partyRequiresWeapon":"axemace","desc":"斧頭／鈍器專用技能，使**全體拿斧頭或鈍器的人**攻擊速度固定+25%，並提升HIT+8~20，持續30~150秒（依等級）。拿其他武器的隊友不受影響。"},
   skintemper: {"id":"skintemper","name":"強化火屬性","maxLv":5,"type":"passive","passiveStat":"fireResist","spCost":[0],"cooldown":[0],"mult":[4,8,12,16,20],"neutralResistMult":[1,2,3,4,5],"desc":"被動技能，增加對火屬性傷害的耐性+4%~20%，對無屬性傷害的耐性+1%~5%（依等級）。"},
@@ -256,14 +263,16 @@ const SKILLS = {
     id: 'lk_spiralpierce', name: '螺旋擊刺 Spiral Pierce', maxLv: 5,
     type: 'damage', element: 'neutral',
     spCost: [20, 22, 24, 26, 28], cooldown: [6, 6, 6, 6, 6],
-    /* 本作採用總倍率 1,000%~2,000%，以單次傷害呈現；此為本作平衡值，
-       不應在註解中誤稱為官方逐段倍率換算。 */
-    mult: [10.0, 12.5, 15.0, 17.5, 20.0],
+    /* 官方每段倍率是 (100 + 50×等級)%，**而且會打 5 段**＝總倍率 750%~1750%。
+       本作沒有多段攻擊的呈現，使用者 2026-08-08 指定「直接把倍率 ×5」，
+       所以這裡寫的是**官方的總倍率**，一次打完。 */
+    mult: [7.5, 10.0, 12.5, 15.0, 17.5],
     requiresWeapon: 'spear_sword2',
     // 官方係數就是 0.8，乘的是**顯示重量**（引擎會把 ITEMS.weight 的 ×10 原始值除回來）
     weaponWeightMult: [0.8, 0.8, 0.8, 0.8, 0.8],
     ignoreSize: true,
-    desc: '矛類或雙手劍專用。旋轉貫穿造成 ATK×1,000%~2,000% 傷害，額外加上「武器重量×0.8」的攻擊力，且無視體型懲罰。此為本作單次結算的總倍率。'
+    desc: '矛類或雙手劍專用。旋轉貫穿造成 ATK×750%~1750% 傷害，額外加上「武器重量×0.8」的攻擊力，且無視體型懲罰。'
+        + '（官方是每段 150%~350% 打 5 段，本作沒有多段呈現，直接合成一次打完）'
   },
   lk_aurablade: {
     id: 'lk_aurablade', name: '靈氣劍 Aura Blade', maxLv: 5,
@@ -437,7 +446,8 @@ const SKILLS = {
      官方 4 個，全部做。id 對照：
        SN_WINDWALK       風之步      → sn_windwalk
        SN_SHARPSHOOTING  銳利射擊    → sn_sharpshooting
-       SN_SIGHT          狙殺瞄準    → sn_sight                    */
+       SN_SIGHT          狙殺瞄準    → sn_sight
+       SN_FALCONASSAULT  獵鷹突擊    → sn_falconassault                    */
 
   /* 官方：自身與隊友移速 +2~20%、FLEE +1~5，持續 130~400 秒。
      本作沒有移動也沒有隊友——移速照既定慣例（騎乘術／月夜貓／手推車加速）
@@ -480,18 +490,19 @@ const SKILLS = {
     desc: '全素質 +5、攻擊力 +2%~20%、暴擊率 +1~10、命中 +3~30，持續 30 秒。'
   },
 
-  /* 狙擊之王：獵鷹突擊（主動技能）。注意與閃電衝擊普攻觸發的「獵鷹突襲」被動分開。 */
+  /* 官方**沒有給 ATK% 欄位**——傷害是從閃電衝擊推導的
+     （「依技能等級、施展者的閃電衝擊傷害、鋼製喙等級和基本等級而增加」）。
+     所以 `mult` 是**係數**：乘上閃電衝擊當前等級的倍率，鋼製喙的固定傷害也照同係數放大。
+     INT 遞增是使用者 2026-08-09 指定補的——官方獵鷹系列的傷害本來就吃 INT。 */
   sn_falconassault: {
     id: 'sn_falconassault', name: '獵鷹突擊 Falcon Assault', maxLv: 5,
     type: 'damage', element: 'neutral',
     spCost: [30, 34, 38, 42, 46], cooldown: [4, 4, 4, 4, 4],
-    mult: [2.0, 2.5, 3.0, 3.5, 4.0],
+    mult: [2.0, 2.5, 3.0, 3.5, 4.0],     // 係數，不是 ATK 倍率
     levelScaleMax: 50, intScaleMax: 100,
     requires: { skillId: 'blitzbeat', level: 1 },
     desc: '單體重擊。傷害＝閃電衝擊當前等級的倍率 ×2.0~4.0，鋼製喙的固定傷害同樣放大，另依基本等級（最高+50%）與 INT（最高+100%，INT99）遞增。閃電衝擊與鋼製喙練得越滿，這一招越強。'
   },
-
-  /* 獵鷹自動攻擊不列為主動技能：本作依閃電衝擊被動處理。 */
 
   /* ---------------- 高等巫師 High Wizard（#63）----------------
 
@@ -2384,10 +2395,9 @@ const SKILLS = {
     desc: '被動技能。伏虎拳發動後有 20% 機率觸發：消耗 1 顆氣球體，造成 ATK 200%~2000% 傷害。'
         + '之後在爆氣狀態下可以接上阿修羅霸凰拳（機率與猛龍誇強那條相同）。'
   },
-  rk_sonicwave: { id: 'rk_sonicwave', name: '音速衝擊波', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2], mult: [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5], desc: '盧恩騎士三轉遠距離單體攻擊，造成 ATK 500%～950% 傷害。' },
-  rk_dragontraining: { id: 'rk_dragontraining', name: '龍之訓練 Dragon Training', maxLv: 5, type: 'passive', passiveStat: 'dragonTraining', requiresSkill: 'riding', spCost: [0], cooldown: [0], mult: [1], dragonBreathPct: [10, 20, 30, 40, 50], desc: '被動技能。需先學會騎乘術；提升龍息爆發傷害 10%～50%，技能等級越高加成越高。' },
-  rk_dragonbreath: { id: 'rk_dragonbreath', name: '龍息爆發', maxLv: 10, type: 'magic_aoe', element: 'fire', requiresSkill: 'rk_dragontraining', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4], mult: [8.0, 8.53, 9.07, 9.6, 10.13, 10.67, 11.2, 11.73, 12.27, 12.8], desc: '需學會龍之訓練。龍向全體敵人吐出火焰，造成 MATK 800%～1,280% 火屬性範圍傷害。' },
-  rk_runeedge: { id: 'rk_runeedge', name: '符文刃舞', maxLv: 5, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12], cooldown: [6, 6, 6, 6, 6], mult: [6.0, 7.0, 8.0, 9.0, 10.0], desc: '盧恩騎士三轉符文斬擊，造成 ATK 600%～1,000% 傷害。' },
+  rk_sonicwave: { id: 'rk_sonicwave', name: '音速衝擊波', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2], mult: [1.8, 2.03, 2.27, 2.5, 2.74, 2.97, 3.2, 3.44, 3.67, 3.91], desc: '三轉專屬技能，依技能等級提升傷害。' },
+  rk_dragonbreath: { id: 'rk_dragonbreath', name: '龍息爆發', maxLv: 10, type: 'magic', element: 'fire', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4], mult: [2.2, 2.49, 2.77, 3.06, 3.34, 3.63, 3.92, 4.2, 4.49, 4.77], desc: '三轉專屬技能，依技能等級提升傷害。' },
+  rk_runeedge: { id: 'rk_runeedge', name: '符文刃舞', maxLv: 5, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12], cooldown: [6, 6, 6, 6, 6], mult: [3.5, 3.95, 4.41, 4.87, 5.32], desc: '三轉專屬技能，依技能等級提升傷害。' },
   rg_radiance: { id: 'rg_radiance', name: '放射光輝', maxLv: 10, type: 'damage', element: 'holy', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], mult: [1.7, 1.92, 2.14, 2.36, 2.58, 2.8, 3.03, 3.25, 3.47, 3.69], desc: '三轉專屬技能，依技能等級提升傷害。' },
   rg_sacredguard: { id: 'rg_sacredguard', name: '聖盾猛擊', maxLv: 10, type: 'damage', element: 'holy', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], mult: [2.1, 2.37, 2.65, 2.92, 3.19, 3.46, 3.74, 4.01, 4.28, 4.56], desc: '三轉專屬技能，依技能等級提升傷害。' },
   rg_earthdrive: { id: 'rg_earthdrive', name: '大地驅動', maxLv: 5, type: 'damage', element: 'earth', spCost: [8, 9, 10, 11, 12], cooldown: [7, 7, 7, 7, 7], mult: [3.2, 3.62, 4.03, 4.45, 4.86], desc: '三轉專屬技能，依技能等級提升傷害。' },
@@ -2397,9 +2407,9 @@ const SKILLS = {
   so_psychicwave: { id: 'so_psychicwave', name: '精神波動', maxLv: 10, type: 'magic', element: 'neutral', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], mult: [1.9, 2.15, 2.39, 2.64, 2.89, 3.13, 3.38, 3.63, 3.88, 4.12], desc: '三轉專屬技能，依技能等級提升傷害。' },
   so_vacuum: { id: 'so_vacuum', name: '大地墳場', maxLv: 10, type: 'magic', element: 'earth', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], mult: [2.2, 2.49, 2.77, 3.06, 3.34, 3.63, 3.92, 4.2, 4.49, 4.77], desc: '三轉專屬技能，依技能等級提升傷害。' },
   so_elementburst: { id: 'so_elementburst', name: '元素爆裂', maxLv: 5, type: 'magic', element: 'wind', spCost: [12, 14, 16, 18, 20], cooldown: [8, 8, 8, 8, 8], mult: [3.8, 4.29, 4.79, 5.28, 5.78], desc: '三轉專屬技能，依技能等級提升傷害。' },
-  ra_arrowstorm: { id: 'ra_arrowstorm', name: '箭雨風暴', maxLv: 10, type: 'passive', passiveStat: 'rangerAttackProc', rangerPassiveProc: true, aoe: true, element: 'neutral', requiresWeapon: 'bow', spCost: [0], cooldown: [0], procChance: [8,9,10,11,12,13,14,15,16,18], internalCooldown: [6,6,6,6,6,6,6,6,6,6], mult: [2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0], desc: '被動技能：裝備弓時，普通攻擊有 8%～18% 機率自動觸發箭雨風暴，對全體敵人造成 ATK 250%～700% 傷害；每次觸發有 6 秒內部冷卻，不消耗 SP 或箭矢。' },
-  ra_aimedbolt: { id: 'ra_aimedbolt', name: '瞄準標靶', maxLv: 10, type: 'passive', passiveStat: 'rangerAttackProc', rangerPassiveProc: true, element: 'neutral', requiresWeapon: 'bow', spCost: [0], cooldown: [0], procChance: [12,13,14,15,16,17,18,19,20,22], internalCooldown: [4,4,4,4,4,4,4,4,4,4], mult: [2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0], desc: '被動技能：裝備弓時，普通攻擊有 12%～22% 機率自動觸發瞄準標靶，對單體造成 ATK 220%～400% 傷害；每次觸發有 4 秒內部冷卻。' },
-  ra_fearbreeze: { id: 'ra_fearbreeze', name: '恐懼風息', maxLv: 5, type: 'passive', passiveStat: 'rangerAttackProc', rangerPassiveProc: true, element: 'neutral', requiresWeapon: 'bow', spCost: [0], cooldown: [0], procChance: [4, 4, 7, 9, 10], internalCooldown: [0, 0, 0, 0, 0], mult: [1, 1, 2, 3, 4], desc: '被動技能：裝備弓時，普通攻擊有 4%／4%／7%／9%／10% 機率追加 1～4 段箭傷；無額外冷卻。' },
+  ra_arrowstorm: { id: 'ra_arrowstorm', name: '箭雨風暴', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2], mult: [1.8, 2.03, 2.27, 2.5, 2.74, 2.97, 3.2, 3.44, 3.67, 3.91], desc: '三轉專屬技能，依技能等級提升傷害。' },
+  ra_aimedbolt: { id: 'ra_aimedbolt', name: '瞄準標靶', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4], mult: [2.2, 2.49, 2.77, 3.06, 3.34, 3.63, 3.92, 4.2, 4.49, 4.77], desc: '三轉專屬技能，依技能等級提升傷害。' },
+  ra_fearbreeze: { id: 'ra_fearbreeze', name: '恐懼風息', maxLv: 5, type: 'damage', element: 'wind', spCost: [8, 9, 10, 11, 12], cooldown: [7, 7, 7, 7, 7], mult: [3.6, 4.07, 4.54, 5.0, 5.47], desc: '三轉專屬技能，依技能等級提升傷害。' },
   mi_soundblend: { id: 'mi_soundblend', name: '重金屬音浪', maxLv: 10, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17], cooldown: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], mult: [1.6, 1.81, 2.02, 2.22, 2.43, 2.64, 2.85, 3.06, 3.26, 3.47], desc: '三轉專屬技能，依技能等級提升傷害。' },
   mi_echoing: { id: 'mi_echoing', name: '回音之歌', maxLv: 10, type: 'magic', element: 'neutral', spCost: [12, 14, 16, 18, 20, 22, 24, 26, 28, 30], cooldown: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5], mult: [2.0, 2.26, 2.52, 2.78, 3.04, 3.3, 3.56, 3.82, 4.08, 4.34], desc: '三轉專屬技能，依技能等級提升傷害。' },
   mi_severe: { id: 'mi_severe', name: '狂歡終曲', maxLv: 5, type: 'damage', element: 'neutral', spCost: [8, 9, 10, 11, 12], cooldown: [7, 7, 7, 7, 7], mult: [3.4, 3.84, 4.28, 4.73, 5.17], desc: '三轉專屬技能，依技能等級提升傷害。' },
