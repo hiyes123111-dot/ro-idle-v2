@@ -1,18 +1,28 @@
-# QA Report V2.5.5.59
+# QA Report — V2.5.5.59 Cardinal party-wide support
 
-- Base: V2.5.5.58.
-- Scope: headgear only.
-- Added learned-skill-level scaling support for `levelStep` rules. The level source now uses `skillLv()` so learned, equipment/card-granted, and copied skill levels follow the same effective-level calculation.
-- Added verified learned-skill scaling rules:
-  - Racing Helmet (Assassin Cross): Left-hand Mastery, +5% critical damage per learned level from refine +8.
-  - Racing Helmet (Rune Knight): Two-Hand Quicken, +5% critical damage per every 2 learned levels from refine +8.
-  - Racing Helmet (Super Novice): Double Attack, +10% critical damage per every 2 learned levels from refine +8.
-  - Racing Helmet (Ranger): existing Falcon Mastery → Aimed Bolt +3% per learned level from refine +8 retained.
-- Corrected Chick Hat's Double Attack Lv2 from an inert `bonus.skill_doubleattack` field to the supported equipment `grantSkill` format. Higher learned Double Attack levels continue to take precedence through `skillLv()`.
-- Did not invent mappings for headgear descriptions whose named source/target skills are absent from `skills.js` (e.g. Mecha's Crazy Uproar, Royal Guard's Rage Burst, Star Gladiator's Peaceful Rest, several expanded-job skill names).
-- Preserved V1.17 behavior: no cast-time, attack-after-delay, or skill-after-delay system added; ASPD-based ordinary attack interval and explicit skill cooldowns remain separate.
-- `node --check data.js`: PASS.
-- `node --check engine.js`: PASS.
-- Isolated VM data load: PASS; 20,642 item records loaded; 1,243 headgear records; 4 headgear `skillLevelBonus` rules.
-- Full browser gameplay/combat validation: NOT RUN.
-- Remaining: continue headgear refine/skill-effect audit, resolve unsupported skill IDs only after adding/confirming the corresponding skill definitions.
+## Scope
+- Based on V2.5.5.58.
+- Corrected Cardinal fourth-job ally-support skills that had been incorrectly registered as self-only passive stat bonuses.
+- Every skill that previously targeted one party member now applies to all living party members, including the caster.
+- Preserved the existing party buff-copying mechanism and per-member state ownership.
+
+## Changes
+- 博愛治癒: restored as an active party heal; each member's recovery is calculated against that member's own state.
+- 治癒誓言: restored as an active party heal-over-time; each living party member receives a separate 2-second tick effect.
+- 聖光治癒: restored as an active full-HP party recovery.
+- 神聖防護、光耀天命、爆裂聖光: restored as active party buffs and copied to every living member.
+- 全心奉獻、祝福讚歌: restored as active party stat buffs.
+- Self-only passives not classified as ally-target support remain passive.
+- Offensive Cardinal skills remain offensive and retain enemy targeting.
+
+## Validation
+- `node --check js/engine.js`: PASS
+- `node --check js/v2_5_content.js`: PASS
+- `node tools/v255_cardinal_party_support_regression.js`: PASS (7/7)
+- `node tools/v255_cardinal_partywide_target_regression.js`: PASS (10/10)
+
+## Notes
+- Automated regression checks validate registration, party flags, party buff propagation, and party heal-over-time ticking.
+- Browser combat playtesting has not been performed in this environment.
+- The in-game numeric effects are balanced using this project's existing stat model; some official RO properties such as RES/MRES penetration and fourth-job traits are represented through the closest supported ATK/MATK/critical-stat effects rather than a full official-server formula simulation.
+- Unified regression suite: `node tools/run_all_regressions.js` — PASS (26/26).
