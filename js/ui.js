@@ -3956,29 +3956,57 @@ function compareEquip(itemId, newRefine) {
    武器 ATK 要經過精煉曲線、卡片與條件式加成（#19）、素質衍生的 ATK 也會跟著動。
    現在走 engine.js 的 previewEquipDelta()——暫時穿上去重算一次再還原，數字保證跟實戰一致。
    穿不上的（職業／等級擋住）沒辦法模擬，退回舊的「只比裝備本身數值」並標明原因。 */
+/* 裝備／背包比較模式：預設快速比較；完整模式會逐件模擬換裝並重算角色衍生能力。 */
+function getEquipRecalcMode() { return !!(state && state.equipRecalcMode); }
+function syncEquipRecalcModeButton() {
+  const btn = document.getElementById('btn-equip-recalc-mode');
+  if (!btn) return;
+  const on = getEquipRecalcMode();
+  btn.textContent = on ? '⚙️ 裝備重算：開' : '⚙️ 裝備重算：關';
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.title = on
+    ? '開啟：背包裝備逐件模擬穿戴，完整重算角色能力；手機大量裝備時可能較慢'
+    : '關閉：只比較裝備本體數值，不逐件完整重算';
+}
+function toggleEquipRecalcMode() {
+  if (!state) return;
+  state.equipRecalcMode = !getEquipRecalcMode();
+  syncEquipRecalcModeButton();
+  saveGame();
+  if (typeof activeTab !== 'undefined' && activeTab === 'inventory') renderInventoryTab();
+  else if (typeof activeTab !== 'undefined' && activeTab === 'equip') renderEquipTab();
+}
+
 function renderCompareBadge(itemId, newRefine, instanceId) {
+  /* 完整模式：暫時穿上背包中的這件裝備，執行完整衍生屬性重算後還原；
+     快速模式：只比較裝備本體數值，避免大量背包物品逐件重算造成手機卡頓。 */
+  if (getEquipRecalcMode()) {
+    const preview = previewEquipDelta(itemId, instanceId);
+    if (preview) {
+      const slot = preview.slot;
+      const curId = getEquipBaseItemId(slot);
+      const curRef = getRefinementLevel(slot);
+      const curName = curId ? `${curRef > 0 ? '+' + curRef + ' ' : ''}${getItemDisplayName(curId)}` : '（空欄位）';
+      if (!preview.changes.length) return `<div class="inv-compare same">完整重算：與目前角色能力相同</div>`;
+      const parts = preview.changes.map(c =>
+        `<span class="cmp-${c.delta > 0 ? 'up' : 'down'}">${c.label} ${c.delta > 0 ? '▲+' : '▼'}${c.delta}</span>`
+      );
+      return `<div class="inv-compare">（完整重算角色能力）對比 ${curName}：${parts.join('')}</div>`;
+    }
+  }
   const slot = targetSlotOf(itemId);
   if (!slot) return '';
   const curId = getEquipBaseItemId(slot);
   const curRef = getRefinementLevel(slot);
   const curName = curId ? `${curRef > 0 ? '+' + curRef + ' ' : ''}${getItemDisplayName(curId)}` : '（空欄位）';
-
-  const prev = typeof previewEquipDelta === 'function' ? previewEquipDelta(itemId, instanceId) : null;
-  if (prev) {
-    if (!prev.changes.length) return `<div class="inv-compare same">對比 ${curName}：角色數值沒有變化</div>`;
-    const parts = prev.changes.map(c =>
-      `<span class="cmp-${c.delta > 0 ? 'up' : 'down'}">${c.label} ${c.delta > 0 ? '▲+' : '▼'}${c.delta}</span>`
-    );
-    return `<div class="inv-compare">對比 ${curName}：${parts.join('')}</div>`;
-  }
-
   const cmp = compareEquip(itemId, newRefine);
   if (!cmp || !cmp.rows.length) return '';
   const parts = cmp.rows.filter(r => r.diff !== 0).map(r =>
     `<span class="cmp-${r.diff > 0 ? 'up' : 'down'}">${r.label} ${r.diff > 0 ? '▲+' : '▼'}${r.diff}</span>`
   );
   if (!parts.length) return `<div class="inv-compare same">與目前裝備數值相同</div>`;
-  return `<div class="inv-compare">（穿不上，只比裝備數值）對比 ${curName}：${parts.join('')}</div>`;
+  return `<div class="inv-compare">（僅比較裝備本體）對比 ${curName}：${parts.join('')}</div>`;
 }
 
 // 不認識的分類就退回第一類：下面 renderInventoryTab() 有一處 INV_CATEGORIES.find(...).name，
@@ -4230,7 +4258,7 @@ function showAmmoSelect() {
       const d = ITEMS[r.item];
       const on = getEquippedAmmoId() === r.item;
       return `<div class="equip-pick-row${on ? ' equipped' : ''}">
-        <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
+        <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
         <div class="equip-pick-info">
           <div class="equip-pick-name">${d.name}　<span class="ammo-qty">×${r.qty}</span></div>
           <div class="equip-pick-stats">ATK +${d.atk || 0}${d.element && d.element !== 'none' ? `　${ELEMENT_ICONS[d.element]}${ELEMENT_NAMES[d.element]}屬性` : '　無屬性'}</div>
@@ -4553,7 +4581,7 @@ function renderEquipTab() {
       // 要卸下請點上方裝備欄那一格（連點兩下）
       const action = r.instanceId ? `equipInstance('${r.instanceId}')` : `equipItem('${r.item}')`;
       return `<div class="equip-pick-row">
-        <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+        <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
         <div class="equip-pick-info">
           <div class="equip-pick-name">${refine > 0 ? `<span class="slot-refine">+${refine}</span> ` : ''}${getItemDisplayName(r.item)}${((d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)) ? ` <span class="inv-slots">[${(d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)}]</span>` : ''}</div>
           <div class="equip-pick-stats">${bits.join('　')}</div>
@@ -5447,6 +5475,7 @@ function initVolumeSliders() {
   const spr = document.getElementById('sprite-scale');
   if (spr) { spr.value = spriteScalePct(); document.getElementById('sprite-scale-text').textContent = spriteScalePct() + '%'; }
   applySpriteScale();
+  syncEquipRecalcModeButton();
 }
 
 /* ---------------- 選擇地圖（含背景圖/音樂切換） ---------------- */
@@ -5977,7 +6006,7 @@ function renderVendingWindowInner() {
         return `<div class="wh-row" onclick="${action}" title="${side === 'left'
           ? `點一下＝上架，每 ${cdSec} 秒以 ${sellMult} 倍價（${price}z）賣出 1 個`
           : '點一下＝下架'}">
-          <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+          <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
           <span class="wh-row-name">${locked ? '🔒 ' : ''}${getItemDisplayName(r.item)}</span>
           <span class="wh-row-qty">×${r.qty}　<span style="color:var(--gold-soft)">${price}z</span>　<span style="color:var(--ink-dim)">${hint}</span></span>
         </div>`;
@@ -6028,14 +6057,10 @@ function renderVendingWindowInner() {
    所以打怪照跑、旁邊的分頁照樣點得到，標題列可拖走。CSS 直接共用 `.wh-*`。 */
 function forgeAvailable() {
   const hasMat = (state.unlockedMaterialCrafts || []).length > 0;
-  const hasCraft = (state.unlockedCraftCategories || []).length > 0;
-  if (!hasMat && !hasCraft) return false;
-  // 原料鍛造共用（毒藥瓶給十字刺客），武器鍛造限鐵匠系
-  if (hasMat) return true;
-  return typeof isBlacksmithLine === 'function' && isBlacksmithLine(state.jobId);
+  return hasMat;
 }
 
-// 分頁列上那顆「🔨 鍛造」：學會鍛造技能就出現（原料共用、武器限鐵匠系）
+// 分頁列上那顆「🔨 鍛造」：學會原料製作技能後出現。
 function syncForgeTabBtn() {
   const btn = document.getElementById('tab-btn-forge');
   if (!btn) return;
@@ -6088,11 +6113,10 @@ function refreshForgeIfChanged() {
 function showCraftingPanel() {
   const el = document.getElementById('forge-body');
   if (!el) return;
-  const chance = getCraftingSuccessChance();
   const ironQty = getItemQty('iron');
   const steelQty = getItemQty('steel');
 
-  let html = `<div class="wh-hint">成功率 ${chance.toFixed(1)}%（失敗材料照樣消耗）。目前持有：鐵x${ironQty}、鋼鐵x${steelQty}、鋅幣${state.gold.toLocaleString()}</div>`;
+  let html = `<div class="wh-hint">原料製作失敗時材料照樣消耗。目前持有：鐵x${ironQty}、鋼鐵x${steelQty}、鋅幣${state.gold.toLocaleString()}</div>`;
 
   if (state.unlockedMaterialCrafts && state.unlockedMaterialCrafts.length > 0) {
     html += `<h3 class="panel-title">原料鍛造</h3>`;
@@ -6121,49 +6145,10 @@ function showCraftingPanel() {
     html += '</div>';
   }
 
-  // 武器鍛造要學會對應的鍛造技能才有東西可列；只點了原料鍛造時不要留一個空標題
-  if (!(state.unlockedCraftCategories || []).length) {
-    if (!(state.unlockedMaterialCrafts || []).length) {
-      html += '<div class="empty-hint">還沒學會任何鍛造技能。到技能分頁點鐵匠的鍛造系技能就會出現在這裡。</div>';
-    }
-    el.innerHTML = html;
-    return;
+  if (!(state.unlockedMaterialCrafts || []).length) {
+    html += '<div class="empty-hint">還沒學會任何原料製作技能。到技能分頁學習鐵、鋼或屬性原石製作。</div>';
   }
-
-  html += `<h3 class="panel-title">武器鍛造</h3>`;
-  html += '<div class="card-list">';
-
-  state.unlockedCraftCategories.forEach(cat => {
-    const subtypes = Object.keys(CRAFT_SUBTYPE_CATEGORY).filter(st => CRAFT_SUBTYPE_CATEGORY[st] === cat);
-    subtypes.forEach(subtype => {
-      const mat = CRAFT_SUBTYPE_MATERIALS[subtype];
-      const subtypeName = CRAFT_SUBTYPE_NAMES[subtype] || subtype;
-      Object.keys(CRAFT_ELEMENT_STONE).forEach(element => {
-        const stoneId = CRAFT_ELEMENT_STONE[element];
-        const stoneQty = getItemQty(stoneId);
-        const elementName = CRAFT_ELEMENT_NAMES[element];
-        const stoneDef = ITEMS[stoneId];
-        const canCraft = ironQty >= mat.iron && steelQty >= mat.steel && stoneQty >= 1 && state.gold >= CRAFT_ZENY_COST;
-        html += `<div class="card-row${canCraft ? ' enabled' : ''}">
-          <div class="card-info">
-            <span class="card-icon">⚔️</span>
-            <div class="card-details">
-              <span class="card-name">${subtypeName}（${elementName}屬性）</span>
-              <span class="card-desc">需要：鐵x${mat.iron}、鋼鐵x${mat.steel}、${stoneDef ? stoneDef.name : stoneId}x1（持有${stoneQty}）、鋅幣${CRAFT_ZENY_COST}</span>
-            </div>
-          </div>
-          <button class="btn-small" ${canCraft ? '' : 'disabled'} onclick="doCraftWeapon('${subtype}','${element}')">鍛造</button>
-        </div>`;
-      });
-    });
-  });
-  html += '</div>';
   el.innerHTML = html;
-}
-function doCraftWeapon(subtype, element) {
-  craftWeapon(subtype, element);
-  showCraftingPanel();
-  renderTopBar();
 }
 function doCraftMaterial(kind) {
   craftMaterial(kind);
@@ -6490,13 +6475,13 @@ function renderWarehouseInner() {
             ? `whDepositInstance('${r.instanceId}')`
             : `whWithdrawInstance('${r.instanceId}')`;
           return `<div class="wh-row" onclick="${action}">
-            <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+            <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
             <span class="wh-row-name">${locked ? '🔒 ' : ''}${refine > 0 ? `+${refine} ` : ''}${getItemDisplayName(r.item)}${cards.length ? `　🃏${cards.length}` : ''}</span>
             <span class="wh-row-qty">×1</span>
           </div>`;
         }
         return `<div class="wh-row" onclick="${side === 'bag' ? `whDeposit('${r.item}',${r.qty})` : `whWithdraw('${r.item}',${r.qty})`}">
-          <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+          <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
           <span class="wh-row-name">${locked ? '🔒 ' : ''}${getItemDisplayName(r.item)}</span>
           <span class="wh-row-qty">×${r.qty}</span>
         </div>`;
@@ -6716,7 +6701,7 @@ function renderAutoSellWindowInner() {
         const hint = side === 'left' ? (locked ? '（已鎖定）' : '＋') : '✕';
         const qtyText = side === 'right' && r.qty <= 0 ? '已售完' : `×${r.qty}`;
         return `<div class="wh-row" onclick="${action}" title="${side === 'left' ? '點一下＝移去右邊開始自動賣' : '點一下＝移回左邊不再自動賣'}">
-          <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+          <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
           <span class="wh-row-name">${locked ? '🔒 ' : ''}${getItemDisplayName(r.item)}</span>
           <span class="wh-row-qty">${qtyText}　<span style="color:var(--ink-dim)">${hint}</span></span>
         </div>`;

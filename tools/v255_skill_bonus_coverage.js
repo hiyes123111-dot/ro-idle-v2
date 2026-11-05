@@ -1,12 +1,16 @@
 const fs = require('fs');
-const skillsSrc = fs.readFileSync('js/skills.js', 'utf8');
-const v2Src = fs.readFileSync('js/v2_content.js', 'utf8');
-const dataSrc = fs.readFileSync('js/data.js', 'utf8');
-const engineSrc = fs.readFileSync('js/engine.js', 'utf8');
-const ids = new Set([
-  ...[...skillsSrc.matchAll(/^\s{2}([A-Za-z0-9_]+):\s*\{/gm)].map(m => m[1]),
-  ...[...v2Src.matchAll(/(?:active|passive)\('([^']+)'/g)].map(m => m[1]),
-]);
+const path = require('path');
+const jsDir = path.join(process.cwd(), 'js');
+const registryFiles = fs.readdirSync(jsDir)
+  .filter(name => name === 'skills.js' || /^v2.*_content\.js$/.test(name));
+const ids = new Set();
+for (const name of registryFiles) {
+  const src = fs.readFileSync(path.join(jsDir, name), 'utf8');
+  for (const m of src.matchAll(/^\s{2}([A-Za-z0-9_]+):\s*\{/gm)) ids.add(m[1]);
+  for (const m of src.matchAll(/(?:active|passive)\('([^']+)'/g)) ids.add(m[1]);
+}
+const dataSrc = fs.readFileSync(path.join(jsDir, 'data.js'), 'utf8');
+const engineSrc = fs.readFileSync(path.join(jsDir, 'engine.js'), 'utf8');
 const keys = [...new Set([...dataSrc.matchAll(/skillDmg_([A-Za-z0-9_]+)/g)].map(m => m[1]))].sort();
 const aliasBlock = engineSrc.match(/const legacySkillAliases = \{([\s\S]*?)\n  \};/);
 if (!aliasBlock) throw new Error('legacySkillAliases table missing');
@@ -19,11 +23,13 @@ for (const key of keys) {
   if (!native && !aliasTarget) unresolved.push(key);
 }
 for (const [key, target] of aliases) {
-  if (!keys.includes(key)) throw new Error(`alias ${key} has no equipment data source`);
+  if (!keys.includes(key)) throw new Error(`alias ${key} has no data source`);
   if (!ids.has(target)) throw new Error(`alias ${key} points to missing skill ${target}`);
 }
+console.log(`Registry files scanned: ${registryFiles.join(', ')}`);
+console.log(`Registered skill IDs: ${ids.size}`);
 console.log(`Skill bonus keys: ${keys.length}`);
 console.log(`Registered native / verified alias keys: ${keys.length - unresolved.length}`);
-console.log(`Unresolved keys (not guessed or silently redirected): ${unresolved.length}`);
+console.log(`Unresolved keys: ${unresolved.length}`);
 console.log(unresolved.join(', '));
-console.log('PASS — every configured alias has a registered skill target; unresolved bonus keys are explicitly reported');
+console.log('PASS — all registry sources scanned; every configured alias has a registered skill target');

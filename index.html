@@ -143,6 +143,7 @@
         <div class="volume-controls">
           <label class="volume-label">🎵 <input type="range" id="vol-bgm" min="0" max="100" value="50" oninput="setBgmVolume(this.value)"><span id="vol-bgm-text">50%</span></label>
           <label class="volume-label">🔊 <input type="range" id="vol-sfx" min="0" max="100" value="50" oninput="setSfxVolume(this.value)"><span id="vol-sfx-text">50%</span></label>
+          <button id="btn-equip-recalc-mode" class="btn-equip-recalc-mode" type="button" onclick="toggleEquipRecalcMode()" aria-pressed="false">⚙️ 裝備重算：關</button>
           <label class="volume-label" title="玩家立繪的大小">🧍 <input type="range" id="sprite-scale" min="50" max="150" step="5" value="100" oninput="setSpriteScalePct(this.value)"><span id="sprite-scale-text">100%</span></label>
           <label class="volume-label" title="施放技能時的立繪大小（相對於上面那支）。每個職業各記一份">✨ <input type="range" id="skill-scale" min="50" max="150" step="5" value="85" oninput="setSkillSpriteScalePct(this.value)"><span id="skill-scale-text">85%</span></label>
         </div>
@@ -285,10 +286,10 @@
 <script src="js/hp_sp_tables.js"></script>
 <script src="js/img_alias.js"></script>
 <script src="js/aspd_data.js"></script>
-<script src="js/skills.js"></script>
+<script src="js/skills.js?v=2.5.5.49"></script>
 <script src="js/monster_skills.js"></script>
-<script src="js/jobs.js"></script>
-<script src="js/data.js"></script>
+<script src="js/jobs.js?v=2.5.5.49"></script>
+<script src="js/data.js?v=2.5.5.49"></script>
 <!-- 遺物要在 data.js 之後：它會把自己的道具 Object.assign 進 ITEMS -->
 <script src="js/relics.js"></script>
 <script src="js/v2_content.js"></script>
@@ -296,8 +297,8 @@
 <script src="js/v2_5_content.js"></script>
 <script src="js/v2_artifacts.js"></script>
 <script src="js/achievements.js"></script>
-<script src="js/engine.js?v=2.5.5.31"></script>
-<script src="js/ui.js?v=2.5.5.31"></script>
+<script src="js/engine.js?v=2.5.5.49"></script>
+<script src="js/ui.js?v=2.5.5.49"></script>
 <script>
   window.addEventListener('load', initApp);
   window.addEventListener('beforeunload', () => { if (typeof state !== 'undefined' && state) saveGame(); });

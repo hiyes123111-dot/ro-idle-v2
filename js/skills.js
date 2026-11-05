@@ -119,16 +119,9 @@ const SKILLS = {
   ironworking: {"id":"ironworking","name":"鐵製造","maxLv":1,"type":"passive","passiveStat":"materialCraft","craftCategory":"iron","element":"neutral","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鍛造頁面的「鐵」選項：消耗鐵礦石×1與500鋅幣，鍛造成鐵×1，成功率50%。"},
   steelworking: {"id":"steelworking","name":"鋼製造","maxLv":1,"type":"passive","passiveStat":"materialCraft","craftCategory":"steel","element":"neutral","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鍛造頁面的「鋼鐵」選項：消耗鐵×5、煤礦×1與500鋅幣，鍛造成鋼鐵×1，成功率50%。"},
   elementalstone: {"id":"elementalstone","name":"屬性石製造","maxLv":1,"type":"passive","passiveStat":"materialCraft","craftCategory":"stone","element":"neutral","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鍛造頁面的「屬性原石」選項：消耗同屬性礦石×10與500鋅幣，鍛造成對應屬性原石×1，成功率50%。"},
-  oridecon: {"id":"oridecon","name":"神之金屬研究","maxLv":1,"type":"passive","passiveStat":"craftBonus","spCost":[0],"cooldown":[0],"mult":[5],"desc":"被動技能，永久提升鍛造武器成功率+5%。"},
   hiltbinding: {"id":"hiltbinding","name":"武器保有","maxLv":1,"type":"passive","passiveStat":"atkFlat","element":"neutral","spCost":[0],"cooldown":[0],"mult":[4],"strBonus":[1],"buffDurationBonusPct":[10],"desc":"被動技能，永久提升ATK+4、STR+1，並使速度激發與凶砍的持續時間+10%。"},
   findingore: {"id":"findingore","name":"尋找礦石","maxLv":1,"type":"passive","passiveStat":"findingoreProc","spCost":[0],"cooldown":[0],"procChance":[5],"desc":"被動技能，擊敗怪物時有5%機率額外獲得一顆隨機屬性礦石（風/水/火/地）。"},
-  daggercraft: {"id":"daggercraft","name":"短劍製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"dagger","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖短劍鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
-  swordcraft: {"id":"swordcraft","name":"劍製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"sword","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖單手劍與雙手劍鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
-  axecraft: {"id":"axecraft","name":"斧頭製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"axe","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖單手斧頭與雙手斧頭鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
-  knucklecraft: {"id":"knucklecraft","name":"拳套製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"knuckle","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖拳套鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
-  macecraft: {"id":"macecraft","name":"鈍器製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"mace","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖鈍器鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
-  spearcraft: {"id":"spearcraft","name":"長矛製作","maxLv":1,"type":"passive","passiveStat":"weaponCraft","craftCategory":"spear","spCost":[0],"cooldown":[0],"mult":[1],"desc":"被動技能，解鎖單手長矛與雙手長矛鍛造，基礎成功率15%（依DEX/LUK/神之金屬研究提升）。"},
-  weaponresearch: {"id":"weaponresearch","name":"武器研究","maxLv":10,"type":"passive","passiveStat":"atkFlat","element":"neutral","spCost":[0],"cooldown":[0],"mult":[2,4,6,8,10,12,14,16,18,20],"hitBonus":[2,4,6,8,10,12,14,16,18,20],"craftBonusExtra":[1,2,3,4,5,6,7,8,9,10],"desc":"永久提升ATK與HIT各+2~20，並提升鍛造武器成功率+1%~10%（依等級）。"},
+  weaponresearch: {"id":"weaponresearch","name":"武器研究","maxLv":10,"type":"passive","passiveStat":"atkFlat","element":"neutral","spCost":[0],"cooldown":[0],"mult":[2,4,6,8,10,12,14,16,18,20],"hitBonus":[2,4,6,8,10,12,14,16,18,20],"desc":"永久提升ATK與HIT各+2~20（依等級）。"},
   hammerfall: {"id":"hammerfall","name":"大地之擊","maxLv":5,"type":"passive","passiveStat":"hammerfallProc","element":"earth","spCost":[0],"cooldown":[0],"singleStunChance":[10,12,15,18,20],"aoeStunChance":[5,6,7,8,10],"stunSec":[1,1,1,1,1],"requiresWeapon":"axemace","desc":"被動技能，裝備斧頭或鈍器攻擊時，10%~20%機率使目前敵人暈眩1秒，另有5%~10%機率使全體敵人暈眩1秒（依等級）。"},
   adrenaline: {"id":"adrenaline","name":"速度激發","maxLv":5,"type":"buff_aspd","party":true,"spCost":[20,23,26,29,32],"cooldown":[30,60,90,120,150],"mult":[1.25,1.25,1.25,1.25,1.25],"bonusHit":[8,11,14,17,20],"duration":[30,60,90,120,150],"requiresWeapon":"axemace","partyRequiresWeapon":"axemace","desc":"斧頭／鈍器專用技能，使**全體拿斧頭或鈍器的人**攻擊速度固定+25%，並提升HIT+8~20，持續30~150秒（依等級）。拿其他武器的隊友不受影響。"},
   skintemper: {"id":"skintemper","name":"強化火屬性","maxLv":5,"type":"passive","passiveStat":"fireResist","spCost":[0],"cooldown":[0],"mult":[4,8,12,16,20],"neutralResistMult":[1,2,3,4,5],"desc":"被動技能，增加對火屬性傷害的耐性+4%~20%，對無屬性傷害的耐性+1%~5%（依等級）。"},
@@ -444,8 +437,7 @@ const SKILLS = {
      官方 4 個，全部做。id 對照：
        SN_WINDWALK       風之步      → sn_windwalk
        SN_SHARPSHOOTING  銳利射擊    → sn_sharpshooting
-       SN_SIGHT          狙殺瞄準    → sn_sight
-       SN_FALCONASSAULT  獵鷹突擊    → sn_falconassault                    */
+       SN_SIGHT          狙殺瞄準    → sn_sight                    */
 
   /* 官方：自身與隊友移速 +2~20%、FLEE +1~5，持續 130~400 秒。
      本作沒有移動也沒有隊友——移速照既定慣例（騎乘術／月夜貓／手推車加速）
@@ -488,19 +480,18 @@ const SKILLS = {
     desc: '全素質 +5、攻擊力 +2%~20%、暴擊率 +1~10、命中 +3~30，持續 30 秒。'
   },
 
-  /* 官方**沒有給 ATK% 欄位**——傷害是從閃電衝擊推導的
-     （「依技能等級、施展者的閃電衝擊傷害、鋼製喙等級和基本等級而增加」）。
-     所以 `mult` 是**係數**：乘上閃電衝擊當前等級的倍率，鋼製喙的固定傷害也照同係數放大。
-     INT 遞增是使用者 2026-08-09 指定補的——官方獵鷹系列的傷害本來就吃 INT。 */
+  /* 狙擊之王：獵鷹突擊（主動技能）。注意與閃電衝擊普攻觸發的「獵鷹突襲」被動分開。 */
   sn_falconassault: {
     id: 'sn_falconassault', name: '獵鷹突擊 Falcon Assault', maxLv: 5,
     type: 'damage', element: 'neutral',
     spCost: [30, 34, 38, 42, 46], cooldown: [4, 4, 4, 4, 4],
-    mult: [2.0, 2.5, 3.0, 3.5, 4.0],     // 係數，不是 ATK 倍率
+    mult: [2.0, 2.5, 3.0, 3.5, 4.0],
     levelScaleMax: 50, intScaleMax: 100,
     requires: { skillId: 'blitzbeat', level: 1 },
     desc: '單體重擊。傷害＝閃電衝擊當前等級的倍率 ×2.0~4.0，鋼製喙的固定傷害同樣放大，另依基本等級（最高+50%）與 INT（最高+100%，INT99）遞增。閃電衝擊與鋼製喙練得越滿，這一招越強。'
   },
+
+  /* 獵鷹自動攻擊不列為主動技能：本作依閃電衝擊被動處理。 */
 
   /* ---------------- 高等巫師 High Wizard（#63）----------------
 

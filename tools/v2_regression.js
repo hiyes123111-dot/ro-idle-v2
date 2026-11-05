@@ -42,7 +42,7 @@ for (const file of scripts) {
     { filename: file, timeout: 30000 });
 }
 // Visual and audio effects are intentionally no-op in the headless mechanics tests.
-vm.runInContext(`showDamageFloatAt=()=>{}; showPlayerFloat=()=>{}; showElementFloat=()=>{};
+vm.runInContext(`showDamageFloat=()=>{}; showDamageFloatAt=()=>{}; showPlayerFloat=()=>{}; showElementFloat=()=>{};
   playSkillSound=()=>{}; showSkillCastEffect=()=>{}; playHitSound=()=>{}; playAttackSound=()=>{};`, context);
 
 let failures = 0;
@@ -462,8 +462,8 @@ check(v255SkillAudit.dragon.length === 5 && v255SkillAudit.dragon[0] >= 8 && v25
   'Dragon Knight Dragon Breath upgraded to endgame AOE multiplier', JSON.stringify(v255SkillAudit.dragon));
 const thirdSkillAudit = vm.runInContext(`(() => { const jobs=Object.values(JOB_TREE).filter(j=>j.tier===3); const rows=jobs.flatMap(j=>(j.skills||[]).map(id=>typeof id==='string'?SKILLS[id]:id).filter(Boolean)); const active=rows.filter(s=>['damage','damage_aoe','magic','magic_aoe','dot'].includes(s.type) && s.mult!==undefined); const missing=active.filter(s=>!/[0-9]+%/.test(s.desc||'')); return {jobs:jobs.length,active:active.length,missing:missing.map(s=>s.name)}; })()`, context);
 check(thirdSkillAudit.jobs > 0 && thirdSkillAudit.missing.length === 0, 'V2.5.3 third-job active skills include percentage descriptions', thirdSkillAudit.missing.join(','));
-const codexSpecial = vm.runInContext(`(() => { const ids=getCodexPool().items; return ['magingiorde','half_megin','helm_of_mid_sol_god'].every(id=>ids.includes(id)); })()`, context);
-check(codexSpecial, 'V2.5.3 artifact equipment appears in item codex');
+const codexSpecial = vm.runInContext(`(() => { const ids=getCodexPool().items; return ['magingiorde','helm_of_mid_sol_god'].every(id=>ids.includes(id)) && !ids.includes('half_megin'); })()`, context);
+check(codexSpecial, 'V2.5.3 artifact equipment appears in item codex and removed sealed belt is absent');
 const artifactRecipes = vm.runInContext(`!!(window.V25_ARTIFACT_RECIPES.megingjard && window.V25_ARTIFACT_RECIPES.mid_sol_helm && ITEMS[window.V25_ARTIFACT_RECIPES.megingjard.itemId] && ITEMS[window.V25_ARTIFACT_RECIPES.mid_sol_helm.itemId])`, context);
 check(artifactRecipes, 'V2.5.3 Thor belt and Sun God helm have valid artifact recipes');
 const visualAssets = ['images/npc/artifact_blacksmith.svg','images/skills/skill-physical.svg','images/skills/skill-magic.svg','images/skills/skill-passive.svg'].every(f=>fs.existsSync(path.join(root,f)));

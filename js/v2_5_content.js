@@ -140,6 +140,46 @@
           sk.desc = `被動陷阱：普通攻擊時有 ${t.chance[0]}%～${t.chance[t.chance.length-1]}% 機率自動觸發「${name}」，${trapDetail}；不需手動設置、不消耗 SP，內部冷卻 ${t.cd} 秒。`;
         }
       }
+      // 樞機主教：官方指定隊友技能在本作統一擴大為全隊生效。
+      // 這些技能原先被通用四轉資料錯誤歸類成 passive，導致只能取得自身能力值；
+      // 這裡保留原技能 ID／名稱／等級，改回可施放的支援技能，並交由 engine 的
+      // party buff/heal 管線複製到所有存活隊友（含施術者）。
+      if (jobId === 'cardinal') {
+        const cardinalSupport = {
+          '博愛治癒': { type:'heal', mult:[1.10,1.25,1.30,1.35,1.40], party:true,
+            desc:'恢復自己與全體存活隊友 HP；恢復量依各隊員自身能力計算。' },
+          '治癒誓言': { type:'heal_over_time', mult:[0.02,0.04,0.06,0.08,0.10], party:true,
+            duration:[40,60,80,100,120], desc:'對自己與全體存活隊友施加持續治癒效果。' },
+          '聖光治癒': { type:'heal_full', mult:[1,1,1,1,1], party:true,
+            desc:'恢復自己與全體存活隊友至最大 HP。' },
+          '神聖防護': { type:'buff_atk', mult:[1.05,1.10,1.15,1.20,1.25], party:true,
+            duration:[120,150,180,210,240], desc:'全隊獲得物理攻擊增益（以本作 ATK 增益表示官方物理抗性穿透效果）。' },
+          '光耀天命': { type:'buff_matk', mult:[1.05,1.10,1.15,1.20,1.25], party:true,
+            duration:[120,150,180,210,240], desc:'全隊獲得魔法攻擊增益（以本作 MATK 增益表示官方魔法抗性穿透效果）。' },
+          '爆裂聖光': { type:'buff_crit', mult:[1.02,1.04,1.06,1.08,1.10], party:true,
+            duration:[120,150,180,210,240], desc:'全隊暴擊能力提升。' },
+          '全心奉獻': { type:'buff_allstat', mult:[1,2,3,4,5], party:true,
+            duration:[120,150,180,210,240], desc:'全隊六項基本素質提升。' },
+          '祝福讚歌': { type:'buff_allstat', mult:[1,2,3,4,5], party:true,
+            duration:[120,150,180,210,240], desc:'全隊六項基本素質提升。' },
+        };
+        const support = cardinalSupport[name];
+        if (support) {
+          sk.type = support.type;
+          sk.party = true;
+          sk.mult = support.mult;
+          if (support.duration) sk.duration = support.duration;
+          sk.spCost = Array.from({length:maxLv}, (_,i) => 30 + i * 10);
+          sk.cooldown = Array.from({length:maxLv}, () => 1);
+          if (support.type === 'heal' || support.type === 'heal_over_time' || support.type === 'heal_full') {
+            sk.spCost = Array.from({length:maxLv}, (_,i) => 50 + i * 5);
+            sk.cooldown = Array.from({length:maxLv}, () => support.type === 'heal_full' ? 10 : 1);
+          }
+          const firstPct = Math.round(Number(sk.mult[0]) * 100);
+          const lastPct = Math.round(Number(sk.mult[sk.mult.length - 1]) * 100);
+          sk.desc = `${support.desc} 效果倍率 ${firstPct}%～${lastPct}%；目標規則：全隊生效；SP 消耗 ${sk.spCost[0]}～${sk.spCost[maxLv-1]}，冷卻 ${sk.cooldown[0]} 秒。`;
+        }
+      }
       const req = (weaponGates[jobId]||{})[name];
       if (req === 'shield') sk.requiresEquip = 'shield';
       else if (req) sk.requiresWeapon = req;

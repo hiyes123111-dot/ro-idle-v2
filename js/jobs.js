@@ -199,9 +199,7 @@ const JOB_TREE = {
     bonusLevels: { str:[3,8,16,23,31,44], agi:[29,38], vit:[7,13,20,32,37,49], int:[21,34], dex:[1,4,5,9,12,19,26,28,36,39,40,47], luk:[11,46] },
     skills: [
       'weaponrepair', 'ironworking', 'steelworking', 'elementalstone',
-      'oridecon', 'hiltbinding', 'findingore', 'daggercraft',
-      'swordcraft', 'axecraft', 'knucklecraft', 'macecraft',
-      'spearcraft', 'weaponresearch', 'hammerfall', 'adrenaline',
+      'hiltbinding', 'findingore', 'weaponresearch', 'hammerfall', 'adrenaline',
       'skintemper', 'cartrevo', 'overthrust', 'overthrustbuff',
       'maximize', 'weaponfusion', 'greed',
     ],
