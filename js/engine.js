@@ -1117,7 +1117,7 @@ function recomputeDerived(fullHeal) {
   state.elementalStoneChance = 0;
   state.unlockedMaterialCrafts = [];
   state.fireResistPct = 0;
-  state.neutralResistPct = 0;
+  state.neutralResistPct = getCardBonus('neutralResistPct');
   state.hasFindingOreProc = false;
   state.findingOreChance = 0;
   state.hasGreedProc = false;
@@ -3950,7 +3950,8 @@ function tryTrapProcs(target, monDef) {
 }
 
 /* ---------------- 遊俠三轉／四轉被動技能：普攻自動觸發 ---------------- */
-const RANGER_PASSIVE_SKILL_IDS = ['ra_arrowstorm','ra_aimedbolt','ra_fearbreeze','v25_wind_hawk_3','v25_wind_hawk_4','v25_wind_hawk_5','v25_wind_hawk_12','v25_wind_hawk_13'];
+// 三轉／四轉技能已依技能圖鑑改回主動攻擊與增益；陷阱仍由 tryTrapProcs() 獨立處理。
+const RANGER_PASSIVE_SKILL_IDS = [];
 function tryRangerPassiveProcs(target, monDef) {
   if (!state.learnedSkills || !isBowWeapon(getEquipBaseItemId('weapon'))) return;
   if (!state.rangerPassiveReadyAt) state.rangerPassiveReadyAt = {};
@@ -6106,21 +6107,7 @@ function tickCooldowns() {
     if (state.cooldowns[k] <= 0) delete state.cooldowns[k];
   });
 }
-function tickCardinalHot(holder) {
-  if (!holder || !Array.isArray(holder.buffs)) return;
-  holder.buffs.forEach(b => {
-    if (b.type !== 'cardinal_hot') return;
-    b.tickMsRemaining = (b.tickMsRemaining || 2000) - TICK_MS;
-    if (b.tickMsRemaining <= 0) {
-      const pct = Number(b.healPct) || 0;
-      const amount = Math.max(0, Math.round((holder.maxHp || 0) * pct));
-      holder.hp = Math.min(holder.maxHp || holder.hp, (holder.hp || 0) + amount);
-      b.tickMsRemaining += 2000;
-    }
-  });
-}
 function tickBuffs() {
-  tickCardinalHot(state);
   state.buffs = state.buffs.filter(b => {
     b.msRemaining -= TICK_MS;
     return b.msRemaining > 0;
@@ -6589,7 +6576,7 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   /* 高階拳刃修練（#59）：官方是「以拳刃攻擊時**物理傷害**+12~20%」——
      傷害%而不是 ATK 固定值，所以乘在整條鏈的最後，普攻與物理技能都吃得到。
      武器條件在 recomputeDerived 就判掉了（沒拿拳刃時 physDmgPct 是 0）。 */
-  const physPct = 1 + (state.physDmgPct || 0) / 100;
+  const physPct = 1 + ((state.physDmgPct || 0) + (typeof getCardBonus === 'function' ? getCardBonus('allSizeDmgPct') : 0)) / 100;
   // 詛咒 −25% 與挑釁 ±N%，整包 ATK 都吃
   return (wpn * variance * sizeMult * elemMult + nonWpn) * playerAtkMult() * buffMult('atk').mult * physPct;
 }
@@ -6620,7 +6607,7 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     let targetPct = 0;
     if (monDef && monDef.size) targetPct += getCardBonus('magicSizeDmg_' + monDef.size);
     if (monDef && monDef.race) targetPct += getCardBonus('magicRaceDmg_' + monDef.race);
-    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct');
+    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
     if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
     return state.matk * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
   }
@@ -8519,7 +8506,6 @@ function tickAllyBuffs() {
   allyList().forEach(ally => {
     if (!ally || !Array.isArray(ally.buffs) || !ally.buffs.length) return;
     const before = ally.buffs.length;
-    withAlly(ally, () => tickCardinalHot(state));
     ally.buffs = ally.buffs.filter(b => {
       b.msRemaining -= TICK_MS;
       return b.msRemaining > 0;
@@ -9597,8 +9583,8 @@ function castSkillInner(skillId, opts) {
     hpCost += hpPctCost;
   }
 
-  const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time' || sk.type === 'heal_full';
-  const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_allstat', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
+  const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time';
+  const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
   const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'special_charge', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
   /* 易燃之網對 BOSS 無效（官方）。**要擋在扣 SP 之前**——寫在 case 裡用 break
@@ -9709,11 +9695,6 @@ function castSkillInner(skillId, opts) {
          本作怪物沒有 vit 欄位，用 defSoft 代替——軟防就是從 VIT 推導出來的。 */
       if (sk.targetSoftDefScale) {
         skillMult *= 1 + (def.defSoft || 0) * sk.targetSoftDefScale / 100;
-      }
-      // 遊俠「瞄準標靶」：依目標體型增加攻擊段數（小／中／大 = 1／2／3 段）。
-      if (sk.id === 'ra_aimedbolt') {
-        const sizeHits = { small: 1, medium: 2, large: 3 };
-        skillMult *= sizeHits[def.size] || 1;
       }
       // 聖靈召喚：對不死種族額外加成
       if (sk.id === 'soulstrike' && def.race === 'undead' && sk.undeadBonusPct) {
@@ -10416,43 +10397,12 @@ function castSkillInner(skillId, opts) {
       const amt = Math.round((state.stats.int + state.baseLevel) * mult * healOutputMult());
       state.hp = Math.min(state.maxHp, state.hp + amt);
       logMsg(`💚 「${sk.name}」Lv${lv} 恢復了 ${amt} 點HP。`);
-      // 樞機主教的隊伍治癒：每位隊員依自己的 INT、等級與治癒加成計算，
-      // 不共用施術者的恢復量；倒地隊友由 forEachPartyMate 自動略過。
-      if (sk.party) {
-        const healed = forEachPartyMate(() => {
-          const allyAmt = Math.round((state.stats.int + state.baseLevel) * mult * healOutputMult());
-          const before = state.hp;
-          state.hp = Math.min(state.maxHp, state.hp + allyAmt);
-          return state.hp - before;
-        }).filter(Boolean);
-        if (healed.length) logMsg(`  → 「${sk.name}」也治療了 ${healed.length} 位隊友。`);
-      }
       break;
     }
     case 'heal_over_time': {
-      const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : (sk.duration || 40);
-      if (sk.id && sk.id.startsWith('v25_cardinal_')) {
-        state.buffs = state.buffs.filter(b => b.type !== 'cardinal_hot' || b.skillId !== sk.id);
-        state.buffs.push({ type:'cardinal_hot', healPct:mult, tickMsRemaining:2000,
-          msRemaining:dur * 1000, skillId:sk.id });
-        logMsg(`💫 「${sk.name}」Lv${lv} 發動，全隊每 2 秒恢復最大 HP 的 ${Math.round(mult * 100)}%，持續 ${dur} 秒。`);
-      } else {
-        const amt = Math.round((state.stats.int + state.baseLevel) * mult * healOutputMult());
-        state.hp = Math.min(state.maxHp, state.hp + amt);
-        logMsg(`💫 「${sk.name}」Lv${lv} 持續恢復HP。`);
-      }
-      break;
-    }
-    case 'heal_full': {
-      const before = state.hp;
-      state.hp = state.maxHp;
-      const healed = forEachPartyMate(() => {
-        const missing = Math.max(0, state.maxHp - state.hp);
-        state.hp = state.maxHp;
-        return missing;
-      }).filter(Boolean);
-      logMsg(`✨ 「${sk.name}」Lv${lv} 發動，恢復至最大 HP！`);
-      if (healed.length) logMsg(`  → 同時完全治療 ${healed.length} 位隊友。`);
+      const amt = Math.round((state.stats.int + state.baseLevel) * mult * healOutputMult());
+      state.hp = Math.min(state.maxHp, state.hp + amt);
+      logMsg(`💫 「${sk.name}」Lv${lv} 持續恢復HP。`);
       break;
     }
     case 'buff_def': {
@@ -10865,15 +10815,8 @@ function castSkillInner(skillId, opts) {
     }
     case 'buff_crit': {
       const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
-      state.buffs.push({ type: 'crit', mult, msRemaining: dur * 1000, skillId:sk.id });
-      logMsg(`🎯 「${sk.name}」Lv${lv} 發動，暴擊能力上升！`);
-      break;
-    }
-    case 'buff_allstat': {
-      const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
-      state.buffs.push({ type:'allstat', mult:1, flatBonus:mult, msRemaining:dur * 1000, skillId:sk.id });
-      recomputeDerived(false);
-      logMsg(`✨ 「${sk.name}」Lv${lv} 發動，全隊基本素質提升！`);
+      state.buffs.push({ type: 'crit', mult, msRemaining: dur * 1000 });
+      logMsg(`🎯 「${sk.name}」Lv${lv} 發動，暴擊率上升！`);
       break;
     }
     case 'debuff_def': {
@@ -10954,7 +10897,7 @@ function wastesResourceInTown(sk, lv) {
   const hpCostCheck = Array.isArray(sk.hpCost) ? sk.hpCost[lv - 1] : sk.hpCost;
   if (hpCostCheck > 0) return true;
   // #72 鍊金術士：火煙瓶投擲／生物調撥／生命體召喚／氣泡蟲召喚／化學保護都是「掛著讓它跑」的輔助
-  return ['heal', 'heal_over_time', 'heal_full', 'field_heal', 'field_aoe_magic', 'stun_field', 'multi_dot_stun', 'debuff_def', 'debuff',
+  return ['heal', 'heal_over_time', 'field_heal', 'field_aoe_magic', 'stun_field', 'multi_dot_stun', 'debuff_def', 'debuff',
     'field_phys_aoe', 'alchemy_summon', 'bomb_random', 'buff_chemical',
     // #74 聖殿十字軍：捨命攻擊燒自己的血、聖音每 10 秒扣 HP/SP，兩個在城鎮都是純浪費
     'buff_sacrifice', 'field_gospel', 'hp_convert', 'debuff_web'].includes(sk.type);
@@ -12743,10 +12686,14 @@ function effectiveGearBonuses() {
        並將結果併入既有加成總表；skillDmg_<技能ID> 會由直接傷害與被動觸發共用。 */
     (def.skillLevelBonus || []).forEach(rule => {
       if (!rule || d.refine < (rule.refineMin || 0) || !rule.bonusPerLevel) return;
-      const learnedLv = (state.learnedSkills && state.learnedSkills[rule.sourceSkillId]) || 0;
+      const learnedLv = typeof skillLv === 'function'
+        ? skillLv(rule.sourceSkillId)
+        : ((state.learnedSkills && state.learnedSkills[rule.sourceSkillId]) || 0);
       if (learnedLv <= 0) return;
-      const effectiveLv = rule.capLevel != null ? Math.min(learnedLv, rule.capLevel) : learnedLv;
-      mergeBonus(total, rule.bonusPerLevel, effectiveLv);
+      const cappedLv = rule.capLevel != null ? Math.min(learnedLv, rule.capLevel) : learnedLv;
+      const step = Math.max(1, Number(rule.levelStep) || 1);
+      const effectiveLv = Math.floor(cappedLv / step);
+      if (effectiveLv > 0) mergeBonus(total, rule.bonusPerLevel, effectiveLv);
     });
     /* 頂層 hpPct/spPct：官方「MHP+N%」過去被轉檔成平面 hp/sp（等於只加 N 點），
        修正資料後改用這兩個鍵，這裡併進總表讓百分比乘區吃到。 */
@@ -12770,12 +12717,21 @@ function effectiveGearBonuses() {
     /* per1Refine：官方「精煉每+1時 ○○增加」；明確獨立欄位，避免資料有填但計算端未讀取。 */
     if (def.per1Refine) {
       const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
-      mergeBonus(total, def.per1Refine, r);
+      // per1RefineStart：支援「精煉+N以上後，每提高+1」的裝備詞條。
+      // 預設起點為+1，維持既有 per1Refine 行為；例如起點10代表+10時開始計1次。
+      const start = Math.max(1, Number(def.per1RefineStart) || 1);
+      const count = Math.max(0, r - start + 1);
+      if (count > 0) mergeBonus(total, def.per1Refine, count);
     }
     /* per2Refine：官方「精煉每+2時 ○○+1」（海鷹召喚者的攻速）＝floor(精煉/2)。 */
     if (def.per2Refine) {
       const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
-      mergeBonus(total, def.per2Refine, Math.floor(r / 2));
+      // per2RefineStart：支援「精煉+N後，每提高+2」；未設定時維持原本 floor(r/2)。
+      const start = Number(def.per2RefineStart);
+      const count = Number.isFinite(start) && start > 0
+        ? (r >= start ? Math.floor((r - start) / 2) + 1 : 0)
+        : Math.floor(r / 2);
+      if (count > 0) mergeBonus(total, def.per2Refine, count);
     }
     /* per2RefineExtra：同一件裝備第二組「每+2」效果（時光超越者斗篷的
        ATK%1/MATK%1/遠距1%/CRI3/暴傷1 與既有那組並存）。 */

@@ -26,7 +26,10 @@
       ['召喚元素:阿爾多雷',1,'passive','matkFlat'],['召喚元素:普羅賽拉',1,'passive','matkFlat'],['召喚元素:迪盧比奧',1,'passive','matkFlat'],['召喚元素:泰雷莫圖斯',1,'passive','matkFlat'],['召喚元素:塞爾彭斯',1,'passive','matkFlat'],['元素天幕',5,'passive','defFlat'],['元素破壞',10,'magic_aoe','neutral']
     ],
     wind_hawk: [
-      ['熱愛自然',5,'passive','fleeFlat'],['八風標記',5,'passive','hitFlat'],['漸進狙擊',10,'damage','neutral'],['毀滅風暴',10,'damage_aoe','wind'],['憤怒暴風',1,'damage_aoe','wind'],['高階陷阱',5,'passive','atkFlat'],['磐石陷阱',5,'damage_aoe','earth'],['火焰陷阱',5,'damage_aoe','fire'],['深盲陷阱',5,'damage_aoe','shadow'],['急速陷阱',5,'damage_aoe','wind'],['獵鷹精熟',1,'passive','hitFlat'],['獵鷹奇襲',5,'damage_aoe','wind'],['獵鷹狙擊',5,'damage','wind'],['狂野疾行',5,'passive','fleeFlat']
+      // 依網站風鷹技能圖鑑更新；保留既有索引 7～10，讓陷阱引擎的 ID 不變。
+      ['自然親和',5,'buff_flee','neutral'],['風之印記',5,'passive','atkFlat'],['增幅箭',10,'damage','wind'],['疾風暴',10,'damage_aoe','wind'],['災厄疾風',5,'buff_atk','neutral'],['進階陷阱研究',5,'passive','atkFlat'],
+      ['堅固陷阱',5,'passive','rangerTrapProc'],['烈焰陷阱',5,'passive','rangerTrapProc'],['深盲陷阱',5,'passive','rangerTrapProc'],['迅捷陷阱',5,'passive','rangerTrapProc'],
+      ['鷹之熟練',1,'passive','hitFlat'],['鷹之迴旋',5,'damage','neutral'],['鷹擊',5,'damage','neutral'],['野性步伐',5,'passive','fleeFlat']
     ],
     troubadour: [
       ['舞台禮儀',5,'passive','atkFlat'],['美聲回顧',1,'passive','matkFlat'],['葛帔尼亞夜曲',5,'magic_aoe','wind'],['暮色小夜曲',5,'passive','matkFlat'],['洛基奏鳴曲',5,'magic_aoe','neutral'],['礦工狂想曲',5,'passive','defFlat'],['音樂劇插曲',5,'magic','neutral'],['普隆德拉進行曲',5,'passive','atkFlat'],['亡靈鎮魂歌',5,'magic_aoe','holy'],['克瓦希爾奏鳴曲',1,'passive','maxHpMult'],['混聲烙印',5,'damage','neutral'],['金屬狂怒',5,'damage_aoe','neutral'],['節奏戰波',5,'damage_aoe','wind'],['節奏射擊',5,'damage','wind'],['玫瑰箭矢',5,'damage','neutral'],['神秘交響曲',1,'passive','matkFlat']
@@ -58,7 +61,7 @@
     dragon_knight: {'橫揮斬':'sword2','風暴斬擊':'sword2','神龍貫刺':'spear','蓄力刺擊':'spear','狂暴粉碎':'spear'},
     imperial_guard: {'盾牌投擲':'shield','回彈神盾':'shield','守護神盾':'shield','光輝刺擊':'spear','帝國十字斬':'spear'},
     arch_mage: {'雙手杖使用熟練度':'rod2'},
-    wind_hawk: {'漸進狙擊':'bow','毀滅風暴':'bow','獵鷹奇襲':'bow','獵鷹狙擊':'bow'},
+    wind_hawk: {'增幅箭':'bow','疾風暴':'bow','鷹擊':'bow'},
     troubadour: {'節奏射擊':'instrument'}, trouvere: {'節奏射擊':'whip'},
     meister: {'雙手斧防禦':'axe2','戰斧踏滅':'axe2','強力粉碎':'axe2','衝鋒斬擊':'axe2','爆發橫掃':'axe2'},
     shadow_cross: {'影刃旋舞':'katar','十字斬擊':'katar','永恆斬擊':'katar','暗影刺擊':'dagger'},
@@ -68,6 +71,18 @@
   };
   const labels = {sword2:'雙手劍',spear:'長矛',shield:'盾牌',rod2:'雙手杖',bow:'弓',instrument:'樂器',whip:'鞭子',axe2:'雙手斧',katar:'拳刃',dagger:'短劍',dagger_bow:'短劍或弓',mace_book:'鈍器或書籍',knuckle:'拳套'};
   const isMagic = new Set(['magic','magic_aoe']);
+
+  // 遊俠（三轉）依技能圖鑑補齊 8 招；舊有 3 個技能 ID 沿用，新增 5 個 ID。
+  const rangerSkillIds = [
+    'ra_wargbite','ra_camouflage','ra_clusterbomb','ra_fearbreeze',
+    'ra_aimedbolt','ra_unlimit','ra_arrowstorm','ra_wargstrike'
+  ];
+  if (!JOB_TREE.ranger) throw new Error('V2.5 missing third job ranger');
+  for (const sid of rangerSkillIds) {
+    if (!SKILLS[sid]) throw new Error(`V2.5 missing Ranger skill ${sid}`);
+  }
+  JOB_TREE.ranger.skills = rangerSkillIds.map(sid => SKILLS[sid]);
+
   for (const [jobId, rows] of Object.entries(catalogs)) {
     const job = JOB_TREE[jobId];
     if (!job) throw new Error(`V2.5 missing fourth job ${jobId}`);
@@ -110,24 +125,63 @@
           if (dk.requiresSkill) sk.requiresSkill = dk.requiresSkill;
         }
       }
-      // 使用者指定：遊俠三轉／四轉攻擊技及陷阱統一改成二轉式被動，普攻自動觸發。
+      // 風鷹四轉：主動攻擊與增益依技能圖鑑數值；圖鑑標示「效果待實作」者保留本作原效果，只更新技能等級容量。
       if (jobId === 'wind_hawk') {
-        const attackProc = new Set(['漸進狙擊','毀滅風暴','憤怒暴風','獵鷹奇襲','獵鷹狙擊']);
-        const trapRows = {
-          '磐石陷阱': {effect:'stun',chance:[10,12,14,16,18],cd:12,stun:1.5},
-          '火焰陷阱': {effect:'damage',element:'fire',chance:[12,14,16,18,20],cd:10,mult:[1.5,1.8,2.1,2.4,2.7]},
-          '深盲陷阱': {effect:'hitDebuff',chance:[10,12,14,16,18],cd:12,hit:[20,25,30,35,40],duration:5},
-          '急速陷阱': {effect:'damageAoe',element:'wind',chance:[10,12,14,16,18],cd:12,mult:[1.0,1.2,1.4,1.6,1.8]}
+        const sourceValues = {
+          '自然親和': {
+            type:'buff_flee', element:'neutral', spCost:Array(5).fill(30), cooldown:Array(5).fill(35),
+            mult:[1.4,1.5,1.6,1.7,1.8], duration:[20,25,30,35,40],
+            desc:'與自然融為一體，迴避提升 40%～80%，持續 20～40 秒。'
+          },
+          '風之印記': {
+            type:'passive', passiveStat:'atkFlat', spCost:[0], cooldown:[0], mult:[15,30,45,60,75],
+            desc:'被動技能，永久提升 ATK +15～75。'
+          },
+          '增幅箭': {
+            type:'damage', element:'wind', requiresWeapon:'bow',
+            spCost:[26,29,32,35,38,41,44,47,50,53], cooldown:Array(10).fill(2),
+            mult:[6,7.0556,8.1111,9.1667,10.2222,11.2778,12.3333,13.3889,14.4444,15.5],
+            desc:'弓專用蓄力攻擊，造成風屬性 ATK 600%～1550% 傷害。'
+          },
+          '疾風暴': {
+            type:'damage_aoe', element:'wind', requiresWeapon:'bow',
+            spCost:[40,44,48,52,56,60,64,68,72,76], cooldown:Array(10).fill(3),
+            mult:[6,7.5556,9.1111,10.6667,12.2222,13.7778,15.3333,16.8889,18.4444,20],
+            desc:'弓專用範圍攻擊，對全體敵人造成風屬性 ATK 600%～2000% 傷害。'
+          },
+          '災厄疾風': {
+            type:'buff_atk', element:'neutral', spCost:Array(5).fill(80), cooldown:Array(5).fill(90),
+            mult:[1.15,1.2125,1.275,1.3375,1.4], duration:[30,40,50,60,70],
+            desc:'引動災厄之風，攻擊力提升 15%～40%，持續 30～70 秒。'
+          },
+          '進階陷阱研究': {
+            type:'passive', passiveStat:'atkFlat', spCost:[0], cooldown:[0], mult:[3,6,9,12,15],
+            desc:'被動技能，ATK 每級 +3，最高 +15。'
+          },
+          '鷹之迴旋': {
+            type:'damage', element:'neutral', spCost:[28,31,34,37,40], cooldown:Array(5).fill(2),
+            mult:[7,9,11,13,15],
+            desc:'獵鷹如迴力鏢往返撕咬，造成 ATK 700%～1500% 傷害。'
+          },
+          '鷹擊': {
+            type:'damage', element:'neutral', requiresWeapon:'bow',
+            spCost:[30,34,38,42,46], cooldown:Array(5).fill(2), mult:[8,10,12,14,16],
+            desc:'弓專用獵鷹俯衝突擊，造成 ATK 800%～1600% 傷害。'
+          }
         };
-        if (attackProc.has(name)) {
-          sk.type = 'passive'; sk.passiveStat = 'rangerAttackProc'; sk.rangerPassiveProc = true;
-          sk.spCost = [0]; sk.cooldown = [0];
-          sk.procChance = Array.from({length:maxLv},(_,i)=>Math.min(25,10+i*2));
-          sk.internalCooldown = Array.from({length:maxLv},()=> name === '憤怒暴風' ? 12 : 5);
-          sk.mult = Array.from({length:maxLv},(_,i)=> name === '毀滅風暴' ? 4.0+i*0.5 : name === '憤怒暴風' ? 8.0 : name === '獵鷹奇襲' ? 2.0+i*0.4 : name === '獵鷹狙擊' ? 3.0+i*0.5 : 2.5+i*0.3);
-          sk.aoe = ['毀滅風暴','憤怒暴風','獵鷹奇襲'].includes(name);
-          sk.desc = `被動技能：裝備弓時，普通攻擊有 ${sk.procChance[0]}%～${sk.procChance[maxLv-1]}% 機率自動觸發「${name}」，造成 ${Math.round(sk.mult[0]*100)}%～${Math.round(sk.mult[maxLv-1]*100)}% 傷害；不消耗 SP，內部冷卻 ${sk.internalCooldown[0]} 秒。`;
-        } else if (trapRows[name]) {
+        if (sourceValues[name]) Object.assign(sk, sourceValues[name]);
+
+        // 下列六招在來源圖鑑標示「效果待實作」：沿用本作既有觸發／被動效果，只採用來源的技能名稱與最高等級。
+        const pendingNames = new Set(['迅捷陷阱','烈焰陷阱','堅固陷阱','深盲陷阱','野性步伐','鷹之熟練']);
+        if (pendingNames.has(name)) sk.sourceEffectPending = true;
+
+        const trapRows = {
+          '堅固陷阱': {effect:'stun',chance:[10,12,14,16,18],cd:12,stun:1.5},
+          '烈焰陷阱': {effect:'damage',element:'fire',chance:[12,14,16,18,20],cd:10,mult:[1.5,1.8,2.1,2.4,2.7]},
+          '深盲陷阱': {effect:'hitDebuff',chance:[10,12,14,16,18],cd:12,hit:[20,25,30,35,40],duration:5},
+          '迅捷陷阱': {effect:'damageAoe',element:'wind',chance:[10,12,14,16,18],cd:12,mult:[1.0,1.2,1.4,1.6,1.8]}
+        };
+        if (trapRows[name]) {
           const t = trapRows[name];
           sk.type = 'passive'; sk.passiveStat = 'rangerTrapProc'; sk.rangerTrapProc = true;
           sk.spCost = [0]; sk.cooldown = [0]; sk.trapEffect = t.effect; sk.element = t.element || 'neutral';
@@ -136,48 +190,8 @@
           if (t.stun) sk.stunSec = t.stun;
           if (t.hit) sk.hitDebuff = t.hit;
           if (t.duration) sk.duration = Array.from({length:maxLv},()=>t.duration);
-          const trapDetail = t.effect === 'stun' ? `使目標暈眩 ${t.stun} 秒` : t.effect === 'damage' ? `造成 ATK ${Math.round(t.mult[0]*100)}%～${Math.round(t.mult[t.mult.length-1]*100)}% ${({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',neutral:'無'})[t.element] || '無'}屬性傷害` : t.effect === 'hitDebuff' ? `使目標 HIT 降低 ${t.hit[0]}～${t.hit[t.hit.length-1]} 點，持續 ${t.duration} 秒` : `對全體敵人造成 ATK ${Math.round(t.mult[0]*100)}%～${Math.round(t.mult[t.mult.length-1]*100)}% ${({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',neutral:'無'})[t.element] || '無'}屬性範圍傷害`;
-          sk.desc = `被動陷阱：普通攻擊時有 ${t.chance[0]}%～${t.chance[t.chance.length-1]}% 機率自動觸發「${name}」，${trapDetail}；不需手動設置、不消耗 SP，內部冷卻 ${t.cd} 秒。`;
-        }
-      }
-      // 樞機主教：官方指定隊友技能在本作統一擴大為全隊生效。
-      // 這些技能原先被通用四轉資料錯誤歸類成 passive，導致只能取得自身能力值；
-      // 這裡保留原技能 ID／名稱／等級，改回可施放的支援技能，並交由 engine 的
-      // party buff/heal 管線複製到所有存活隊友（含施術者）。
-      if (jobId === 'cardinal') {
-        const cardinalSupport = {
-          '博愛治癒': { type:'heal', mult:[1.10,1.25,1.30,1.35,1.40], party:true,
-            desc:'恢復自己與全體存活隊友 HP；恢復量依各隊員自身能力計算。' },
-          '治癒誓言': { type:'heal_over_time', mult:[0.02,0.04,0.06,0.08,0.10], party:true,
-            duration:[40,60,80,100,120], desc:'對自己與全體存活隊友施加持續治癒效果。' },
-          '聖光治癒': { type:'heal_full', mult:[1,1,1,1,1], party:true,
-            desc:'恢復自己與全體存活隊友至最大 HP。' },
-          '神聖防護': { type:'buff_atk', mult:[1.05,1.10,1.15,1.20,1.25], party:true,
-            duration:[120,150,180,210,240], desc:'全隊獲得物理攻擊增益（以本作 ATK 增益表示官方物理抗性穿透效果）。' },
-          '光耀天命': { type:'buff_matk', mult:[1.05,1.10,1.15,1.20,1.25], party:true,
-            duration:[120,150,180,210,240], desc:'全隊獲得魔法攻擊增益（以本作 MATK 增益表示官方魔法抗性穿透效果）。' },
-          '爆裂聖光': { type:'buff_crit', mult:[1.02,1.04,1.06,1.08,1.10], party:true,
-            duration:[120,150,180,210,240], desc:'全隊暴擊能力提升。' },
-          '全心奉獻': { type:'buff_allstat', mult:[1,2,3,4,5], party:true,
-            duration:[120,150,180,210,240], desc:'全隊六項基本素質提升。' },
-          '祝福讚歌': { type:'buff_allstat', mult:[1,2,3,4,5], party:true,
-            duration:[120,150,180,210,240], desc:'全隊六項基本素質提升。' },
-        };
-        const support = cardinalSupport[name];
-        if (support) {
-          sk.type = support.type;
-          sk.party = true;
-          sk.mult = support.mult;
-          if (support.duration) sk.duration = support.duration;
-          sk.spCost = Array.from({length:maxLv}, (_,i) => 30 + i * 10);
-          sk.cooldown = Array.from({length:maxLv}, () => 1);
-          if (support.type === 'heal' || support.type === 'heal_over_time' || support.type === 'heal_full') {
-            sk.spCost = Array.from({length:maxLv}, (_,i) => 50 + i * 5);
-            sk.cooldown = Array.from({length:maxLv}, () => support.type === 'heal_full' ? 10 : 1);
-          }
-          const firstPct = Math.round(Number(sk.mult[0]) * 100);
-          const lastPct = Math.round(Number(sk.mult[sk.mult.length - 1]) * 100);
-          sk.desc = `${support.desc} 效果倍率 ${firstPct}%～${lastPct}%；目標規則：全隊生效；SP 消耗 ${sk.spCost[0]}～${sk.spCost[maxLv-1]}，冷卻 ${sk.cooldown[0]} 秒。`;
+          const trapDetail = t.effect === 'stun' ? `使目標暈眩 ${t.stun} 秒` : t.effect === 'damage' ? `造成 ATK ${Math.round(t.mult[0]*100)}%～${Math.round(t.mult[t.mult.length-1]*100)}% 火屬性傷害` : t.effect === 'hitDebuff' ? `使目標 HIT 降低 ${t.hit[0]}～${t.hit[t.hit.length-1]} 點，持續 ${t.duration} 秒` : `對全體敵人造成 ATK ${Math.round(t.mult[0]*100)}%～${Math.round(t.mult[t.mult.length-1]*100)}% 風屬性範圍傷害`;
+          sk.desc = `沿用本作既有被動陷阱：普通攻擊時有 ${t.chance[0]}%～${t.chance[t.chance.length-1]}% 機率觸發「${name}」，${trapDetail}；不消耗 SP，內部冷卻 ${t.cd} 秒。`;
         }
       }
       const req = (weaponGates[jobId]||{})[name];
@@ -186,7 +200,6 @@
       // 以已存在的三轉／二轉技能作為施放前置；不限制學習順序。
       if (jobId === 'dragon_knight' && name === '天龍氣息') sk.requiresSkill = 'rk_dragontraining';
       if (jobId === 'imperial_guard' && name === '盾牌投擲') sk.requiresEquip = 'shield';
-      if (jobId === 'wind_hawk' && name === '獵鷹奇襲') sk.requiresSkill = 'huntingmastery';
       if (req) sk.desc += `（使用條件：${labels[req]}）`;
       if (SKILLS[id]) throw new Error(`V2.5 duplicate skill ${id}`);
       SKILLS[id] = sk;
@@ -198,7 +211,7 @@
   }
   // 三轉技能也統一補上可直接閱讀的倍率；沿用既有 SKILLS.mult，避免描述與結算各寫一套。
   for (const job of Object.values(JOB_TREE)) {
-    if (job.tier !== 3) continue;
+    if (job.tier !== 3 || job.id === 'ranger') continue;
     for (const ref of (job.skills || [])) {
       const sk = typeof ref === 'string' ? SKILLS[ref] : ref;
       if (!sk || sk.type === 'passive' || !['damage','damage_aoe','magic','magic_aoe','dot'].includes(sk.type)) continue;

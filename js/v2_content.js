@@ -108,9 +108,6 @@
       skills:[
         active('v2_ca_divine_judgement','神聖裁決','magic_aoe','holy','降下神聖裁決，對全體敵人造成聖屬性魔法傷害。'),
         active('v2_ca_holy_spear','聖光之槍','magic','holy','凝聚聖光貫穿單一目標。'),
-        skill('v2_ca_sacred_recovery','神聖治癒','heal','holy',[2.0,2.5,3.0,3.5,4.0],[35,40,45,50,55],[8,8,8,8,8], '以聖光治癒施術者與全體存活隊友，恢復量依各自 INT 與基本等級計算。', { party:true }),
-        skill('v2_ca_divine_guard','神聖守護','buff_angelus','holy',[1,1,1,1,1],[40,45,50,55,60],[30,30,30,30,30], '使全隊 DEF +15%～35%、最大 HP +300～1500，持續 60～180 秒。', { party:true, defPct:[15,20,25,30,35], maxHpFlat:[300,600,900,1200,1500], duration:[60,90,120,150,180] }),
-        skill('v2_ca_holy_blessing','聖潔祝福','buff_blessing','holy',[1,2,3,4,5],[30,35,40,45,50],[30,30,30,30,30], '使全體隊員 STR／INT／DEX +3～15、HIT +6～30，持續 60～180 秒。', { party:true, statBonus:[3,6,9,12,15], hitBonus:[6,12,18,24,30], duration:[60,90,120,150,180] }),
         passive('v2_ca_sacred_wisdom','神聖智慧','matkFlat',[5,10,15,20,25],'深化神聖知識，固定 MATK 提升。'),
       ] },
     { id:'inquisitor', parent:'sura', name:'審判者', icon:'👊', atk:1.28, matk:0.9,
