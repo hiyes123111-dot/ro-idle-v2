@@ -433,6 +433,7 @@ function onTickUI() {
   }
 }
 
+
 /* GM 測試面板（v1.0 起預設關閉）。
 
    那幾顆鈕直接給等級、鋅幣與遺物券——正式版留著等於把遊戲的進度整段跳過。
@@ -936,7 +937,15 @@ const MOUNT_WEAPON_CATS = ['spear1', 'spear2'];
 
 /* 沒有自己的圖、直接借別人的職業。超級新手官方本來就是穿新手服的，借新手那組剛好。
    沒列在這裡又沒有圖的職業會退回 player_swordsman.svg 那張靜圖。 */
-const SPRITE_ALIAS = { supernovice: 'novice' };
+const SPRITE_ALIAS = {
+  supernovice: 'novice',
+  // 四轉專屬影格尚未收錄時，沿用對應三轉職業動作，避免退回劍士靜態圖。
+  dragon_knight: 'runeknight', imperial_guard: 'royalguard',
+  arch_mage: 'warlock', element_master: 'sorcerer', wind_hawk: 'ranger',
+  troubadour: 'clown', trouvere: 'wanderer', meister: 'mechanic', biolo: 'geneticist',
+  shadow_cross: 'guillotinecross', abyss_chaser: 'shadowchaser',
+  cardinal: 'archbishop', inquisitor: 'sura'
+};
 /* 三轉的立繪（#111 → #119）。
 
    #111 當時 `images/frames/` 底下一張三轉的圖都沒有，所以整批借母職的
@@ -2410,8 +2419,7 @@ function renderAutoBattleTab() {
       <div class="support-skill-list">${supportRows}</div>
     </div>
     ` : ''}
-
-    <!-- 藥水設定 -->
+<!-- 藥水設定 -->
     <div class="ab-section">
       <h4 class="ab-section-title">🧪 藥水設定</h4>
       <div class="potion-toggles">
@@ -2693,10 +2701,11 @@ function renderSkillsTab() {
            以前只擋了 'none'，所以那 60 個技能全都印出 `undefined` 當圖示。 */
         const elemTag = sk.element && sk.element !== 'none' && sk.element !== 'neutral'
           ? `<span class="skill-element elem-${sk.element}">${ELEMENT_ICONS[sk.element] || '⚪'}</span>` : '';
+        const skillArt = sk.type === 'passive' ? 'skill-passive.svg' : (['magic','magic_aoe'].includes(sk.type) ? 'skill-magic.svg' : 'skill-physical.svg');
 
         html += `<div class="skill-row ${lv > 0 ? 'learned' : ''}">
           <div class="skill-info">
-            <div class="skill-name">${sk.name} ${statusTag} ${typeTag} ${elemTag}</div>
+            <div class="skill-name"><img src="images/skills/${skillArt}" alt="" style="width:24px;height:24px;vertical-align:middle;margin-right:5px">${sk.name} ${statusTag} ${typeTag} ${elemTag}</div>
             <div class="skill-desc">${sk.desc}</div>
             <div class="skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</div>
           </div>
@@ -2972,12 +2981,13 @@ const SIZE_LABELS = { small: '小型', medium: '中型', large: '大型' };
 const ITEM_TYPE_LABELS = {
   weapon: '武器', armor: '防具', consumable: '消耗品', material: '素材', etc: '雜物', card: '卡片'
 };
-let codexView = 'mon';      // mon | card | item
+let codexView = 'mon';      // mon | card | item | sets
 let codexFilter = 'all';    // all | found | missing
 let codexSearch = '';
 let codexPage = 0;
 let codexOpenId = null;
 let codexJobFilter = false;  // 只顯示本職業裝得上的裝備
+let codexSetOpenId = null;
 
 /* 分類篩選（#138）。圖鑑一頁 60 格、道具有一千四百多筆，只有「已發現／未發現」
    根本翻不完——使用者要的是按類別收斂。三個分頁各有自己的一組分類，
@@ -3031,7 +3041,9 @@ const CODEX_CATS = {
 };
 let codexCat = { mon: 'all', card: 'all', item: 'all', hidden: 'all' };
 function setCodexView(v) {
-  codexView = v; codexPage = 0; codexOpenId = null;
+  codexView = v; codexPage = 0; codexOpenId = null; codexSetOpenId = null;
+  /* 套裝是獨立圖鑑頁；切入時清除道具篩選，避免沿用舊分頁狀態。 */
+  if (v === 'sets') { codexFilter = 'all'; codexSearch = ''; codexJobFilter = false; }
   /* 進隱藏圖鑑時重置篩選，避免殘留的「已發現」把未開出的卡藏起來 */
   if (v === 'hidden') { codexFilter = 'all'; codexSearch = ''; }
   renderCodexTab();
@@ -3155,7 +3167,85 @@ function codexBar(label, found, total) {
   </div>`;
 }
 
+/* 套裝圖鑑：直接彙整引擎實際使用的 EQUIP_SETS、RELIC_SETS 與卡片 condBonus.setName。
+   不以背包或已穿戴狀態過濾，讓玩家能查到遊戲內完整套裝清單。 */
+function getCodexSetEntries() {
+  const out = [];
+  Object.entries(EQUIP_SETS || {}).forEach(([id, d]) => out.push({
+    id: 'equip:' + id, kind: '裝備套裝', name: d.name || id,
+    pieces: (d.items || []).map(x => Array.isArray(x) ? x : [x]),
+    bonus: d.bonus || {}, perRefine: d.perRefine || null,
+    sourceId: (d.items || []).flatMap(x => Array.isArray(x) ? x : [x])[0] || null,
+  }));
+  if (typeof RELIC_SETS !== 'undefined') Object.entries(RELIC_SETS).forEach(([id, d]) => out.push({
+    id: 'relic:' + id, kind: '遺物套裝', name: d.name || id,
+    pieces: (typeof RELIC_SLOTS !== 'undefined' ? RELIC_SLOTS : []).map(slot => {
+      const itemId = 'relic_' + id + '_' + slot.replace(/^relic_/, '');
+      return [itemId];
+    }),
+    tiers: d.tiers || [], bonus: {}, sourceId: 'relic_' + id + '_head', desc: d.desc || '',
+  }));
+  const cardGroups = {};
+  Object.entries(CARDS || {}).forEach(([cardId, c]) => (c.condBonus || []).forEach((cb, i) => {
+    if (!cb.setName) return;
+    const key = cb.setName;
+    if (!cardGroups[key]) cardGroups[key] = { id: 'card:' + key, kind: '卡片套卡', name: key, members: [], bonuses: [], bonus: cb.bonus || {}, sourceId: cardId };
+    const required = (cb.when && cb.when.withCards) || [];
+    [cardId, ...required].forEach(memberId => { if (!cardGroups[key].members.includes(memberId)) cardGroups[key].members.push(memberId); });
+    if (cb.bonus && Object.keys(cb.bonus).length) cardGroups[key].bonuses.push(cb.bonus);
+    if (Object.keys(cb.bonus || {}).length > Object.keys(cardGroups[key].bonus || {}).length) cardGroups[key].bonus = cb.bonus || {};
+  }));
+  Object.values(cardGroups).forEach(g => { g.members = [...new Set(g.members)]; g.pieces = g.members.map(id => [id]); out.push(g); });
+  return out.sort((a,b) => a.kind.localeCompare(b.kind, 'zh-Hant') || a.name.localeCompare(b.name, 'zh-Hant'));
+}
+const CODEX_BONUS_LABELS = {
+  hpPct:'MaxHP', spPct:'MaxSP', atkPct:'ATK%', matkPct:'MATK%', allTargetDmgPct:'全目標傷害%',
+  rangedDmgPct:'遠距離傷害%', critDmgPct:'暴擊傷害%', critRate:'暴擊率', aspdPct:'攻速%', aspdFlat:'攻速',
+  spCostPct:'技能SP消耗%', hpRegenPct:'HP恢復力%', spRegenPct:'SP恢復力%', perfectDodge:'完全迴避',
+  def:'DEF', mdef:'MDEF', atk:'ATK', matk:'MATK', str:'STR', agi:'AGI', vit:'VIT', int:'INT', dex:'DEX', luk:'LUK',
+  hit:'命中', flee:'迴避', hp:'HP', sp:'SP', bossDmgPct:'對BOSS傷害%', sizeDmg_large:'對大型傷害%',
+  skillCdFlat:'技能冷卻', skillDmg_:'技能傷害',
+};
+function codexBonusText(bonus) {
+  return Object.entries(bonus || {}).filter(([,v]) => typeof v === 'number' && v !== 0).map(([k,v]) => {
+    let label = CODEX_BONUS_LABELS[k] || k.replace(/([A-Z])/g, ' $1');
+    return `${label} ${v > 0 ? '+' : ''}${v}${/(Pct|Rate)$/.test(k) ? '%' : ''}`;
+  });
+}
+function toggleCodexSetDetail(id) { codexSetOpenId = codexSetOpenId === id ? null : id; renderCodexTab(); }
+function renderCodexSets() {
+  const el = document.getElementById('tab-codex'); if (!el || !state) return;
+  const all = getCodexSetEntries();
+  let rows = all.filter(x => !codexSearch || (x.name + ' ' + x.kind + ' ' + x.pieces.flat().map(id => (ITEMS[id] || CARDS[id] || {}).name || id).join(' ')).toLowerCase().includes(codexSearch));
+  const count = { '裝備套裝':0, '遺物套裝':0, '卡片套卡':0 }; all.forEach(x => count[x.kind] = (count[x.kind] || 0) + 1);
+  let html = `<h3 class="panel-title">📕 圖鑑</h3><div class="codex-tabs">
+    <button class="btn-small" onclick="setCodexView('mon')">👾 怪物</button><button class="btn-small" onclick="setCodexView('card')">🃏 卡片</button>
+    <button class="btn-small" onclick="setCodexView('item')">🎒 道具</button><button class="btn-small active" onclick="setCodexView('sets')">🧩 套裝 ${all.length}</button></div>
+    <div class="codex-controls"><input id="codex-search" class="codex-search" type="text" placeholder="搜尋套裝名稱或套裝部件…" value="${codexSearch.replace(/"/g,'&quot;')}" oninput="onCodexSearch(this.value, event)"></div>
+    <div class="codex-cats">${Object.entries(count).map(([k,n])=>`<span class="btn-small">${k} ${n}</span>`).join('')}</div>
+    <div class="empty-hint">共收錄 ${all.length} 組：包含一般裝備套裝、遺物套裝與卡片套卡。點選即可查看完整部件與效果。</div>`;
+  if (!rows.length) html += '<div class="empty-hint">沒有符合的套裝。</div>';
+  rows.forEach(set => {
+    const isOpen = codexSetOpenId === set.id;
+    const pieces = set.pieces || [];
+    const bonus = codexBonusText(set.bonus);
+    const preview = pieces.slice(0,4).map(group => { const id=group[0]; const d=ITEMS[id]||CARDS[id]||{}; return d.name || id; }).join('、');
+    html += `<div class="codex-set-card ${isOpen?'open':''}" onclick="toggleCodexSetDetail('${set.id.replace(/'/g,"\\'")}')">
+      <div class="codex-set-head"><div><b>${set.name}</b><div class="codex-cell-sub">${set.kind} · ${pieces.length} 件／部件</div></div><span>⌄</span></div>
+      <div class="codex-set-preview">${preview || '套裝部件資料待補'}</div>
+      ${isOpen ? `<div class="codex-set-detail">${set.desc ? `<p>${set.desc}</p>`:''}<div class="codex-detail-sec">套裝部件</div>
+        ${pieces.map((group,i)=>{ const id=group[0]; const d=ITEMS[id]||CARDS[id]||{}; const label=group.map(x=>(ITEMS[x]||CARDS[x]||{}).name||x).join('／'); const img=ITEMS[id]?itemImgSrc(id):cardArtSrc(id); return `<div class="codex-set-piece"><img src="${img}" onerror="this.style.display='none'"><span>${i+1}. ${label}</span><small>${ITEMS[id]?'裝備／道具':'卡片'}</small></div>`; }).join('')}
+        <div class="codex-detail-sec">套裝效果</div>${bonus.length ? `<div class="codex-detail-stats">${bonus.map(x=>`<span>${x}</span>`).join('')}</div>` : '<div class="dim">未設定一般數值加成，可能為特殊效果或僅有條件式效果。</div>'}
+        ${set.perRefine ? `<div class="codex-set-note">精煉追加：${codexBonusText(set.perRefine.bonus).join('、') || '依精煉等級計算'}</div>`:''}
+        ${(set.tiers||[]).map(t=>`<div class="codex-set-tier"><b>${t.need} 件效果</b>：${t.text || codexBonusText(t.bonus).join('、') || '特殊效果'}</div>`).join('')}
+        <div class="codex-set-note">套裝效果依實際裝備／卡片條件生效；替代孔數版本以遊戲套裝資料為準。</div></div>` : ''}
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
 function renderCodexTab() {
+  if (codexView === 'sets') { renderCodexSets(); return; }
   const el = document.getElementById('tab-codex');
   if (!el || !state) return;
 
@@ -3223,6 +3313,7 @@ function renderCodexTab() {
       <button class="btn-small ${codexView === 'mon' ? 'active' : ''}" onclick="setCodexView('mon')">👾 怪物</button>
       <button class="btn-small ${codexView === 'card' ? 'active' : ''}" onclick="setCodexView('card')">🃏 卡片</button>
       <button class="btn-small ${codexView === 'item' ? 'active' : ''}" onclick="setCodexView('item')">🎒 道具</button>
+      <button class="btn-small ${codexView === 'sets' ? 'active' : ''}" onclick="setCodexView('sets')">🧩 套裝</button>
       ${boxUnlocked ? `<button class="btn-small ${codexView === 'hidden' ? 'active' : ''}" onclick="setCodexView('hidden')">🎁 隱藏</button>` : ''}
     </div>` +
     (!boxUnlocked ? `<div class="empty-hint">🔒 三大收集（怪物／卡片／道具）全滿後，解鎖「隱藏圖鑑」——神秘箱挑戰。</div>`
@@ -3289,7 +3380,7 @@ function codexItemCell(r, book) {
                           : (ITEM_TYPE_LABELS[d.type] || d.type || '');
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${got ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
     <img class="codex-icon" src="${itemImgSrc(r.id)}" alt="${d.name}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-    <div class="codex-cell-name">${getItemDisplayName(r.id)}</div>
+    <div class="codex-cell-name">${window.getItemDisplayName(r.id)}</div>
     <div class="codex-cell-sub">${sub}</div>
     <div class="codex-cell-count ${got ? '' : 'zero'}">${got ? '×' + got : '未取得'}</div>
   </div>`;
@@ -3304,7 +3395,7 @@ function codexBoxCell(r, book) {
   const img = isCard ? cardArtSrc(r.id) : itemImgSrc(r.id);
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${got ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
     <img class="codex-icon" src="${img}" alt="${isCard ? (CARDS[r.id].name || '') : d.name}" onerror="this.onerror=null;this.src='${placeholderImgSrc(isCard ? 'card' : itemPlaceholderKind(d))}'">
-    <div class="codex-cell-name">${isCard ? (CARDS[r.id].name || r.id) : getItemDisplayName(r.id)}</div>
+    <div class="codex-cell-name">${isCard ? (CARDS[r.id].name || r.id) : window.getItemDisplayName(r.id)}</div>
     <div class="codex-cell-sub">${sub}</div>
     <div class="codex-cell-count ${got ? '' : 'zero'}">${got ? '✔ 已開出' : '未開出'}</div>
   </div>`;
@@ -3487,6 +3578,13 @@ function renderCodexDetail(id) {
   /* 來源改成「一行一個去處」：哪隻怪掉、掉落率多少、在哪張圖、出現率多少、直接去。
      以前只列到怪物就停了，玩家還得自己再查那隻怪在哪——而一隻怪平均出現在 3.4 張圖。 */
   const spots = getItemFarmSpots(id).slice(0, 15);
+  const boxSources = typeof getItemBoxSources === 'function' ? getItemBoxSources(id) : [];
+  const boxRows = boxSources.map(s => `<div class="codex-spot box-source">
+      <img class="codex-spot-icon" src="${itemImgSrc(s.boxId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
+      <span class="codex-spot-mon">📦 ${s.name}</span>
+      <span class="codex-drop-rate" title="依目前箱子抽選池估算的單件機率">${s.chance < 0.0001 ? '<0.01' : (s.chance * 100).toFixed(4)}%</span>
+      <span class="codex-spot-name">${s.note}</span>
+    </div>`).join('');
   const srcRows = spots.map(s => {
     const m = MONSTERS[s.mon];
     if (!m) return '';
@@ -3537,7 +3635,7 @@ function renderCodexDetail(id) {
     <div class="codex-detail-head">
       <img class="codex-detail-icon" src="${itemImgSrc(id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
       <div>
-        <div class="codex-detail-name">${getItemDisplayName(id)}</div>
+        <div class="codex-detail-name">${window.getItemDisplayName(id)}</div>
         <div class="codex-detail-tags">
           <span>${card ? '卡片' : (ITEM_TYPE_LABELS[d.type] || d.type || '')}</span>
           ${card ? `<span>${CARD_SLOT_LABELS[card.slot] || card.slot}</span>` : ''}
@@ -3551,8 +3649,8 @@ function renderCodexDetail(id) {
     ${!card && statBits.length ? `<div class="codex-detail-stats">${statBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
     ${unimpl}
-    <div class="codex-detail-sec">去哪裡打<span class="codex-sec-hint">照出現率排序，點「前往」直接過去</span></div>
-    <div class="codex-spots">${relicRows}${shopRows}${srcRows || (relicRows || shopRows ? '' : '<div class="dim">沒有怪物會掉，也不在商店販售</div>')}</div>
+    <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
+    <div class="codex-spots">${relicRows}${shopRows}${boxRows}${srcRows || (relicRows || shopRows || boxRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
   </div>`;
 }
 
@@ -3858,29 +3956,57 @@ function compareEquip(itemId, newRefine) {
    武器 ATK 要經過精煉曲線、卡片與條件式加成（#19）、素質衍生的 ATK 也會跟著動。
    現在走 engine.js 的 previewEquipDelta()——暫時穿上去重算一次再還原，數字保證跟實戰一致。
    穿不上的（職業／等級擋住）沒辦法模擬，退回舊的「只比裝備本身數值」並標明原因。 */
+/* 裝備／背包比較模式：預設快速比較；完整模式會逐件模擬換裝並重算角色衍生能力。 */
+function getEquipRecalcMode() { return !!(state && state.equipRecalcMode); }
+function syncEquipRecalcModeButton() {
+  const btn = document.getElementById('btn-equip-recalc-mode');
+  if (!btn) return;
+  const on = getEquipRecalcMode();
+  btn.textContent = on ? '⚙️ 裝備重算：開' : '⚙️ 裝備重算：關';
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.title = on
+    ? '開啟：背包裝備逐件模擬穿戴，完整重算角色能力；手機大量裝備時可能較慢'
+    : '關閉：只比較裝備本體數值，不逐件完整重算';
+}
+function toggleEquipRecalcMode() {
+  if (!state) return;
+  state.equipRecalcMode = !getEquipRecalcMode();
+  syncEquipRecalcModeButton();
+  saveGame();
+  if (typeof activeTab !== 'undefined' && activeTab === 'inventory') renderInventoryTab();
+  else if (typeof activeTab !== 'undefined' && activeTab === 'equip') renderEquipTab();
+}
+
 function renderCompareBadge(itemId, newRefine, instanceId) {
+  /* 完整模式：暫時穿上背包中的這件裝備，執行完整衍生屬性重算後還原；
+     快速模式：只比較裝備本體數值，避免大量背包物品逐件重算造成手機卡頓。 */
+  if (getEquipRecalcMode()) {
+    const preview = previewEquipDelta(itemId, instanceId);
+    if (preview) {
+      const slot = preview.slot;
+      const curId = getEquipBaseItemId(slot);
+      const curRef = getRefinementLevel(slot);
+      const curName = curId ? `${curRef > 0 ? '+' + curRef + ' ' : ''}${window.getItemDisplayName(curId)}` : '（空欄位）';
+      if (!preview.changes.length) return `<div class="inv-compare same">完整重算：與目前角色能力相同</div>`;
+      const parts = preview.changes.map(c =>
+        `<span class="cmp-${c.delta > 0 ? 'up' : 'down'}">${c.label} ${c.delta > 0 ? '▲+' : '▼'}${c.delta}</span>`
+      );
+      return `<div class="inv-compare">（完整重算角色能力）對比 ${curName}：${parts.join('')}</div>`;
+    }
+  }
   const slot = targetSlotOf(itemId);
   if (!slot) return '';
   const curId = getEquipBaseItemId(slot);
   const curRef = getRefinementLevel(slot);
-  const curName = curId ? `${curRef > 0 ? '+' + curRef + ' ' : ''}${getItemDisplayName(curId)}` : '（空欄位）';
-
-  const prev = typeof previewEquipDelta === 'function' ? previewEquipDelta(itemId, instanceId) : null;
-  if (prev) {
-    if (!prev.changes.length) return `<div class="inv-compare same">對比 ${curName}：角色數值沒有變化</div>`;
-    const parts = prev.changes.map(c =>
-      `<span class="cmp-${c.delta > 0 ? 'up' : 'down'}">${c.label} ${c.delta > 0 ? '▲+' : '▼'}${c.delta}</span>`
-    );
-    return `<div class="inv-compare">對比 ${curName}：${parts.join('')}</div>`;
-  }
-
+  const curName = curId ? `${curRef > 0 ? '+' + curRef + ' ' : ''}${window.getItemDisplayName(curId)}` : '（空欄位）';
   const cmp = compareEquip(itemId, newRefine);
   if (!cmp || !cmp.rows.length) return '';
   const parts = cmp.rows.filter(r => r.diff !== 0).map(r =>
     `<span class="cmp-${r.diff > 0 ? 'up' : 'down'}">${r.label} ${r.diff > 0 ? '▲+' : '▼'}${r.diff}</span>`
   );
   if (!parts.length) return `<div class="inv-compare same">與目前裝備數值相同</div>`;
-  return `<div class="inv-compare">（穿不上，只比裝備數值）對比 ${curName}：${parts.join('')}</div>`;
+  return `<div class="inv-compare">（僅比較裝備本體）對比 ${curName}：${parts.join('')}</div>`;
 }
 
 // 不認識的分類就退回第一類：下面 renderInventoryTab() 有一處 INV_CATEGORIES.find(...).name，
@@ -3990,7 +4116,7 @@ function showSlotActions(slotKey) {
   const cards = getEquippedCards(slotKey);
   const maxSlots = getEquipCardSlots(slotKey);
 
-  let html = `<h3 class="panel-title">${ref > 0 ? `+${ref} ` : ''}${getItemDisplayName(itemId)}</h3>`;
+  let html = `<h3 class="panel-title">${ref > 0 ? `+${ref} ` : ''}${window.getItemDisplayName(itemId)}</h3>`;
   html += `<button class="btn-small" onclick="renderEquipTab()">← 返回裝備欄</button>`;
   html += `<div class="equip-pick-stats" style="margin:8px 0">${
     [d.atk ? `ATK ${statWithRefine(itemId,'atk',ref)}` : '', d.def ? `DEF ${statWithRefine(itemId,'def',ref)}` : '',
@@ -4040,7 +4166,7 @@ function buildEquipGridHtml() {
           <div class="slot-label">${slot.name}</div>
           ${twoHandRef > 0 ? `<div class="slot-refine">+${twoHandRef}</div>` : ''}
           <img class="slot-icon" src="${itemImgSrc(weaponId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('weapon')}'">
-          <div class="slot-name">${getItemDisplayName(weaponId)}</div>
+          <div class="slot-name">${window.getItemDisplayName(weaponId)}</div>
         </div>`;
         return;
       }
@@ -4052,7 +4178,7 @@ function buildEquipGridHtml() {
       const iconHtml = item
         ? `<img class="slot-icon" src="${itemImgSrc(itemId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('armor')}'">`
         : `<div class="slot-empty">${slot.icon}</div>`;
-      const nameHtml = hasItem ? `<div class="slot-name">${getItemDisplayName(itemId)}</div>` : '';
+      const nameHtml = hasItem ? `<div class="slot-name">${window.getItemDisplayName(itemId)}</div>` : '';
       const refHtml = refLevel > 0 ? `<div class="slot-refine">+${refLevel}</div>` : '';
 
       // 卡片插槽：顯示 ●（已插）/ ○（空孔），並提供插卡／取出／精煉的入口
@@ -4132,7 +4258,7 @@ function showAmmoSelect() {
       const d = ITEMS[r.item];
       const on = getEquippedAmmoId() === r.item;
       return `<div class="equip-pick-row${on ? ' equipped' : ''}">
-        <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
+        <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
         <div class="equip-pick-info">
           <div class="equip-pick-name">${d.name}　<span class="ammo-qty">×${r.qty}</span></div>
           <div class="equip-pick-stats">ATK +${d.atk || 0}${d.element && d.element !== 'none' ? `　${ELEMENT_ICONS[d.element]}${ELEMENT_NAMES[d.element]}屬性` : '　無屬性'}</div>
@@ -4455,9 +4581,9 @@ function renderEquipTab() {
       // 要卸下請點上方裝備欄那一格（連點兩下）
       const action = r.instanceId ? `equipInstance('${r.instanceId}')` : `equipItem('${r.item}')`;
       return `<div class="equip-pick-row">
-        <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+        <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
         <div class="equip-pick-info">
-          <div class="equip-pick-name">${refine > 0 ? `<span class="slot-refine">+${refine}</span> ` : ''}${getItemDisplayName(r.item)}${((d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)) ? ` <span class="inv-slots">[${(d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)}]</span>` : ''}</div>
+          <div class="equip-pick-name">${refine > 0 ? `<span class="slot-refine">+${refine}</span> ` : ''}${window.getItemDisplayName(r.item)}${((d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)) ? ` <span class="inv-slots">[${(d.slots || 0) + (inst ? (inst.extraSlots || 0) : 0)}]</span>` : ''}</div>
           <div class="equip-pick-stats">${bits.join('　')}</div>
           ${cards.length ? `<div class="equip-pick-cards">🃏 ${cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}</div>` : ''}
           ${renderCompareBadge(r.item, refine, r.instanceId)}
@@ -4554,7 +4680,7 @@ function renderInventoryTab() {
 
     const items = rows.map(row => {
       const def = ITEMS[row.item];
-      const displayName = getItemDisplayName(row.item);
+      const displayName = window.getItemDisplayName(row.item);
       const isCard = !!CARDS[row.item];
       // 消耗品要真的有效果才給「使用」鈕——沒有效果的按下去只會得到一句警告
       const usableConsumable = def.type === 'consumable' &&
@@ -4587,6 +4713,7 @@ function renderInventoryTab() {
             <button class="btn-small ${iLocked ? '' : 'ghost'}" title="${iLocked ? '解除鎖定' : '鎖定後不會被賣出／自動販賣'}"
               onclick="toggleItemLock('${row.item}');renderInventoryTab();">${iLocked ? '🔒' : '🔓'}</button>
             <button class="btn-small" onclick="equipInstance('${row.instanceId}');renderInventoryTab();renderTopBar();">裝備</button>
+            ${['weapon','armor'].includes(def.type) && !(def.slots || 0) && !(inst.extraSlots || 0) ? `<button class="btn-small ghost" onclick="drillEquipment('${row.instanceId}');renderInventoryTab();">⚒️ 打洞</button>` : ''}
             ${iLocked ? '' : `<button class="btn-small ghost" onclick="sellItemInstance('${row.instanceId}');renderInventoryTab();renderTopBar();">賣出(${def.sell})</button>`}
             <button class="btn-small ghost" onclick="depositInstanceToWarehouse('${row.instanceId}');renderInventoryTab();renderTopBar();">存倉庫</button>
             ${iCards.length ? `<button class="btn-small ghost danger" onclick="doDestroyInstance('${row.instanceId}')">拆卸取回卡片</button>` : ''}
@@ -4617,6 +4744,7 @@ function renderInventoryTab() {
           </div>
         </div>
         <div class="inv-actions">
+          ${['weapon','armor'].includes(def.type) && !(def.slots || 0) ? `<button class="btn-small ghost" onclick="drillEquipment('${row.item}');renderInventoryTab();">⚒️ 打洞</button>` : ''}
           <button class="btn-small ${locked ? '' : 'ghost'}" title="${locked ? '解除鎖定' : '鎖定後不會被賣出／自動販賣'}"
             onclick="toggleItemLock('${row.item}');renderInventoryTab();">${locked ? '🔒' : '🔓'}</button>
           ${def.ammo ? `<button class="btn-small" onclick="equipAmmo('${row.item}');renderInventoryTab();renderTopBar();">裝備箭矢</button>` : ''}
@@ -4719,7 +4847,7 @@ function showEquipTooltip(event, slotKey) {
   const slotCards = getEquippedCards(slotKey);
   const maxSlots = getEquipCardSlots(slotKey);
 
-  let html = `<div class="tt-name">${getItemDisplayName(itemId)}${refLevel > 0 ? ` <span class="tt-refine">+${refLevel}</span>` : ''}</div>`;
+  let html = `<div class="tt-name">${window.getItemDisplayName(itemId)}${refLevel > 0 ? ` <span class="tt-refine">+${refLevel}</span>` : ''}</div>`;
   html += `<div class="tt-type">${item.type === 'weapon' ? '武器' : '防具'}${item.element ? ' · ' + ELEMENT_ICONS[item.element] + ELEMENT_NAMES[item.element] : ''}</div>`;
   if (item.desc) html += `<div class="tt-desc">${item.desc}</div>`;
   // 顯示數值
@@ -4809,7 +4937,7 @@ function statGearSources(stat) {
     const id = getEquipBaseItemId(slot);
     const d = id ? ITEMS[id] : null;
     if (d && typeof d[stat] === 'number' && d[stat] !== 0) {
-      out.push({ name: getItemDisplayName(id), v: d[stat] });
+      out.push({ name: window.getItemDisplayName(id), v: d[stat] });
     }
   });
   allEquippedCards().forEach(cid => {
@@ -5347,6 +5475,7 @@ function initVolumeSliders() {
   const spr = document.getElementById('sprite-scale');
   if (spr) { spr.value = spriteScalePct(); document.getElementById('sprite-scale-text').textContent = spriteScalePct() + '%'; }
   applySpriteScale();
+  syncEquipRecalcModeButton();
 }
 
 /* ---------------- 選擇地圖（含背景圖/音樂切換） ---------------- */
@@ -5656,7 +5785,7 @@ function showRefinePanel(slotKey) {
   else if (!canPay) hint = `鋅幣不足，需要 ${ctx.cost.toLocaleString()} z。`;
 
   el.innerHTML = `
-    <h3 class="panel-title">🔨 精煉　${ctx.level > 0 ? `+${ctx.level} ` : ''}${getItemDisplayName(ctx.itemId)}</h3>
+    <h3 class="panel-title">🔨 精煉　${ctx.level > 0 ? `+${ctx.level} ` : ''}${window.getItemDisplayName(ctx.itemId)}</h3>
     <button class="btn-small" onclick="renderEquipTab()">← 返回裝備欄</button>
     <div class="refine-panel">
       <div class="refine-head">
@@ -5877,8 +6006,8 @@ function renderVendingWindowInner() {
         return `<div class="wh-row" onclick="${action}" title="${side === 'left'
           ? `點一下＝上架，每 ${cdSec} 秒以 ${sellMult} 倍價（${price}z）賣出 1 個`
           : '點一下＝下架'}">
-          <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-          <span class="wh-row-name">${locked ? '🔒 ' : ''}${getItemDisplayName(r.item)}</span>
+          <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+          <span class="wh-row-name">${locked ? '🔒 ' : ''}${window.getItemDisplayName(r.item)}</span>
           <span class="wh-row-qty">×${r.qty}　<span style="color:var(--gold-soft)">${price}z</span>　<span style="color:var(--ink-dim)">${hint}</span></span>
         </div>`;
       }).join('')
@@ -5928,14 +6057,10 @@ function renderVendingWindowInner() {
    所以打怪照跑、旁邊的分頁照樣點得到，標題列可拖走。CSS 直接共用 `.wh-*`。 */
 function forgeAvailable() {
   const hasMat = (state.unlockedMaterialCrafts || []).length > 0;
-  const hasCraft = (state.unlockedCraftCategories || []).length > 0;
-  if (!hasMat && !hasCraft) return false;
-  // 原料鍛造共用（毒藥瓶給十字刺客），武器鍛造限鐵匠系
-  if (hasMat) return true;
-  return typeof isBlacksmithLine === 'function' && isBlacksmithLine(state.jobId);
+  return hasMat;
 }
 
-// 分頁列上那顆「🔨 鍛造」：學會鍛造技能就出現（原料共用、武器限鐵匠系）
+// 分頁列上那顆「🔨 鍛造」：學會原料製作技能後出現。
 function syncForgeTabBtn() {
   const btn = document.getElementById('tab-btn-forge');
   if (!btn) return;
@@ -5988,11 +6113,10 @@ function refreshForgeIfChanged() {
 function showCraftingPanel() {
   const el = document.getElementById('forge-body');
   if (!el) return;
-  const chance = getCraftingSuccessChance();
   const ironQty = getItemQty('iron');
   const steelQty = getItemQty('steel');
 
-  let html = `<div class="wh-hint">成功率 ${chance.toFixed(1)}%（失敗材料照樣消耗）。目前持有：鐵x${ironQty}、鋼鐵x${steelQty}、鋅幣${state.gold.toLocaleString()}</div>`;
+  let html = `<div class="wh-hint">原料製作失敗時材料照樣消耗。目前持有：鐵x${ironQty}、鋼鐵x${steelQty}、鋅幣${state.gold.toLocaleString()}</div>`;
 
   if (state.unlockedMaterialCrafts && state.unlockedMaterialCrafts.length > 0) {
     html += `<h3 class="panel-title">原料鍛造</h3>`;
@@ -6021,49 +6145,10 @@ function showCraftingPanel() {
     html += '</div>';
   }
 
-  // 武器鍛造要學會對應的鍛造技能才有東西可列；只點了原料鍛造時不要留一個空標題
-  if (!(state.unlockedCraftCategories || []).length) {
-    if (!(state.unlockedMaterialCrafts || []).length) {
-      html += '<div class="empty-hint">還沒學會任何鍛造技能。到技能分頁點鐵匠的鍛造系技能就會出現在這裡。</div>';
-    }
-    el.innerHTML = html;
-    return;
+  if (!(state.unlockedMaterialCrafts || []).length) {
+    html += '<div class="empty-hint">還沒學會任何原料製作技能。到技能分頁學習鐵、鋼或屬性原石製作。</div>';
   }
-
-  html += `<h3 class="panel-title">武器鍛造</h3>`;
-  html += '<div class="card-list">';
-
-  state.unlockedCraftCategories.forEach(cat => {
-    const subtypes = Object.keys(CRAFT_SUBTYPE_CATEGORY).filter(st => CRAFT_SUBTYPE_CATEGORY[st] === cat);
-    subtypes.forEach(subtype => {
-      const mat = CRAFT_SUBTYPE_MATERIALS[subtype];
-      const subtypeName = CRAFT_SUBTYPE_NAMES[subtype] || subtype;
-      Object.keys(CRAFT_ELEMENT_STONE).forEach(element => {
-        const stoneId = CRAFT_ELEMENT_STONE[element];
-        const stoneQty = getItemQty(stoneId);
-        const elementName = CRAFT_ELEMENT_NAMES[element];
-        const stoneDef = ITEMS[stoneId];
-        const canCraft = ironQty >= mat.iron && steelQty >= mat.steel && stoneQty >= 1 && state.gold >= CRAFT_ZENY_COST;
-        html += `<div class="card-row${canCraft ? ' enabled' : ''}">
-          <div class="card-info">
-            <span class="card-icon">⚔️</span>
-            <div class="card-details">
-              <span class="card-name">${subtypeName}（${elementName}屬性）</span>
-              <span class="card-desc">需要：鐵x${mat.iron}、鋼鐵x${mat.steel}、${stoneDef ? stoneDef.name : stoneId}x1（持有${stoneQty}）、鋅幣${CRAFT_ZENY_COST}</span>
-            </div>
-          </div>
-          <button class="btn-small" ${canCraft ? '' : 'disabled'} onclick="doCraftWeapon('${subtype}','${element}')">鍛造</button>
-        </div>`;
-      });
-    });
-  });
-  html += '</div>';
   el.innerHTML = html;
-}
-function doCraftWeapon(subtype, element) {
-  craftWeapon(subtype, element);
-  showCraftingPanel();
-  renderTopBar();
 }
 function doCraftMaterial(kind) {
   craftMaterial(kind);
@@ -6390,14 +6475,14 @@ function renderWarehouseInner() {
             ? `whDepositInstance('${r.instanceId}')`
             : `whWithdrawInstance('${r.instanceId}')`;
           return `<div class="wh-row" onclick="${action}">
-            <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-            <span class="wh-row-name">${locked ? '🔒 ' : ''}${refine > 0 ? `+${refine} ` : ''}${getItemDisplayName(r.item)}${cards.length ? `　🃏${cards.length}` : ''}</span>
+            <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+            <span class="wh-row-name">${locked ? '🔒 ' : ''}${refine > 0 ? `+${refine} ` : ''}${window.getItemDisplayName(r.item)}${cards.length ? `　🃏${cards.length}` : ''}</span>
             <span class="wh-row-qty">×1</span>
           </div>`;
         }
         return `<div class="wh-row" onclick="${side === 'bag' ? `whDeposit('${r.item}',${r.qty})` : `whWithdraw('${r.item}',${r.qty})`}">
-          <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-          <span class="wh-row-name">${locked ? '🔒 ' : ''}${getItemDisplayName(r.item)}</span>
+          <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+          <span class="wh-row-name">${locked ? '🔒 ' : ''}${window.getItemDisplayName(r.item)}</span>
           <span class="wh-row-qty">×${r.qty}</span>
         </div>`;
       }).join('')
@@ -6616,8 +6701,8 @@ function renderAutoSellWindowInner() {
         const hint = side === 'left' ? (locked ? '（已鎖定）' : '＋') : '✕';
         const qtyText = side === 'right' && r.qty <= 0 ? '已售完' : `×${r.qty}`;
         return `<div class="wh-row" onclick="${action}" title="${side === 'left' ? '點一下＝移去右邊開始自動賣' : '點一下＝移回左邊不再自動賣'}">
-          <img src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-          <span class="wh-row-name">${locked ? '🔒 ' : ''}${getItemDisplayName(r.item)}</span>
+          <img loading="lazy" decoding="async" src="${itemImgSrc(r.item)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+          <span class="wh-row-name">${locked ? '🔒 ' : ''}${window.getItemDisplayName(r.item)}</span>
           <span class="wh-row-qty">${qtyText}　<span style="color:var(--ink-dim)">${hint}</span></span>
         </div>`;
       }).join('')
@@ -6667,7 +6752,7 @@ function doRemoveCard(slotKey) {
   const cards = getEquippedCards(slotKey);
   if (!cards.length) return;
   const equipId = getEquipBaseItemId(slotKey);
-  const equipName = equipId && ITEMS[equipId] ? getItemDisplayName(equipId) : '裝備';
+  const equipName = equipId && ITEMS[equipId] ? window.getItemDisplayName(equipId) : '裝備';
   const cardNames = cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、');
   const msg = `要從「${equipName}」取出卡片嗎？\n\n`
     + `✅ 取回：${cardNames}\n`
@@ -6683,7 +6768,7 @@ function doRemoveCard(slotKey) {
 function doDestroyInstance(instanceId) {
   const inst = state.instances ? state.instances[instanceId] : null;
   if (!inst || !inst.cards || !inst.cards.length) return;
-  const equipName = ITEMS[inst.item] ? getItemDisplayName(inst.item) : '裝備';
+  const equipName = ITEMS[inst.item] ? window.getItemDisplayName(inst.item) : '裝備';
   const cardNames = inst.cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、');
   const msg = `要拆卸「${inst.refine > 0 ? '+' + inst.refine + ' ' : ''}${equipName}」取回卡片嗎？\n\n`
     + `✅ 取回：${cardNames}\n`
@@ -6701,7 +6786,7 @@ function showCardSelect(slotKey) {
   if (!el) return;
 
   const equipId = getEquipBaseItemId(slotKey);
-  const equipName = equipId && ITEMS[equipId] ? getItemDisplayName(equipId) : '（無裝備）';
+  const equipName = equipId && ITEMS[equipId] ? window.getItemDisplayName(equipId) : '（無裝備）';
   const maxSlots = getEquipCardSlots(slotKey);
   const used = getEquippedCards(slotKey);
 

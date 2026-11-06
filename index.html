@@ -13,6 +13,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* v2.5.78: Declare a true classic-script global before every application script. */
+function getItemDisplayName(itemId) {
+  if (itemId === null || itemId === undefined || itemId === '') return '未知物品';
+  var db = window.ITEMS || window.items || window.ITEM_DATA || null;
+  var item = (itemId && typeof itemId === 'object') ? itemId : (db ? db[itemId] : null);
+  function readName(x) {
+    if (!x || typeof x !== 'object') return '';
+    var n = x.displayName || x.display_name || x.name_zh || x.name || x.title;
+    return (typeof n === 'string' && n.trim()) ? n.trim() : '';
+  }
+  var name = readName(item);
+  if (name) return name;
+  if (db && typeof db === 'object') {
+    var key = String(itemId);
+    for (var i = 0; i < Object.keys(db).length; i++) {
+      var k = Object.keys(db)[i], d = db[k];
+      if (String(k) === key || (d && String(d.id) === key)) {
+        name = readName(d);
+        if (name) return name;
+      }
+    }
+  }
+  return String(itemId);
+}
+window.getItemDisplayName = getItemDisplayName;\nwindow.getitemDisplayName = getItemDisplayName;
+</script>
 <title>諸神放置錄 V2 — RO 風放置冒險</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -143,6 +170,7 @@
         <div class="volume-controls">
           <label class="volume-label">🎵 <input type="range" id="vol-bgm" min="0" max="100" value="50" oninput="setBgmVolume(this.value)"><span id="vol-bgm-text">50%</span></label>
           <label class="volume-label">🔊 <input type="range" id="vol-sfx" min="0" max="100" value="50" oninput="setSfxVolume(this.value)"><span id="vol-sfx-text">50%</span></label>
+          <button id="btn-equip-recalc-mode" class="btn-equip-recalc-mode" type="button" onclick="toggleEquipRecalcMode()" aria-pressed="false">⚙️ 裝備重算：關</button>
           <label class="volume-label" title="玩家立繪的大小">🧍 <input type="range" id="sprite-scale" min="50" max="150" step="5" value="100" oninput="setSpriteScalePct(this.value)"><span id="sprite-scale-text">100%</span></label>
           <label class="volume-label" title="施放技能時的立繪大小（相對於上面那支）。每個職業各記一份">✨ <input type="range" id="skill-scale" min="50" max="150" step="5" value="85" oninput="setSkillSpriteScalePct(this.value)"><span id="skill-scale-text">85%</span></label>
         </div>
@@ -281,22 +309,30 @@
 <div id="toast" class="toast"></div>
 
 <!-- 免責聲明的唯一一份文字，其餘各處都從這裡取用 -->
+
+
 <script src="js/about.js"></script>
 <script src="js/hp_sp_tables.js"></script>
 <script src="js/img_alias.js"></script>
 <script src="js/aspd_data.js"></script>
-<script src="js/skills.js"></script>
+<script src="js/skills.js?v=2.5.78"></script>
 <script src="js/monster_skills.js"></script>
-<script src="js/jobs.js"></script>
-<script src="js/data.js"></script>
+<script src="js/jobs.js?v=2.5.78"></script>
+<script src="js/data.js?v=2.5.78"></script>
 <!-- 遺物要在 data.js 之後：它會把自己的道具 Object.assign 進 ITEMS -->
 <script src="js/relics.js"></script>
 <script src="js/v2_content.js"></script>
 <script src="js/v2_4_content.js"></script>
+<script src="js/v2_5_content.js"></script>
+  <script src="js/v2_6_skill_migration.js?v=2.5.78"></script>
+  <script src="js/v2_7_headgear_migration.js?v=2.5.78"></script>
+  <script src="js/v2_8_headgear_round16.js?v=2.5.78"></script>
+  <script src="js/v2_9_headgear_round17.js?v=2.5.78"></script>
+<script src="js/item_display_name_fix.js?v=2.5.78"></script>
 <script src="js/v2_artifacts.js"></script>
 <script src="js/achievements.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/ui.js"></script>
+<script src="js/engine.js?v=2.5.78"></script>
+<script src="js/ui.js?v=2.5.78"></script>
 <script>
   window.addEventListener('load', initApp);
   window.addEventListener('beforeunload', () => { if (typeof state !== 'undefined' && state) saveGame(); });
