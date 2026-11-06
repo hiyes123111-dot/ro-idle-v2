@@ -3448,7 +3448,31 @@ function drawFromSub(p) {
   }
   return p.ids[lo];
 }
+/* 卡冊額外稀有獎勵：只納入沒有正式怪物掉落來源、且名稱已中文化的裝備。
+   快取與其他箱池分開，避免改變藍箱／紫箱原有機率。 */
+let _noDropEquipmentPool = null;
+function noDropEquipmentPool() {
+  if (_noDropEquipmentPool) return _noDropEquipmentPool;
+  _noDropEquipmentPool = Object.keys(ITEMS).filter(k => {
+    const it = ITEMS[k];
+    return boxEligible(k) && EQUIP_TYPES.includes(it.type) && getItemSources(k).length === 0;
+  });
+  return _noDropEquipmentPool;
+}
+
 function drawFromBox(kind) {
+  /* 三種指定卡冊：保留原卡片權重，另加極低機率的無怪物掉落來源裝備。
+     艾勒梅斯卡片固定獨立機率 0.01%；無來源裝備 1%，其餘照原卡池權重抽取。 */
+  if (kind === 'card' || kind === 'cardFlat' || kind === 'card_garment') {
+    const r = Math.random();
+    if (r < 0.0001 && ITEMS.guillotine_cross_card && CARDS.guillotine_cross_card) {
+      return 'guillotine_cross_card';
+    }
+    if (r < 0.0101) {
+      const gear = noDropEquipmentPool();
+      if (gear.length) return gear[Math.floor(Math.random() * gear.length)];
+    }
+  }
   const p = boxPool(kind);
   if (!p || !p.ids.length) return null;
   if (p.split != null) {
@@ -5566,8 +5590,24 @@ function tickFieldEffects() {
   }
 }
 
+// 戰鬥數值防毒：避免怪物資料缺欄位或某次傷害公式產生 NaN 後，血量永久失效。
+function normalizeMonsterVitals() {
+  if (!Array.isArray(state.monsters)) return;
+  state.monsters.forEach(mon => {
+    if (!mon) return;
+    const def = MONSTERS[mon.defId];
+    const fallbackMax = Number(def && def.hp);
+    if (typeof mon.maxHp !== 'number' || !Number.isFinite(mon.maxHp) || mon.maxHp <= 0) {
+      mon.maxHp = Number.isFinite(fallbackMax) && fallbackMax > 0 ? fallbackMax : 1;
+    }
+    if (typeof mon.hp !== 'number' || !Number.isFinite(mon.hp)) mon.hp = mon.maxHp;
+    mon.hp = Math.max(0, Math.min(mon.maxHp, mon.hp));
+  });
+}
 function gameTick() {
   if (!state) return;
+  ensureSafeGold();
+  normalizeMonsterVitals();
   tickCooldowns();
   tickBuffs();
   /* 隊友身上的全體輔助 buff 也要倒數（#95）。**跟 tickBuffs 同一拍**——
@@ -13306,6 +13346,19 @@ function toggleItemLock(itemId) {
   return true;
 }
 
+// 貨幣與販售價格防呆：舊道具／新增裝備若缺少 sell 欄位，不可讓 NaN 污染整個存檔。
+function safeSellUnitPrice(def, multiplier) {
+  const base = def && def.sell;
+  const mult = Number(multiplier);
+  if (typeof base !== 'number' || !Number.isFinite(base) || base < 0) return null;
+  const safeMult = Number.isFinite(mult) && mult > 0 ? mult : 1;
+  const price = Math.round(base * safeMult);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+function ensureSafeGold() {
+  if (!Number.isFinite(Number(state.gold)) || Number(state.gold) < 0) state.gold = 0;
+  else state.gold = Math.floor(Number(state.gold));
+}
 function sellItem(itemId, qty) {
   const def = ITEMS[itemId];
   const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
@@ -13321,9 +13374,15 @@ function sellItem(itemId, qty) {
     logMsg(`🔒 ${def.name} 已鎖定，無法賣出。請先解除鎖定。`);
     return false;
   }
+  const unitPrice = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
+  if (unitPrice === null || !Number.isFinite(Number(qty)) || qty < 1) {
+    logMsg(`⚠️ ${def.name} 的販售價格資料異常，已取消出售，物品保留。`);
+    return false;
+  }
+  ensureSafeGold();
+  const total = unitPrice * Math.floor(Number(qty));
+  if (!Number.isFinite(total)) return false;
   removeItem(itemId, qty);
-  const unitPrice = Math.round(def.sell * (state.shopOverchargeMult || 1));
-  const total = unitPrice * qty;
   state.gold += total;
   logMsg(`賣出 ${def.name} x${qty}，獲得 ${total} 鋅幣。`);
   saveGame();
@@ -13346,9 +13405,14 @@ function sellItemInstance(instanceId) {
     return false;
   }
   const label = describeInstance(inst);
+  const price = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
+  if (price === null) {
+    logMsg(`⚠️ ${def.name} 的販售價格資料異常，已取消出售，裝備保留。`);
+    return false;
+  }
+  ensureSafeGold();
   state.inventory.splice(idx, 1);
   delete state.instances[instanceId];
-  const price = Math.round(def.sell * (state.shopOverchargeMult || 1));
   state.gold += price;
   logMsg(`賣出 ${label}，獲得 ${price} 鋅幣。`);
   saveGame();
@@ -13457,9 +13521,13 @@ function autoSellSelectedItems() {
     if (!def || !row || row.qty < 1) return;
     if (def.type === 'relic') return;   // 遺物賣不掉（見 sellItem）
     if (isItemLocked(itemId)) return;   // 鎖定的道具自動販賣一律跳過
-    const qty = row.qty;
+    const qty = Number(row.qty);
+    const unitPrice = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
+    if (unitPrice === null || !Number.isFinite(qty) || qty < 1) return;
+    const price = unitPrice * Math.floor(qty);
+    if (!Number.isFinite(price)) return;
+    ensureSafeGold();
     removeItem(itemId, qty);
-    const price = Math.round(def.sell * (state.shopOverchargeMult || 1)) * qty;
     state.gold += price;
     totalGold += price;
     soldAny = true;
@@ -13504,8 +13572,10 @@ function tryAutoVending() {
     if (!def || !row || row.qty < 1) return;
     if (def.type === 'relic') return;   // 遺物賣不掉（見 sellItem）
     if (isItemLocked(itemId)) return;   // 鎖定的道具露天商店也不賣
+    const price = safeSellUnitPrice(def, sellMult);
+    if (price === null) return;
+    ensureSafeGold();
     removeItem(itemId, 1);
-    const price = Math.round(def.sell * sellMult);
     state.gold += price;
     logMsg(`🏪 露天商店賣出了 ${def.name}，獲得 ${price} 鋅幣！`);
     soldAny = true;
@@ -13674,6 +13744,9 @@ function loadGame() {
     const raw = localStorage.getItem(getSlotKey(currentSlot));
     if (!raw) return false;
     state = JSON.parse(raw);
+    // 修復舊版販售 NaN 被 JSON 序列化成 null 的鋅幣存檔。
+    if (!Number.isFinite(Number(state.gold)) || Number(state.gold) < 0) state.gold = 0;
+    else state.gold = Math.floor(Number(state.gold));
     // V2.5.5.42：移除鐵匠製作的四屬性武器；舊存檔同步清理背包、裝備與圖鑑紀錄。
     const isRemovedCraftWeapon = id => typeof id === 'string' && id.startsWith('crafted_');
     // 移除的鐵匠武器製作技能退還技能點（歸還鐵匠職業點數池）。
