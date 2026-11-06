@@ -40,6 +40,27 @@
       materials: [['goddess_tear',8],['valkyrie_token',8],['v2_rift_core',30],['v2_dragon_scale',20],['dusk_glow',5],['cold_moonlight',5]],
       itemId: 'helm_of_mid_sol_god'
     },
+    sleipnir: {
+      id: 'sleipnir', title: '史雷普尼爾之靴', icon: '👢',
+      lore: '奧丁座騎之名的神靴。以女神遺物與裂隙素材重鑄。',
+      level: 200, zeny: 2000000,
+      materials: [['goddess_tear',5],['valkyrie_token',5],['hero_remains',3],['dusk_glow',3],['dawn_essence',3],['v2_rift_core',20],['v2_dragon_scale',10]],
+      itemId: 'sleipnir'
+    },
+    brisingamen: {
+      id: 'brisingamen', title: '布里辛嘉曼（女神項鍊）', icon: '💍',
+      lore: '女神弗蕾亞的項鍊。凝聚星光與月光，重現傳說中的守護飾品。',
+      level: 200, zeny: 2000000,
+      materials: [['goddess_tear',5],['valkyrie_token',5],['cold_moonlight',3],['hazy_starlight',3],['dusk_glow',3],['v2_rift_core',20],['v2_dragon_scale',10]],
+      itemId: 'brysinggamen'
+    },
+    mjolnir: {
+      id: 'mjolnir', title: '雷神之錘', icon: '🔨',
+      lore: '雷神托爾的傳說巨錘。以英雄遺骸與裂隙核心重鑄，保留原有裝備效果。',
+      level: 200, zeny: 3000000,
+      materials: [['goddess_tear',8],['valkyrie_token',8],['hero_remains',5],['dawn_essence',5],['v2_rift_core',30],['v2_dragon_scale',20]],
+      itemId: 'mjolnir'
+    },
   };
 
   window.V25_ARTIFACT_RECIPES = RECIPES;
@@ -86,7 +107,7 @@
         <h3 class="panel-title">材料來源</h3>
         <p class="card-desc">裂隙守門者：瓦爾基里象徵、女神眼淚、布倫希爾德鎧甲碎片、英雄遺骸、安德巴裡戒指及黃昏／黎明材料。</p>
         <p class="card-desc">虛空帝王：女神眼淚、瓦爾基里象徵、黃昏／黎明／冰冷月光／陰暗星光，以及龍鱗與裂隙核心。</p>
-        <p class="card-desc">神器工坊 NPC：🏺 神器鑄造師。雷神腰帶與米德加爾特大太陽神頭盔可在此使用裂隙材料製作。</p>
+        <p class="card-desc">神器工坊 NPC：🏺 神器鑄造師。六件經典神器中的雷神腰帶、布倫希爾德、阿斯普利卡、史雷普尼爾、布里辛嘉曼與雷神之錘，以及米德加爾特大太陽神頭盔，皆可在此使用裂隙材料製作。</p>
       </div>`;
     if (!unlocked) out += `<p class="empty-hint">目前 Base Lv.${state.baseLevel}；神器工坊需 Base Lv.200 才能製作。</p>`;
     el.innerHTML = out;

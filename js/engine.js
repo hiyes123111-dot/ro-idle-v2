@@ -2263,6 +2263,9 @@ function recomputeDerived(fullHeal) {
     });
   }
 
+  // 女神項鍊：裝備提供的治癒量 +6%，與冥想被動共用治癒倍率消費端。
+  state.healBonusPct += getCardBonus('healRecvPct');
+
   // 卡片加成 — 固定值（僅影響衍生數值，不修改 base stats 避免累加）
   // 裝備與卡片的 ATK 算「裝備攻擊力」，跟武器本體同一桶，會吃體型與屬性修正
   const gearAtk = getCardBonus('atk') + equippedStatBonus('atk');
