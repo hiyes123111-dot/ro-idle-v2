@@ -3598,7 +3598,8 @@ function renderCodexDetail(id) {
       <span class="codex-spot-mon">${s.mvp ? '👑' : ''}${m.name}<span class="codex-src-lv">Lv.${m.level || '?'}</span></span>
       <span class="codex-drop-rate" title="掉落率">${(s.dropChance * 100).toFixed(2)}%</span>
       <span class="codex-spot-name">${s.mapName}</span>
-      <span class="codex-spot-pct" title="${s.mvp ? '需開啟 MVP 模式，開著時 20% 從該圖的 MVP 名單裡抽' : '這張圖抽到牠的機率'}">${s.spawnPct < 1 ? s.spawnPct.toFixed(1) : s.spawnPct.toFixed(0)}%</span>
+      ${s.mvp ? '<span class="codex-spot-mvp" title="需在自動戰鬥頁面開啟 BOSS 模式">BOSS 模式</span>' : ''}
+      <span class="codex-spot-pct" title="${s.mvp ? '需開啟 BOSS 模式；開啟後每次補怪有 20% 抽取 MVP，再由該圖名單均分' : '這張圖抽到牠的機率'}">${s.spawnPct < 1 ? s.spawnPct.toFixed(1) : s.spawnPct.toFixed(0)}%</span>
       <button class="codex-go" onclick="event.stopPropagation();codexGoToMap('${s.mapId}')">前往</button>
     </div>`;
   }).join('');
@@ -3695,6 +3696,7 @@ function describeCondition(when) {
   const bits = [];
   if (when.refineMin != null) bits.push(`+${when.refineMin} 以上`);
   if (when.refineMax != null) bits.push(`+${when.refineMax} 以下`);
+  if (when.baseLevelMin != null) bits.push(`BaseLv ${when.baseLevelMin} 以上`);
   if (when.jobLine) bits.push(`${(JOB_TREE[when.jobLine] || {}).name || when.jobLine}系列`);
   if (when.weaponReq) bits.push(`裝備${(typeof weaponReqName === 'function' && weaponReqName(when.weaponReq)) || when.weaponReq}`);
   if (when.withCards) bits.push(when.withCards.map(c => (CARDS[c] || {}).name || c).join('、') + ' 同時裝備');

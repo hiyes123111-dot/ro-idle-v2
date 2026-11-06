@@ -391,9 +391,10 @@ function renameCharacter(newName) {
 function currentJob() { return JOB_TREE[state.jobId]; }
 
 // 可雙持單手武器的職業（左手欄位可放武器而非盾牌）
-// 刺客系全部都可以：刺客（二轉）／十字刺客（進階二轉）／十字斬首者（三轉）
+// 刺客系全部都可以：刺客／十字刺客／十字斬首者／暗影十字（四轉）。
+// 暗影十字仍保留雙持能力，可在主、副手各裝一把符合職業限制的單手武器。
 function canDualWield(jobId) {
-  return jobId === 'assassin' || jobId === 'assassincross' || jobId === 'guillotinecross';
+  return jobId === 'assassin' || jobId === 'assassincross' || jobId === 'guillotinecross' || jobId === 'shadow_cross';
 }
 
 // 長矛類武器判定（矛限定技能共用）：道具資料的weaponType欄位對矛類武器標示很乾淨，直接用它判斷
@@ -1060,7 +1061,7 @@ function recomputeDerived(fullHeal) {
      **精煉不加 MDEF**，官方精煉只給 DEF。
      軟魔防是 INT/2，官方玩家軟魔防就是這條。 */
   state.mdefHard = 0;
-  state.mdefSoft = Math.floor(cInt / 2);
+  state.mdefSoft = Math.floor(cInt / 2) + buffMult('mdef').flatBonus;
   state.mdef = state.mdefSoft;
 
   /* 場上同時最多幾隻怪：一律由遇怪模式推導，不要用「取大值」的寫法累積。
@@ -2753,11 +2754,12 @@ function defOf(mon, scale, magic, inst) {
   const fm = farmMult('def');
   const s = (scale === undefined ? 1 : scale) * (inst ? ailDefMult(inst) : 1) * fm;
   if (magic) {
-    const ig = (state.cardMdefIgnorePct || 0) + (mon.isBoss ? (state.cardBossMdefIgnorePct || 0) : 0);
-    const ms = s * Math.max(0, 1 - ig / 100) * monDebuffMdef(inst);
+    const ig = (state.cardMdefIgnorePct || 0) + (mon.isBoss ? (state.cardBossMdefIgnorePct || 0) : 0)
+      + buffMult('mresignore').flatBonus;
+    const ms = s * Math.max(0, 1 - Math.min(100, ig) / 100) * monDebuffMdef(inst);
     return [(mon.mdef || 0) * ms, (mon.mdefSoft || 0) * ms];
   }
-  const d = s * monDebuffDef(inst) * Math.max(0, 1 - physDefIgnorePct(mon) / 100);
+  const d = s * monDebuffDef(inst) * Math.max(0, 1 - Math.min(100, physDefIgnorePct(mon) + buffMult('resignore').flatBonus) / 100);
   return [(mon.def || 0) * d, (mon.defSoft || 0) * d];
 }
 /* 無視**物理**防禦（#127）。魔防那邊本來就有（cardMdefIgnorePct），物防這邊沒有——
@@ -3460,15 +3462,29 @@ function noDropEquipmentPool() {
   return _noDropEquipmentPool;
 }
 
+const TOMB_MVP_ALBUM_CARDS = [
+  'v_b_celia_card', 'v_b_chen_card', 'v_b_alphoccio_card',
+  'v_b_eremes_card', 'v_b_magaleta_card', 'v_b_shecil_card',
+  'v_b_harword_card', 'v_b_katrinn_card', 'v_b_seyren_card',
+  'v_b_randel_card', 'v_b_flamel_card', 'v_b_gertie_card',
+  'v_b_trentini_card',
+];
+
+/* 三種指定卡冊：13 張戰死者之墓 MVP 卡各自獨立 0.01%。
+   13 個連續區間各寬 0.0001，因此每張卡的實際機率都是 0.01%，合計 0.13%。
+   艾勒梅斯卡片既有 0.01% 獎勵保留；無正式掉落來源裝備仍保留 1% 額外抽取。 */
 function drawFromBox(kind) {
-  /* 三種指定卡冊：保留原卡片權重，另加極低機率的無怪物掉落來源裝備。
-     艾勒梅斯卡片固定獨立機率 0.01%；無來源裝備 1%，其餘照原卡池權重抽取。 */
   if (kind === 'card' || kind === 'cardFlat' || kind === 'card_garment') {
     const r = Math.random();
-    if (r < 0.0001 && ITEMS.guillotine_cross_card && CARDS.guillotine_cross_card) {
+    if (r < 0.0013) {
+      const card = TOMB_MVP_ALBUM_CARDS[Math.floor(r / 0.0001)];
+      if (ITEMS[card] && CARDS[card]) return card;
+    }
+    if (r >= 0.0013 && r < 0.0014 &&
+        ITEMS.guillotine_cross_card && CARDS.guillotine_cross_card) {
       return 'guillotine_cross_card';
     }
-    if (r < 0.0101) {
+    if (r >= 0.0014 && r < 0.0114) {
       const gear = noDropEquipmentPool();
       if (gear.length) return gear[Math.floor(Math.random() * gear.length)];
     }
@@ -6151,6 +6167,19 @@ function tickCooldowns() {
   });
 }
 function tickBuffs() {
+  const now = Date.now();
+  (state.buffs || []).forEach(b => {
+    if (b.type !== 'cardinal_mediale_hot') return;
+    if (!b.nextHealAt) b.nextHealAt = now + 2000;
+    if (now >= b.nextHealAt) {
+      const ticks = Math.max(1, Math.floor((now - b.nextHealAt) / 2000) + 1);
+      const amount = Math.round(state.maxHp * (b.healPct || 0) / 100) * ticks;
+      const before = state.hp;
+      state.hp = Math.min(state.maxHp, state.hp + amount);
+      b.nextHealAt += ticks * 2000;
+      if (state.hp > before) logMsg(`💚 「治癒誓言」持續恢復 ${state.hp - before} HP。`);
+    }
+  });
   state.buffs = state.buffs.filter(b => {
     b.msRemaining -= TICK_MS;
     return b.msRemaining > 0;
@@ -6652,7 +6681,7 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     if (monDef && monDef.race) targetPct += getCardBonus('magicRaceDmg_' + monDef.race);
     targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
     if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
-    return state.matk * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
+    return state.matk * buffMult('matk').mult * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
   }
   return weaponChainDamage(monDef, elemMult, state.buffs.some(b => b.type === 'maxroll'), sk);
 }
@@ -7600,13 +7629,18 @@ function getCodexPool() {
   Object.keys(ITEMS).forEach(id => {
     if (/^v2[45]_/.test(id) || /^v24_/.test(id)) itemSet.add(id);
   });
-  // 全裝備圖鑑：不再只依賴掉落表、商店或 V2 前綴。
-  // 新增裝備只要已登錄 ITEMS 且為武器／防具，就一定能在圖鑑查到；
-  // 取得來源仍由 getItemSources() 顯示，沒有來源時由明細標示製作／兌換方式。
+  // 全道具圖鑑自動收錄：只要新道具登錄在 ITEMS，且屬於玩家可取得的
+  // 武器／防具／消耗品／素材／雜物，就自動進入圖鑑，不必再手動維護白名單。
+  // 卡片仍由 CARDS 分流到卡片分頁；crafted_ 是合成內部項目，不列為獨立收藏。
+  // 取得來源由 getItemSources()、商店、箱子與 relicSourceHtml() 動態呈現。
   Object.entries(ITEMS).forEach(([id, def]) => {
     if (id.startsWith('crafted_')) return;
-    if (def && (def.type === 'weapon' || def.type === 'armor')) itemSet.add(id);
+    if (def && ['weapon', 'armor', 'consumable', 'material', 'etc'].includes(def.type)) {
+      itemSet.add(id);
+    }
   });
+  // 所有已登錄卡片自動進入卡片分頁，即使尚未設定怪物掉落來源也能查到。
+  Object.keys(CARDS).forEach(id => { if (ITEMS[id]) itemSet.add(id); });
   // 神器、套裝裝備也明確保留（包含未設定標準 type 的舊資料相容）。
   ['magingiorde','helm_of_mid_sol_god'].forEach(id => {
     if (ITEMS[id]) itemSet.add(id);
@@ -7709,7 +7743,7 @@ function getItemFarmSpots(itemId) {
   const out = [];
   getItemSources(itemId).forEach(s => {
     getMonsterMaps(s.mon).forEach(m => {
-      out.push({ mapId: m.id, mapName: m.name, spawnPct: m.pct, mon: s.mon, dropChance: s.chance });
+      out.push({ mapId: m.id, mapName: m.name, spawnPct: m.pct, mon: s.mon, dropChance: s.chance, mvp: !!m.mvp });
     });
     /* MVP 的出沒地圖**已經包含在 getMonsterMaps() 裡了**（#108 那次補的）。
        這裡以前還有一段自己再掃一次 MVP_MAP_DATA 的程式，是 #108 之前寫的，
@@ -9854,6 +9888,30 @@ function castSkillInner(skillId, opts) {
         const monEleDmgBonus = cardTargetDmgMult(monDef) - 1;
         // 負重量上升：加成手推車攻擊傷害
         let aoeMult = mult;
+        // 裁決分成鎖定目標的第一段與周圍爆裂的第二段；主目標承受兩段，周圍承受爆裂段。
+        if (sk.splashMult) {
+          const splash = Array.isArray(sk.splashMult) ? sk.splashMult[lv - 1] : sk.splashMult;
+          aoeMult = mon === state.monsters[0] ? mult + splash : splash;
+        }
+        if (useMag && (sk.element === 'holy' || sk.fidusPassive || sk.fidusFlat)) {
+          const faLv = (state.learnedSkills && state.learnedSkills.cd_fidus_animus) || 0;
+          const faSkill = SKILLS.cd_fidus_animus;
+          if (faLv && faSkill) {
+            aoeMult *= 1 + (faSkill.passiveHolyPct[faLv - 1] || 0) / 100;
+            if (sk.fidusFlat) aoeMult *= 1 + (faLv * sk.fidusFlat) / 100;
+          }
+        }
+        if (sk.raceBonusPct && (monDef.race === 'demon' || monDef.race === 'undead')) {
+          const rb = Array.isArray(sk.raceBonusPct) ? sk.raceBonusPct[lv - 1] : sk.raceBonusPct;
+          aoeMult *= 1 + rb / 100;
+        }
+        if (sk.critRateMult && sk.critRateMult > 0) {
+          const cb = buffMult('crit');
+          const own = state.critRate * cb.mult + cb.flatBonus;
+          if (Math.random() * 100 < own * sk.critRateMult) {
+            aoeMult *= 1 + (0.5 + (state.cardCritDmgPct || 0) / 100) * (sk.critDmgMult || 1);
+          }
+        }
         if (sk.id === 'cartattack' && state.cartDmgBonusMult) aoeMult *= (1 + state.cartDmgBonusMult);
         // 騎乘攻擊：依STR增加傷害（STR120封頂）
         if (sk.id === 'brandishspear') {
@@ -9867,6 +9925,8 @@ function castSkillInner(skillId, opts) {
           const intPct = (state.stats.int / 99) * (sk.intScaleMax || 0);
           aoeMult *= (1 + lvlPct / 100 + intPct / 100);
         }
+        // 第四轉 POW／SPL 尚未有獨立素質欄，物理 POW 以 STR、魔法 SPL 以 INT 作近似比例。
+        if (sk.powScaleMax) aoeMult *= 1 + (state.stats.str / 99) * sk.powScaleMax / 100;
         if ((sk.id === 'rk_dragonbreath' || sk.id === 'v25_dragon_knight_12') && state.dragonBreathBonusPct) {
           aoeMult *= (1 + state.dragonBreathBonusPct / 100);
         }
@@ -9905,6 +9965,10 @@ function castSkillInner(skillId, opts) {
           }
         }
         // 技能附帶的異常狀態（#58 的 inflict，範圍分支以前沒接，#61 補上）
+        if (sk.silenceChance && mon.hp > 0) {
+          const sc = Array.isArray(sk.silenceChance) ? sk.silenceChance[lv - 1] : sk.silenceChance;
+          if (Math.random() * 100 < sc) applyAilment(mon, monDef, 'silence');
+        }
         if (sk.inflict && mon.hp > 0) {
           const ic = Array.isArray(sk.inflict.chance) ? sk.inflict.chance[lv - 1] : sk.inflict.chance;
           if (Math.random() * 100 < ic) {
@@ -10434,6 +10498,81 @@ function castSkillInner(skillId, opts) {
         applyPoisonDot(target, def, skillBaseDamage(useMag, def, elemMult, sk) * mult);
         logMsg(`☠️ ${def.name} 中毒了！`);
       }
+      break;
+    }
+    case 'cardinal_support': {
+      const dur = (Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration || 120) * 1000;
+      const value = Array.isArray(sk.value) ? sk.value[lv - 1] : (sk.value || 0);
+      const push = (type, multValue, flatBonus) => state.buffs.push({
+        type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
+        msRemaining: dur, skillId: sk.id
+      });
+      switch (sk.effect) {
+        case 'mresIgnore': push('mresignore', 1, value); break;
+        case 'resIgnore': push('resignore', 1, value); break;
+        case 'medialeHot':
+          state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+          state.buffs.push({ type:'cardinal_mediale_hot', healPct:value, nextHealAt:Date.now()+2000, msRemaining:dur, skillId:sk.id });
+          break;
+        case 'physicalStats':
+          // 專案目前沒有 POW/CRT/CON 第四轉素質欄；以 ATK、暴擊率、HIT 三項對應實裝。
+          push('atk', 1 + value / 100);
+          push('crit', 1, value);
+          push('hit', 1, value);
+          break;
+        case 'magicStats':
+          // 專案目前沒有 SPL/WIS/STA 第四轉素質欄；以 MATK、MDEF、DEF 三項對應實裝。
+          push('matk', 1 + value / 100);
+          push('mdef', 1, value);
+          push('def', 1 + value / 100);
+          break;
+        case 'competentia': {
+          const hpPct = Array.isArray(sk.healPct) ? sk.healPct[lv - 1] : (sk.healPct || 0);
+          const hpGain = Math.round(state.maxHp * hpPct / 100);
+          const spGain = Math.round(state.maxSp * hpPct / 100);
+          state.hp = Math.min(state.maxHp, state.hp + hpGain);
+          state.sp = Math.min(state.maxSp, state.sp + spGain);
+          push('atk', 1 + value / 100);
+          push('matk', 1 + value / 100);
+          logMsg(`✨ 「${sk.name}」恢復 HP ${hpGain}、SP ${spGain}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
+          break;
+        }
+        case 'presensAcies': push('crit', 1, value); break;
+      }
+      if (sk.effect !== 'competentia') logMsg(`✨ 「${sk.name}」Lv${lv} 發動，全隊效果生效 ${Math.round(dur/1000)} 秒。`);
+      recomputeDerived(false);
+      break;
+    }
+    case 'cardinal_heal': {
+      const applyHeal = () => {
+        if (sk.effect === 'fullHeal') {
+          const amount = Math.max(0, state.maxHp - state.hp);
+          state.hp = state.maxHp;
+          return amount;
+        }
+        const healMultValue = Array.isArray(sk.healMult) ? sk.healMult[lv - 1] : (sk.healMult || 1);
+        const amount = Math.round((state.stats.int + state.baseLevel) * healMultValue * healOutputMult());
+        const before = state.hp;
+        state.hp = Math.min(state.maxHp, state.hp + amount);
+        return state.hp - before;
+      };
+      const selfGain = applyHeal();
+      const healed = [];
+      if (sk.party) forEachPartyMate(mate => { if (applyHeal() > 0) healed.push(mate); });
+      if (sk.effect === 'areaHeal') {
+        const healMultValue = Array.isArray(sk.healMult) ? sk.healMult[lv - 1] : (sk.healMult || 1);
+        const durationMs = 30000;
+        const applyHealBoost = () => {
+          state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+          state.buffs.push({ type:'healrecv', mult:healMultValue, msRemaining:durationMs, skillId:sk.id });
+        };
+        applyHealBoost();
+        if (sk.party) forEachPartyMate(() => applyHealBoost());
+        recomputeDerived(false);
+      }
+      logMsg(sk.effect === 'fullHeal'
+        ? `💚 「${sk.name}」完全恢復自身 HP${healed.length ? `，並治癒 ${partyMateNames(healed)}` : ''}。`
+        : `💚 「${sk.name}」恢復 ${selfGain} HP${healed.length ? `，並治癒 ${partyMateNames(healed)}` : ''}。`);
       break;
     }
     case 'heal': {
@@ -11049,7 +11188,7 @@ function tryAutoCastSupportSkills() {
       // 要有怪才放得出效果的（減益、場域、範圍傷害）：空場放出去只是白扣 SP 與鋅幣
       if (skillNeedsMonster(sk) && (!state.monsters || state.monsters.length === 0)) continue;
       // Heal 類：依技能自訂的HP%門檻觸發，並可設SP%下限保護
-      if (sk.type === 'heal') {
+      if (sk.type === 'heal' || sk.type === 'cardinal_heal') {
         const healCfg = (state.autoHealConfig && state.autoHealConfig[sk.id]) || { hpThreshold: 70, spThreshold: 0 };
         if (state.hp > state.maxHp * ((healCfg.hpThreshold ?? 70) / 100)) continue;
         if (healCfg.spThreshold > 0 && state.sp < state.maxSp * (healCfg.spThreshold / 100)) continue;
@@ -12568,6 +12707,7 @@ function condMet(when, host, lo) {
   if (!when) return true;
   if (when.refineMin != null && !(host && host.refine >= when.refineMin)) return false;
   if (when.refineMax != null && !(host && host.refine <= when.refineMax)) return false;
+  if (when.baseLevelMin != null && (state.baseLevel || 0) < when.baseLevelMin) return false;
   if (when.jobLine && !lo.jobLine.has(when.jobLine)) return false;
   /* `jobIs` 看的是**目前的職業本身**，不是血脈。官方有一批卡片寫「初學者或超級初學者
      裝備時」，用 jobLine 判斷會永遠成立——每個職業的血脈都從初學者開始。 */
