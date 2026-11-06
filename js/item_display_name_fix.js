@@ -6,7 +6,9 @@
     if (itemId === null || itemId === undefined || itemId === '') return '未知物品';
     var db = (typeof ITEMS !== 'undefined' && ITEMS) ? ITEMS :
              (window.ITEMS || window.items || window.ITEM_DATA || null);
+    var cardDb = (typeof CARDS !== 'undefined' && CARDS) ? CARDS : (window.CARDS || null);
     var item = (itemId && typeof itemId === 'object') ? itemId : (db ? db[itemId] : null);
+    if (!item && cardDb) item = cardDb[itemId];
     var name = item && (item.displayName || item.display_name || item.name_zh || item.name || item.title);
     if (typeof name === 'string' && name.trim()) return name.trim();
     if (db) {

@@ -3374,13 +3374,18 @@ function codexMonCell(r, book) {
 }
 
 function codexItemCell(r, book) {
-  const d = ITEMS[r.id];
+  const d = ITEMS[r.id] || {};
+  const cardDef = CARDS[r.id] || null;
   const got = book.item[r.id] || 0;
-  const sub = CARDS[r.id] ? (CARDS[r.id].slot === 'weapon' ? '武器卡' : CARDS[r.id].slot === 'armor' ? '防具卡' : '卡片')
-                          : (ITEM_TYPE_LABELS[d.type] || d.type || '');
+  const sub = cardDef ? (cardDef.slot === 'weapon' ? '武器卡' : cardDef.slot === 'armor' ? '防具卡' : '卡片')
+                      : (ITEM_TYPE_LABELS[d.type] || d.type || '');
+  // 優先使用 renderCodexTab 已從 CARDS/ITEMS 取得的 row.name，
+  // 避免名稱解析器失效時退回英文 item ID。
+  const displayName = r.name || (cardDef && cardDef.name) || d.name ||
+    (typeof window.getItemDisplayName === 'function' ? window.getItemDisplayName(r.id) : '') || r.id;
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${got ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
-    <img class="codex-icon" src="${itemImgSrc(r.id)}" alt="${d.name}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-    <div class="codex-cell-name">${window.getItemDisplayName(r.id)}</div>
+    <img class="codex-icon" src="${itemImgSrc(r.id)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+    <div class="codex-cell-name">${displayName}</div>
     <div class="codex-cell-sub">${sub}</div>
     <div class="codex-cell-count ${got ? '' : 'zero'}">${got ? '×' + got : '未取得'}</div>
   </div>`;
@@ -3635,7 +3640,7 @@ function renderCodexDetail(id) {
     <div class="codex-detail-head">
       <img class="codex-detail-icon" src="${itemImgSrc(id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
       <div>
-        <div class="codex-detail-name">${window.getItemDisplayName(id)}</div>
+        <div class="codex-detail-name">${(card && card.name) || d.name || (typeof window.getItemDisplayName === 'function' ? window.getItemDisplayName(id) : id)}</div>
         <div class="codex-detail-tags">
           <span>${card ? '卡片' : (ITEM_TYPE_LABELS[d.type] || d.type || '')}</span>
           ${card ? `<span>${CARD_SLOT_LABELS[card.slot] || card.slot}</span>` : ''}
