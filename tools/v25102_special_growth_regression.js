@@ -15,7 +15,7 @@ const checks = [
   ['perJobLv1 is included in gear aggregation', /JobLv1\|JobLv2/.test(engine)],
   ['perJobLv1 uses actual JobLv, not rounded half levels', engine.includes('(state.jobLevel || 0) * all[k]')],
   ['baseLevelMax condition is implemented', engine.includes('when.baseLevelMax != null')],
-  ['offline EXP consumes expAllPct', engine.includes('avgRaceExp * (1 + getCardBonus(\'expAllPct\') / 100)')],
+  ['offline EXP consumes expAllPct', engine.includes('avgRaceExp * (1 + (getCardBonus(\'expAllPct\') + getCardBonus(\'expGainPct\')) / 100)')],
   ['Brynhild retains BaseLv x20 HP and x5 SP', row('brynhild').includes('"perBaseLv1_hp":20') && row('brynhild').includes('"perBaseLv1_sp":5')],
   ['Mjolnir belt retains its BaseLv STR scaling key', row('magingiorde').includes('"perBaseLv5_str":1')],
   ['Fox-tail ring no longer has unconditional flat MATK/HP/SP', !row('foxtail_ring').includes(',"matk":2') && !row('foxtail_ring').includes(',"hp":10') && !row('foxtail_ring').includes(',"sp":5')],

@@ -65,7 +65,11 @@
 
   window.V25_ARTIFACT_RECIPES = RECIPES;
   const qty = id => (typeof getItemQty === 'function' ? getItemQty(id) : 0);
-  const nameOf = id => (ITEMS[id] && ITEMS[id].name) || id;
+  const MATERIAL_DISPLAY_NAMES = {
+    v2_rift_core: '裂隙核心碎片',
+    v2_dragon_scale: '熾焰龍鱗',
+  };
+  const nameOf = id => (ITEMS[id] && ITEMS[id].name) || MATERIAL_DISPLAY_NAMES[id] || id;
   const canMake = r => state.baseLevel >= r.level &&
     state.gold >= r.zeny &&
     r.materials.every(([id, n]) => qty(id) >= n);

@@ -4738,6 +4738,42 @@ function toggleInventoryAutoSell(itemId) {
   }
 }
 
+
+let battleDetailSelection = null;
+function showBattleItemDetail(itemId, instanceId = '') {
+  const def = ITEMS[itemId];
+  const panel = document.getElementById('battle-item-detail');
+  const body = document.getElementById('battle-item-detail-body');
+  if (!def || !panel || !body) return;
+  const inst = instanceId && state.instances ? state.instances[instanceId] : null;
+  const name = window.getItemDisplayName ? window.getItemDisplayName(itemId) : (def.name || itemId);
+  const lines = [];
+  if (def.atk) lines.push(`ATK ${def.atk}`);
+  if (def.matk) lines.push(`MATK ${def.matk}`);
+  if (def.def) lines.push(`DEF ${def.def}`);
+  if (def.slots || (inst && inst.extraSlots)) lines.push(`插槽 ${(def.slots || 0) + (inst ? inst.extraSlots || 0 : 0)}`);
+  if (inst && inst.refine) lines.push(`精煉 +${inst.refine}`);
+  if (inst && inst.cards && inst.cards.length) lines.push(`卡片：${inst.cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}`);
+  const sourceRows = typeof getItemFarmSpots === 'function' ? getItemFarmSpots(itemId).slice(0,5) : [];
+  const sourceHtml = sourceRows.length ? `<div class="battle-item-sources"><b>取得來源</b>${sourceRows.map(s => {
+    const mon = MONSTERS[s.mon];
+    return mon ? `<div>${s.mvp ? '👑' : '👾'} ${mon.name}｜${s.mapName}｜掉落 ${(s.dropChance*100).toFixed(2)}% <button class="btn-small" onclick="codexGoToMap('${s.mapId}')">前往</button></div>` : '';
+  }).join('')}</div>` : '';
+  body.innerHTML = `<div class="battle-item-detail-content">
+    <div class="battle-item-detail-icon">${def.icon || '📦'}</div>
+    <div class="battle-item-detail-info"><b>${name}</b><div>${lines.join('　｜　') || '一般物品／材料'}</div><p>${def.desc || ''}</p></div>
+  </div>${sourceHtml}`;
+  panel.classList.remove('hidden');
+  battleDetailSelection = {itemId, instanceId};
+}
+function clearBattleItemDetail() {
+  const panel = document.getElementById('battle-item-detail');
+  if (panel) panel.classList.add('hidden');
+  battleDetailSelection = null;
+}
+window.showBattleItemDetail = showBattleItemDetail;
+window.clearBattleItemDetail = clearBattleItemDetail;
+
 function renderInventoryTab() {
   const el = document.getElementById('tab-inventory');
   if (!el) return;
@@ -4803,7 +4839,7 @@ function renderInventoryTab() {
           ? `<div class="inv-cardslot">🃏 ${iCards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}（${iCards.length}/${maxSlots}）</div>`
           : '';
         return `<div class="inv-row${iLocked ? ' locked' : ''}">
-          <div class="inv-row-main">
+          <div class="inv-row-main" role="button" tabindex="0" onclick="showBattleItemDetail('${row.item}', '${row.instanceId || ''}')">
             <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
             <div class="inv-info">
               <div class="inv-name">${iLocked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${refTag}${displayName}${((def.slots || 0) + (inst.extraSlots || 0)) ? ` <span class="inv-slots">[${(def.slots || 0) + (inst.extraSlots || 0)}]</span>` : ''}${elemTag}</div>
@@ -4837,7 +4873,7 @@ function renderInventoryTab() {
       // 只有能穿的裝備才做比較，素材消耗品沒有比較的意義
       const compareHtml = (def.type === 'weapon' || def.type === 'armor') ? renderCompareBadge(row.item) : '';
       return `<div class="inv-row${locked ? ' locked' : ''}">
-        <div class="inv-row-main">
+        <div class="inv-row-main" role="button" tabindex="0" onclick="showBattleItemDetail('${row.item}')">
           <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
           <div class="inv-info">
             <div class="inv-name">${locked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${displayName} x${row.qty}${slotTag}${elemTag}</div>
