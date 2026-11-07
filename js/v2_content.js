@@ -120,21 +120,29 @@
   ];
 
   for (const c of classes) {
-    if (JOB_TREE[c.id]) throw new Error(`V2 duplicate job id: ${c.id}`);
     if (!JOB_TREE[c.parent]) throw new Error(`V2 missing parent job: ${c.parent}`);
     for (const sk of c.skills) {
+      // 部分四轉職業與正式資料庫已有相同 ID；技能採獨立 v2_ 前綴，合併而不覆蓋原職業資料。
       if (SKILLS[sk.id]) throw new Error(`V2 duplicate skill id: ${sk.id}`);
       SKILLS[sk.id] = sk;
     }
-    JOB_TREE[c.id] = {
-      id: c.id, name: c.name, tier: 4, icon: c.icon, parent: c.parent,
-      baseLevelReq: 200, jobLevelReq: 70, jobLevelMax: 50,
-      atkMod: c.atk, matkMod: c.matk,
-      hpSpFrom: c.parent, aspdFrom: c.parent,
-      next: [], bonusLevels: c.bonusLevels, skills: c.skills,
-      desc: `承接${JOB_TREE[c.parent].name}的力量，踏入第四職業階段。`,
-      ...(c.genderLock ? { genderLock: c.genderLock } : {}),
-    };
+    if (JOB_TREE[c.id]) {
+      const existing = JOB_TREE[c.id];
+      existing.skills = existing.skills || [];
+      c.skills.forEach(sk => {
+        if (!existing.skills.includes(sk.id)) existing.skills.push(sk.id);
+      });
+    } else {
+      JOB_TREE[c.id] = {
+        id: c.id, name: c.name, tier: 4, icon: c.icon, parent: c.parent,
+        baseLevelReq: 200, jobLevelReq: 70, jobLevelMax: 50,
+        atkMod: c.atk, matkMod: c.matk,
+        hpSpFrom: c.parent, aspdFrom: c.parent,
+        next: [], bonusLevels: c.bonusLevels, skills: c.skills.map(sk => sk.id),
+        desc: `承接${JOB_TREE[c.parent].name}的力量，踏入第四職業階段。`,
+        ...(c.genderLock ? { genderLock: c.genderLock } : {}),
+      };
+    }
     JOB_TREE[c.parent].next = JOB_TREE[c.parent].next || [];
     if (!JOB_TREE[c.parent].next.includes(c.id)) JOB_TREE[c.parent].next.push(c.id);
   }

@@ -3716,6 +3716,7 @@ function renderCodexDetail(id) {
     ${bonusBits.length ? `<div class="codex-detail-stats">${bonusBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${!card && statBits.length ? `<div class="codex-detail-stats">${statBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
+    <div class="codex-detail-actions"><button class="btn-small" onclick="event.stopPropagation();showBattleItemDetail('${id}')">📦 顯示在戰場詳細資料區</button></div>
     ${unimpl}
     <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
     <div class="codex-spots">${relicRows}${shopRows}${boxRows}${srcRows || (relicRows || shopRows || boxRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
@@ -4748,6 +4749,10 @@ function showBattleItemDetail(itemId, instanceId = '') {
   const inst = instanceId && state.instances ? state.instances[instanceId] : null;
   const name = window.getItemDisplayName ? window.getItemDisplayName(itemId) : (def.name || itemId);
   const lines = [];
+  if (CARDS[itemId]) {
+    const cardBits = typeof describeCardBonus === 'function' ? describeCardBonus(CARDS[itemId]) : [];
+    if (cardBits.length) lines.push(...cardBits);
+  }
   if (def.atk) lines.push(`ATK ${def.atk}`);
   if (def.matk) lines.push(`MATK ${def.matk}`);
   if (def.def) lines.push(`DEF ${def.def}`);
