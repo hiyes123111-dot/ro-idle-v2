@@ -271,6 +271,17 @@
   MVP_MAP_DATA.v2_abyss_rift_lower = ['v2_rift_guardian'];
   MVP_MAP_DATA.v2_abyss_rift_core = ['v2_rift_guardian','v2_void_emperor'];
 
+  // 將裂隙兩張地圖正式掛入地區／王國選單；只 push MAPS 不會自動出現在地圖頁下拉選單。
+  if (!REGIONS.some(r => r.id === 'r_v2_abyss')) {
+    REGIONS.push({
+      id:'r_v2_abyss', name:'深淵裂縫', subtitle:'裂隙守衛、深淵潛行者與熾焰龍族盤據的高危區域。',
+      icon:'🌀', maps:['v2_abyss_rift_lower','v2_abyss_rift_core']
+    });
+  }
+  if (!KINGDOMS.some(k => k.id === 'k_v2_abyss')) {
+    KINGDOMS.push({id:'k_v2_abyss',name:'裂隙領域',icon:'🌀',regions:['r_v2_abyss']});
+  }
+
   /* V2 第七套遺物：只提供數值型效果，沿用既有三段套裝計件，不新增戰鬥旗標。 */
   if (!RELIC_SETS.v2_rift) {
     RELIC_SETS.v2_rift = {

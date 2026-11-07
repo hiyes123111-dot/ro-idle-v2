@@ -2024,3 +2024,28 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .drill-source-row>span{flex:1;min-width:0}
 .drill-source-row>b{white-space:nowrap;color:#e8c77e}
 .drill-source-empty{font-size:.85em;opacity:.7}
+
+
+/* 戰鬥紀錄下方、戰場地圖上方的常駐物品詳細資料區 */
+.battle-item-detail {
+  position: relative;
+  z-index: 3;
+  margin: 6px 8px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--gold, #b99a4b);
+  border-radius: 10px;
+  background: rgba(25, 20, 29, 0.94);
+  color: var(--text, #e8dfd0);
+  max-height: 190px;
+  overflow-y: auto;
+}
+.battle-item-detail.hidden { display: none; }
+.battle-item-detail-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.battle-item-detail-content { display:flex; align-items:flex-start; gap:10px; }
+.battle-item-detail-icon { flex:0 0 38px; font-size:28px; text-align:center; }
+.battle-item-detail-info { min-width:0; }
+.battle-item-detail-info p { margin:4px 0 0; color:#b9c9c5; font-size:12px; }
+.battle-item-sources { margin-top:7px; padding-top:6px; border-top:1px solid rgba(185,154,75,.35); font-size:12px; }
+.battle-item-sources > div { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:4px; }
+.inv-row-main[role="button"] { cursor:pointer; }
+.inv-row-main[role="button"]:active { opacity:.78; }
