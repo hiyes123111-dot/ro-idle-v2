@@ -4590,6 +4590,21 @@ function renderDrillingWorkshopHtml() {
     return !!(d && inst && ['weapon','armor'].includes(d.type) && !(d.slots || 0) && !(inst.extraSlots || 0));
   });
   const haveScale = getItemQty('v2_dragon_scale'), haveCore = getItemQty('v2_rift_core');
+  // 工坊直接列出兩種材料的實際掉落來源，避免玩家必須離開工坊再逐項翻圖鑑。
+  const materialSourceRows = (itemId) => {
+    const spots = (typeof getItemFarmSpots === 'function' ? getItemFarmSpots(itemId) : []).slice(0, 4);
+    if (!spots.length) return '<div class="drill-source-empty">目前沒有設定怪物掉落來源</div>';
+    return spots.map(s => {
+      const mon = MONSTERS[s.mon];
+      if (!mon) return '';
+      return `<div class="drill-source-row"><span>${s.mvp ? '👑' : '👾'} ${mon.name}｜${s.mapName}</span><b>${(s.dropChance * 100).toFixed(2)}%</b><button class="codex-go" onclick="event.stopPropagation();codexGoToMap('${s.mapId}')">前往</button></div>`;
+    }).join('');
+  };
+  const drillMaterialSources = `<div class="drill-material-sources">
+    <div class="drill-source-title">🧭 材料掉落來源</div>
+    <div class="drill-source-group"><b>熾焰龍鱗</b>${materialSourceRows('v2_dragon_scale')}</div>
+    <div class="drill-source-group"><b>裂隙核心碎片</b>${materialSourceRows('v2_rift_core')}</div>
+  </div>`;
   const options = candidates.map(r => {
     const d = ITEMS[r.item], inst = state.instances[r.instanceId];
     const chance = getDrillChance(d);
@@ -4598,6 +4613,7 @@ function renderDrillingWorkshopHtml() {
   return `<section class="drill-workshop">
     <div class="drill-workshop-head"><div class="drill-workshop-art"><img src="${itemImgSrc('mace_of_trust')}" alt="RO 鐵鎚素材" onerror="this.onerror=null;this.parentElement.textContent='⚒️'"></div><div><h3>打洞工坊</h3><p>讓原本無孔的武器與防具，獲得額外卡片插槽。</p></div></div>
     <div class="drill-workshop-cost">🧪 熾焰龍鱗 ${haveScale} / 1　 🌀 裂隙核心碎片 ${haveCore} / 1　 💰 鋅幣 5,000</div>
+    ${drillMaterialSources}
     ${candidates.length ? `<div class="drill-workshop-controls"><select id="drill-target">${options}</select><button class="btn-small" onclick="drillEquipment(document.getElementById('drill-target').value)">⚒️ 開始打洞</button></div>` : '<div class="drill-empty">目前沒有符合條件的無孔裝備。先將無孔武器或防具放在背包中。</div>'}
     <div class="drill-rates">成功率依裝備價值：一般 80%｜進階 65%｜稀有 45%｜高階 30%｜頂級 20%</div>
     <div class="drill-note">失敗只消耗材料與鋅幣，裝備、精煉及已插卡片都會保留；每件裝備最多增加 1 孔。</div>
@@ -4702,6 +4718,24 @@ function buyItemFromShop(itemId, shopId) {
   buyItem(itemId, qty);
   openNpcShop(shopId);
   renderTopBar();
+}
+
+// 背包直接切換自動販賣，不必再開倉庫／自動販賣設定視窗。
+function toggleInventoryAutoSell(itemId) {
+  const def = ITEMS[itemId];
+  if (!def || !(def.sell > 0) || def.type === 'relic') return;
+  if (isItemLocked(itemId)) {
+    if (typeof showToast === 'function') showToast('🔒 先解除道具鎖定，才能加入自動販賣。');
+    return;
+  }
+  if (!state.autoSellConfig) state.autoSellConfig = { enabled: false, items: [] };
+  const wasSelected = state.autoSellConfig.items.includes(itemId);
+  toggleAutoSellItem(itemId);
+  renderInventoryTab();
+  renderTopBar();
+  if (typeof showToast === 'function') {
+    showToast(wasSelected ? `已從自動販賣移除：${def.name}` : `已加入自動販賣：${def.name}`);
+  }
 }
 
 function renderInventoryTab() {
@@ -4831,6 +4865,7 @@ function renderInventoryTab() {
           })()}
           ${canUse ? `<button class="btn-small" onclick="useItem('${row.item}');renderInventoryTab();">${def.type === 'consumable' ? '使用' : '裝備'}</button>` : ''}
           ${def.boxOpen && row.qty > 1 ? `<button class="btn-small" onclick="openAllBoxesAsync('${row.item}', function(){renderInventoryTab();renderTopBar();});" title="手上這 ${row.qty} 個一次開完（每 100 個一批，不卡畫面）">全部開啟(${row.qty})</button>` : ''}
+          ${!locked && def.type !== 'relic' && def.sell > 0 ? `<button class="btn-small ghost" onclick="toggleInventoryAutoSell('${row.item}')">${(state.autoSellConfig && state.autoSellConfig.items || []).includes(row.item) ? '✓ 自動賣出' : '加入自動賣出'}</button>` : ''}
           ${locked || def.type === 'relic' ? '' : `<button class="btn-small ghost" onclick="sellItem('${row.item}',1);renderInventoryTab();renderTopBar();">賣出(${def.sell})</button>`}
           ${!locked && def.type !== 'relic' && row.qty > 1 ? `<button class="btn-small ghost" onclick="sellItemAll('${row.item}');renderInventoryTab();renderTopBar();">全部賣出</button>` : ''}
           <button class="btn-small ghost" onclick="depositToWarehouse('${row.item}',1);renderInventoryTab();renderTopBar();">存倉庫</button>

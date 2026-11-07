@@ -2014,3 +2014,13 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 /* 弓箭手被動技能實測統計 */
 .ab-section-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .ab-table-wrap{width:100%;overflow-x:auto;margin-top:8px}
+
+/* v2.5.114：打洞工坊內直接顯示材料掉落 NPC／地圖 */
+.drill-material-sources{margin:10px 0;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.18)}
+.drill-source-title{font-weight:700;color:#e8c77e;margin-bottom:7px}
+.drill-source-group{margin:6px 0}
+.drill-source-group>b{display:block;margin-bottom:4px;color:#f0d7a0}
+.drill-source-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.08);font-size:.88em}
+.drill-source-row>span{flex:1;min-width:0}
+.drill-source-row>b{white-space:nowrap;color:#e8c77e}
+.drill-source-empty{font-size:.85em;opacity:.7}

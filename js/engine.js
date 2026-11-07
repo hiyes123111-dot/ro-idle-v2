@@ -6687,6 +6687,8 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
     if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
     // 米德加爾特大太陽神頭盔：全屬性魔法傷害加成，與物理近／遠距離乘區分開。
+    // 全屬性魔法傷害（裝備 allEleDmg）：獨立於指定屬性、種族與體型的通用魔法增傷。
+    targetPct += getCardBonus('allEleDmg');
     targetPct += getCardBonus('magicDmgPct');
     return state.matk * buffMult('matk').mult * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
   }
@@ -7161,6 +7163,16 @@ function monsterCastSkillInner(mon, monDef, sk) {
     }
   }
 
+// 明確可判定為遠距離物理攻擊的怪物技能；不把一般魔法或不明攻擊誤算為遠距離。
+function isMonsterRangedPhysicalSkill(sk) {
+  if (!sk || sk.magic) return false;
+  const rangedIds = new Set([
+    'AC_DOUBLE', 'AC_SHOWER', 'AC_CHARGEARROW',
+    'SN_SHARPSHOOTING', 'HT_PHANTASMSHOOT', 'HT_POWER'
+  ]);
+  return rangedIds.has(String(sk.s || '').toUpperCase());
+}
+
   let dmg = 0;
   if (sk.mult > 0) {
     const el = sk.elem || monDef.element || 'none';
@@ -7184,6 +7196,11 @@ function monsterCastSkillInner(mon, monDef, sk) {
     if (!sk.magic && state.physDmgTakenPct) raw *= Math.max(0, 1 - state.physDmgTakenPct / 100);
     // 防守側的屬性是玩家的鎧甲屬性（#17）。沒有鎧甲屬性卡時就是 none，行為跟以前一樣
     raw *= getElementMultiplier(el, state.playerElement || 'none');
+    // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免；魔法攻擊同樣適用。
+    if (el === 'none') raw *= Math.max(0, 1 - getCardBonus('neutralDmgResistPct') / 100);
+    if (monDef.isBoss) raw *= Math.max(0, 1 - getCardBonus('bossDmgResistPct') / 100);
+    // 遠距離承傷：僅對技能資料可明確辨識的遠距離物理技能套用，避免把魔法或近戰技能誤判。
+    if (isMonsterRangedPhysicalSkill(sk)) raw *= Math.max(0, 1 - getCardBonus('rangedDmgResist') / 100);
     // 卡片的屬性/種族/體型減傷跟普攻共用同一組
     if (state.cardEleDmgReduce && state.cardEleDmgReduce[el]) raw *= (1 - state.cardEleDmgReduce[el]);
     if (monDef.race && state.cardRaceDmgReduce && state.cardRaceDmgReduce[monDef.race]) raw *= (1 - state.cardRaceDmgReduce[monDef.race]);
@@ -7429,6 +7446,10 @@ function monsterAttackSingle(mon) {
   const elemMult = getElementMultiplier(monDef.element || 'none', state.playerElement || 'none');
   raw *= elemMult;
 
+  // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免。
+  if ((monDef.element || 'none') === 'none') raw *= Math.max(0, 1 - getCardBonus('neutralDmgResistPct') / 100);
+  if (monDef.isBoss) raw *= Math.max(0, 1 - getCardBonus('bossDmgResistPct') / 100);
+
   // 強化火屬性：對火屬性/無屬性怪物攻擊的耐性
   const monAtkElement = monDef.element || 'none';
   if (monAtkElement === 'fire' && state.fireResistPct) raw *= (1 - state.fireResistPct / 100);
@@ -7658,8 +7679,11 @@ function getCodexPool() {
 
 // 哪些怪會掉這個道具（圖鑑的「取得來源」欄用）
 let _codexSourceCache = null;
+let _codexSourceSignature = '';
 function getItemSources(itemId) {
-  if (!_codexSourceCache) {
+  const sourceSignature = `${Object.keys(MONSTERS).length}:${MAPS.length}:${Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0)}`;
+  if (!_codexSourceCache || _codexSourceSignature !== sourceSignature) {
+    _codexSourceSignature = sourceSignature;
     _codexSourceCache = {};
     getCodexPool().monsters.forEach(monId => {
       (MONSTERS[monId].drops || []).forEach(d => {
@@ -7691,8 +7715,11 @@ function isCodexFarmable(mapObj) {
   return list.some(e => MONSTERS[e.id] && (MONSTERS[e.id].exp || 0) > 0);
 }
 let _codexMapCache = null;
+let _codexMapSignature = '';
 function getMonsterMaps(monId) {
-  if (!_codexMapCache) {
+  const mapSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${typeof MVP_MAP_DATA !== 'undefined' ? Object.keys(MVP_MAP_DATA).length : 0}`;
+  if (!_codexMapCache || _codexMapSignature !== mapSignature) {
+    _codexMapSignature = mapSignature;
     _codexMapCache = {};
     MAPS.forEach(m => {
       if (!isCodexFarmable(m)) return;
