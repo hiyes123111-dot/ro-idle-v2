@@ -70,6 +70,17 @@
     state.gold >= r.zeny &&
     r.materials.every(([id, n]) => qty(id) >= n);
 
+  // 安全區城鎮 NPC 入口：保留原本神器分頁的配方與製作邏輯，NPC 只負責帶玩家前往工坊。
+  window.talkToArtifactBlacksmith = function talkToArtifactBlacksmith() {
+    if (typeof inSafeZone === 'function' && !inSafeZone()) {
+      if (typeof logMsg === 'function') logMsg('🏺 神器鑄造師只在安全區接待冒險者。');
+      return false;
+    }
+    if (typeof switchTab === 'function') switchTab('artifacts');
+    if (typeof logMsg === 'function') logMsg('🏺 神器鑄造師：歡迎來到神器工坊。達到 Base Lv.200 後即可使用裂隙材料重鑄神器。');
+    return true;
+  };
+
   window.renderArtifactTab = function renderArtifactTab() {
     const el = document.getElementById('tab-artifacts');
     if (!el) return;

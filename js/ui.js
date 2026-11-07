@@ -900,6 +900,7 @@ function renderTopBar() {
     }
     if (ailEl.innerHTML !== html) ailEl.innerHTML = html;
   }
+  if (typeof renderLootNotices === 'function') renderLootNotices();
 }
 
 function setBar(barId, textId, val, max, label) {
@@ -1950,6 +1951,62 @@ function triggerMonsterDie() {
 /* 三塊資訊欄各自畫自己的那條分流（分流規則見 engine.js 的 pushCombatLog）。
    一律只取最後 30 則，畫完捲到底。 */
 const LOG_PANES = { main: 'log-main', skill: 'log-skill', ally: 'log-ally' };
+
+let _lootFeedCollapsed = false;
+function lootEscapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function renderLootNotices() {
+  const el = document.getElementById('loot-notice-feed');
+  if (!el) return;
+  const rows = (state && Array.isArray(state.lootNotices) ? state.lootNotices : []).slice(-3).reverse();
+  el.innerHTML = `
+    <div class="loot-notice-head">
+      <span>📦 道具獲得紀錄</span>
+      <span><button type="button" onclick="openLootNoticeHistory()" title="查看完整獲得紀錄">詳細</button><button type="button" onclick="_lootFeedCollapsed=!_lootFeedCollapsed;renderLootNotices()" title="收合／展開">${_lootFeedCollapsed ? '▾' : '▴'}</button></span>
+    </div>
+    ${_lootFeedCollapsed ? '' : `<div class="loot-notice-list">${rows.length ? rows.map(r => {
+      const def = ITEMS[r.item];
+      if (!def) return '';
+      const id = lootEscapeHtml(r.item);
+      const name = lootEscapeHtml(def.name);
+      const source = lootEscapeHtml(r.source || '獲得');
+      const qty = Math.max(1, Number(r.qty) || 1);
+      return `<div class="loot-notice-row" role="button" tabindex="0" onclick="openLootNoticeDetail('${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openLootNoticeDetail('${id}')}">
+        <img class="loot-notice-icon" src="${lootEscapeHtml(itemImgSrc(r.item))}" alt="" onerror="this.style.visibility='hidden'">
+        <span class="loot-notice-source">【${source}】</span><span class="loot-notice-name">${name}</span><span class="loot-notice-qty">×${qty}</span>
+      </div>`;
+    }).join('') : '<div class="loot-notice-empty">開啟寶箱或卡冊後，獲得道具會顯示在這裡。</div>'}</div>`}
+  `;
+}
+function openLootNoticeDetail(itemId) {
+  const def = ITEMS[itemId];
+  if (!def) return;
+  const modal = document.getElementById('loot-detail-modal');
+  const body = document.getElementById('loot-detail-content');
+  if (!modal || !body) return;
+  const latest = (state.lootNotices || []).filter(r => r.item === itemId).slice(-1)[0];
+  body.innerHTML = `<div class="loot-detail-item"><img src="${lootEscapeHtml(itemImgSrc(itemId))}" alt=""><div><h3 id="loot-detail-title">${lootEscapeHtml(def.name)}</h3><div>最近獲得：×${latest ? Math.max(1, Number(latest.qty)||1) : 1}</div><div>來源：${lootEscapeHtml(latest ? latest.source : '獲得')}</div></div></div><div class="loot-detail-desc">${lootEscapeHtml(def.desc || '目前沒有道具說明。')}</div>`;
+  modal.classList.remove('hidden');
+}
+function closeLootNoticeDetail() {
+  const modal = document.getElementById('loot-detail-modal');
+  if (modal) modal.classList.add('hidden');
+}
+function openLootNoticeHistory() {
+  const rows = (state && Array.isArray(state.lootNotices) ? state.lootNotices : []).slice().reverse();
+  if (!rows.length) { if (typeof showToast === 'function') showToast('目前沒有寶箱／卡冊獲得紀錄。'); return; }
+  const modal = document.getElementById('loot-detail-modal');
+  const body = document.getElementById('loot-detail-content');
+  if (!modal || !body) return;
+  body.innerHTML = `<h3 id="loot-detail-title">📦 道具獲得紀錄（最近 ${rows.length} 筆）</h3><div class="loot-detail-desc">${rows.map(r => {
+    const d = ITEMS[r.item]; if (!d) return '';
+    const t = new Date(r.time || Date.now()).toLocaleTimeString();
+    return `${lootEscapeHtml(t)}　【${lootEscapeHtml(r.source)}】 ${lootEscapeHtml(d.name)} ×${Math.max(1,Number(r.qty)||1)}`;
+  }).join('<br>')}</div>`;
+  modal.classList.remove('hidden');
+}
+
 /* ---------------- 戰鬥日誌（#117 效能）----------------
    以前 `logMsg()` 每寫一行就整個重畫三格日誌：3 格 × 30 列的 innerHTML
    再加一次 `scrollHeight`（強制 layout）＝**每則訊息 1.87ms**。
@@ -2127,6 +2184,11 @@ function renderMapTab() {
               <div class="town-npc-hint">${shop.getItems().length} 項商品</div>
             </div>`;
           }).join('')}
+        <div class="town-npc-card" onclick="talkToArtifactBlacksmith();">
+          <div class="town-npc-icon">🏺</div>
+          <div class="town-npc-name">神器鑄造師</div>
+          <div class="town-npc-hint">查看神器配方・重鑄傳說神器</div>
+        </div>
       </div>
     </div>
     ` : ''}`;
