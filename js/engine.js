@@ -2554,13 +2554,7 @@ function recomputeDerived(fullHeal) {
         .find(p => k.startsWith(p));
       if (!prefix) continue;
       const bucket = state[CARD_BONUS_MAPS[prefix]];
-      let key = k.slice(prefix.length);
-      // 舊裝備／卡片資料使用 dark，怪物屬性表統一使用 shadow；兩者是同一暗屬性。
-      if ((prefix === 'eleDmg_' || prefix === 'eleReduce_') && key === 'dark') key = 'shadow';
-      // 官方裝備舊種族名稱與本專案怪物資料的 race enum 不一致。
-      // animal 對應 brute（動物系），demihuman 對應 humanoid（人形系）。
-      if ((prefix === 'raceDmg_' || prefix === 'raceDmgReduce_') && key === 'animal') key = 'brute';
-      if ((prefix === 'raceDmg_' || prefix === 'raceDmgReduce_') && key === 'demihuman') key = 'humanoid';
+      const key = k.slice(prefix.length);
       bucket[key] = (bucket[key] || 0) + v / 100;
     }
   }
@@ -6654,10 +6648,7 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   /* 高階拳刃修練（#59）：官方是「以拳刃攻擊時**物理傷害**+12~20%」——
      傷害%而不是 ATK 固定值，所以乘在整條鏈的最後，普攻與物理技能都吃得到。
      武器條件在 recomputeDerived 就判掉了（沒拿拳刃時 physDmgPct 是 0）。 */
-  // `sizeDmg_all` 是舊裝備資料使用的「對所有體型增傷」鍵，與新鍵 allSizeDmgPct 同義。
-  const allSizeBonus = typeof getCardBonus === 'function'
-    ? getCardBonus('allSizeDmgPct') + getCardBonus('sizeDmg_all') : 0;
-  const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus) / 100;
+  const physPct = 1 + ((state.physDmgPct || 0) + (typeof getCardBonus === 'function' ? getCardBonus('allSizeDmgPct') : 0)) / 100;
   // 近／遠距離物理加成放在共用武器鏈，讓普攻與物理技能都能吃到且不重複計算。
   // 本作 isBowWeapon() 同時辨識弓、樂器、鞭子；其他武器視為近距離。
   const rangedWeapon = !!(wId && isBowWeapon(wId));
@@ -6692,13 +6683,7 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
        則與物理共用。 */
     let targetPct = 0;
     if (monDef && monDef.size) targetPct += getCardBonus('magicSizeDmg_' + monDef.size);
-    if (monDef && monDef.race) {
-      targetPct += getCardBonus('magicRaceDmg_' + monDef.race);
-      // 舊裝備官方詞條使用 demihuman；本專案魔物種族值使用 humanoid。
-      if (monDef.race === 'humanoid') targetPct += getCardBonus('magicRaceDmg_demihuman');
-      // 若未來出現 animal 魔法詞條，亦對應本專案的 brute。
-      if (monDef.race === 'brute') targetPct += getCardBonus('magicRaceDmg_animal');
-    }
+    if (monDef && monDef.race) targetPct += getCardBonus('magicRaceDmg_' + monDef.race);
     targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
     if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
     // 米德加爾特大太陽神頭盔：全屬性魔法傷害加成，與物理近／遠距離乘區分開。
@@ -7214,20 +7199,8 @@ function isMonsterRangedPhysicalSkill(sk) {
     // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免；魔法攻擊同樣適用。
     if (el === 'none') raw *= Math.max(0, 1 - getCardBonus('neutralDmgResistPct') / 100);
     if (monDef.isBoss) raw *= Math.max(0, 1 - getCardBonus('bossDmgResistPct') / 100);
-    // 裝備元素／種族／體型通用耐性；與指定耐性相加後統一限制在 100%。
-    const skillElemResist = getCardBonus('eleDmgReduce_all')
-      + (el === 'earth' ? getCardBonus('earthDmgResistPct') : 0);
-    const skillRaceResist = getCardBonus('raceDmgResist_all');
-    const skillSizeResist = getCardBonus('sizeDmgResist_all')
-      + (monDef.size === 'large' ? getCardBonus('sizeResist_large') : 0);
-    raw *= Math.max(0, 1 - Math.max(0, skillElemResist) / 100);
-    raw *= Math.max(0, 1 - Math.max(0, skillRaceResist) / 100);
-    raw *= Math.max(0, 1 - Math.max(0, skillSizeResist) / 100);
     // 遠距離承傷：僅對技能資料可明確辨識的遠距離物理技能套用，避免把魔法或近戰技能誤判。
-    if (isMonsterRangedPhysicalSkill(sk)) {
-      const rangedResist = getCardBonus('rangedDmgResist') - getCardBonus('rangedDmgTakenPct');
-      raw *= Math.max(0, 1 - Math.max(0, rangedResist) / 100);
-    }
+    if (isMonsterRangedPhysicalSkill(sk)) raw *= Math.max(0, 1 - getCardBonus('rangedDmgResist') / 100);
     // 卡片的屬性/種族/體型減傷跟普攻共用同一組
     if (state.cardEleDmgReduce && state.cardEleDmgReduce[el]) raw *= (1 - state.cardEleDmgReduce[el]);
     if (monDef.race && state.cardRaceDmgReduce && state.cardRaceDmgReduce[monDef.race]) raw *= (1 - state.cardRaceDmgReduce[monDef.race]);
@@ -7476,15 +7449,6 @@ function monsterAttackSingle(mon) {
   // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免。
   if ((monDef.element || 'none') === 'none') raw *= Math.max(0, 1 - getCardBonus('neutralDmgResistPct') / 100);
   if (monDef.isBoss) raw *= Math.max(0, 1 - getCardBonus('bossDmgResistPct') / 100);
-  // 裝備元素／種族／體型通用耐性；與指定耐性相加後統一限制在 100%。
-  const basicElemResist = getCardBonus('eleDmgReduce_all')
-    + ((monDef.element || 'none') === 'earth' ? getCardBonus('earthDmgResistPct') : 0);
-  const basicRaceResist = getCardBonus('raceDmgResist_all');
-  const basicSizeResist = getCardBonus('sizeDmgResist_all')
-    + (monDef.size === 'large' ? getCardBonus('sizeResist_large') : 0);
-  raw *= Math.max(0, 1 - Math.max(0, basicElemResist) / 100);
-  raw *= Math.max(0, 1 - Math.max(0, basicRaceResist) / 100);
-  raw *= Math.max(0, 1 - Math.max(0, basicSizeResist) / 100);
 
   // 強化火屬性：對火屬性/無屬性怪物攻擊的耐性
   const monAtkElement = monDef.element || 'none';
@@ -7654,15 +7618,8 @@ function codexRecordBoxCardIfAlbumOnly(cardId) {
 
 // 可收集清單是靜態資料算出來的，只算一次後快取
 let _codexPoolCache = null;
-let _codexPoolSignature = '';
 function getCodexPool() {
-  // V2／擴充內容會在主資料庫載入後追加地圖與怪物；舊版永久快取會漏掉新怪物及其掉落物。
-  const poolSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${Object.keys(ITEMS).length}:` +
-    MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|') + ':' +
-    Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0);
-  if (_codexPoolCache && _codexPoolSignature === poolSignature) return _codexPoolCache;
-  _codexPoolSignature = poolSignature;
-  _codexPoolCache = null;
+  if (_codexPoolCache) return _codexPoolCache;
   const monSet = new Set();
   /* 不給經驗的怪是調校用的假人（目前只有測試波利），不進圖鑑。
      牠身上掛的掉落物也會跟著不進池——不然圖鑑會出現一件「查得到、但查不到去哪打」的死條目
@@ -7977,7 +7934,7 @@ function killMonster(def, monObj) {
   const expMult = (1 + ((def.race && state.cardExpRace && state.cardExpRace[def.race]) || 0))
     * (1 + buffMult('exp').flatBonus / 100)
     /* 裝備的經驗值加成（快樂氣球 EXP+5%、艾咪斯可魯背包每+2 +1%）。過去只進表沒人讀。 */
-    * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100);
+    * (1 + getCardBonus('expAllPct') / 100);
   const gotExp = Math.round(def.exp * expMult * farmMult('exp'));
   const gotJobExp = Math.round(def.jobExp * expMult * farmMult('exp'));
   /* **隊友打死的怪，獎勵要記在玩家頭上。** 隊友是靠 withAlly() 換身跑
@@ -14581,7 +14538,7 @@ function computeOfflineProgress(minMs) {
   const expMult = 1 + (buffMult('exp').flatBonus || 0) / 100;
   const raceExpOf = def => 1 + ((def && def.race && state.cardExpRace && state.cardExpRace[def.race]) || 0);
   const avgRaceExp = wAvg(m => raceExpOf(m));
-  const expFarm = farmMult('exp') * expMult * avgRaceExp * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100);
+  const expFarm = farmMult('exp') * expMult * avgRaceExp * (1 + getCardBonus('expAllPct') / 100);
   const goldFarm = farmMult('gold');
   let expGained = Math.round(avgExp * totalKills * expFarm);
   let jobExpGained = Math.round(avgJobExp * totalKills * expFarm);
