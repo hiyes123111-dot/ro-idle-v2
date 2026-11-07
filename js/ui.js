@@ -1959,7 +1959,7 @@ function lootEscapeHtml(value) {
 function renderLootNotices() {
   const el = document.getElementById('loot-notice-feed');
   if (!el) return;
-  const rows = (state && Array.isArray(state.lootNotices) ? state.lootNotices : []).slice(-3).reverse();
+  const rows = (state && Array.isArray(state.lootNotices) ? state.lootNotices : []).filter(r => r && (r.source === '紫箱' || r.source === '卡冊')).slice(-3).reverse();
   el.innerHTML = `
     <div class="loot-notice-head">
       <span>📦 道具獲得紀錄</span>
@@ -1972,29 +1972,19 @@ function renderLootNotices() {
       const name = lootEscapeHtml(def.name);
       const source = lootEscapeHtml(r.source || '獲得');
       const qty = Math.max(1, Number(r.qty) || 1);
-      return `<div class="loot-notice-row" role="button" tabindex="0" onclick="openLootNoticeDetail('${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openLootNoticeDetail('${id}')}">
+      return `<div class="loot-notice-row">
         <img class="loot-notice-icon" src="${lootEscapeHtml(itemImgSrc(r.item))}" alt="" onerror="this.style.visibility='hidden'">
         <span class="loot-notice-source">【${source}】</span><span class="loot-notice-name">${name}</span><span class="loot-notice-qty">×${qty}</span>
       </div>`;
-    }).join('') : '<div class="loot-notice-empty">開啟寶箱或卡冊後，獲得道具會顯示在這裡。</div>'}</div>`}
+    }).join('') : '<div class="loot-notice-empty">開啟紫箱或卡冊後，內容物會顯示在這裡。</div>'}</div>`}
   `;
-}
-function openLootNoticeDetail(itemId) {
-  const def = ITEMS[itemId];
-  if (!def) return;
-  const modal = document.getElementById('loot-detail-modal');
-  const body = document.getElementById('loot-detail-content');
-  if (!modal || !body) return;
-  const latest = (state.lootNotices || []).filter(r => r.item === itemId).slice(-1)[0];
-  body.innerHTML = `<div class="loot-detail-item"><img src="${lootEscapeHtml(itemImgSrc(itemId))}" alt=""><div><h3 id="loot-detail-title">${lootEscapeHtml(def.name)}</h3><div>最近獲得：×${latest ? Math.max(1, Number(latest.qty)||1) : 1}</div><div>來源：${lootEscapeHtml(latest ? latest.source : '獲得')}</div></div></div><div class="loot-detail-desc">${lootEscapeHtml(def.desc || '目前沒有道具說明。')}</div>`;
-  modal.classList.remove('hidden');
 }
 function closeLootNoticeDetail() {
   const modal = document.getElementById('loot-detail-modal');
   if (modal) modal.classList.add('hidden');
 }
 function openLootNoticeHistory() {
-  const rows = (state && Array.isArray(state.lootNotices) ? state.lootNotices : []).slice().reverse();
+  const rows = (state && Array.isArray(state.lootNotices) ? state.lootNotices : []).filter(r => r && (r.source === '紫箱' || r.source === '卡冊')).slice().reverse();
   if (!rows.length) { if (typeof showToast === 'function') showToast('目前沒有寶箱／卡冊獲得紀錄。'); return; }
   const modal = document.getElementById('loot-detail-modal');
   const body = document.getElementById('loot-detail-content');
@@ -3716,7 +3706,6 @@ function renderCodexDetail(id) {
     ${bonusBits.length ? `<div class="codex-detail-stats">${bonusBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${!card && statBits.length ? `<div class="codex-detail-stats">${statBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
-    <div class="codex-detail-actions"><button class="btn-small" onclick="event.stopPropagation();showBattleItemDetail('${id}')">📦 顯示在戰場詳細資料區</button></div>
     ${unimpl}
     <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
     <div class="codex-spots">${relicRows}${shopRows}${boxRows}${srcRows || (relicRows || shopRows || boxRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
@@ -4740,45 +4729,6 @@ function toggleInventoryAutoSell(itemId) {
 }
 
 
-let battleDetailSelection = null;
-function showBattleItemDetail(itemId, instanceId = '') {
-  const def = ITEMS[itemId];
-  const panel = document.getElementById('battle-item-detail');
-  const body = document.getElementById('battle-item-detail-body');
-  if (!def || !panel || !body) return;
-  const inst = instanceId && state.instances ? state.instances[instanceId] : null;
-  const name = window.getItemDisplayName ? window.getItemDisplayName(itemId) : (def.name || itemId);
-  const lines = [];
-  if (CARDS[itemId]) {
-    const cardBits = typeof describeCardBonus === 'function' ? describeCardBonus(CARDS[itemId]) : [];
-    if (cardBits.length) lines.push(...cardBits);
-  }
-  if (def.atk) lines.push(`ATK ${def.atk}`);
-  if (def.matk) lines.push(`MATK ${def.matk}`);
-  if (def.def) lines.push(`DEF ${def.def}`);
-  if (def.slots || (inst && inst.extraSlots)) lines.push(`插槽 ${(def.slots || 0) + (inst ? inst.extraSlots || 0 : 0)}`);
-  if (inst && inst.refine) lines.push(`精煉 +${inst.refine}`);
-  if (inst && inst.cards && inst.cards.length) lines.push(`卡片：${inst.cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}`);
-  const sourceRows = typeof getItemFarmSpots === 'function' ? getItemFarmSpots(itemId).slice(0,5) : [];
-  const sourceHtml = sourceRows.length ? `<div class="battle-item-sources"><b>取得來源</b>${sourceRows.map(s => {
-    const mon = MONSTERS[s.mon];
-    return mon ? `<div>${s.mvp ? '👑' : '👾'} ${mon.name}｜${s.mapName}｜掉落 ${(s.dropChance*100).toFixed(2)}% <button class="btn-small" onclick="codexGoToMap('${s.mapId}')">前往</button></div>` : '';
-  }).join('')}</div>` : '';
-  body.innerHTML = `<div class="battle-item-detail-content">
-    <div class="battle-item-detail-icon">${def.icon || '📦'}</div>
-    <div class="battle-item-detail-info"><b>${name}</b><div>${lines.join('　｜　') || '一般物品／材料'}</div><p>${def.desc || ''}</p></div>
-  </div>${sourceHtml}`;
-  panel.classList.remove('hidden');
-  battleDetailSelection = {itemId, instanceId};
-}
-function clearBattleItemDetail() {
-  const panel = document.getElementById('battle-item-detail');
-  if (panel) panel.classList.add('hidden');
-  battleDetailSelection = null;
-}
-window.showBattleItemDetail = showBattleItemDetail;
-window.clearBattleItemDetail = clearBattleItemDetail;
-
 function renderInventoryTab() {
   const el = document.getElementById('tab-inventory');
   if (!el) return;
@@ -4844,7 +4794,7 @@ function renderInventoryTab() {
           ? `<div class="inv-cardslot">🃏 ${iCards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}（${iCards.length}/${maxSlots}）</div>`
           : '';
         return `<div class="inv-row${iLocked ? ' locked' : ''}">
-          <div class="inv-row-main" role="button" tabindex="0" onclick="showBattleItemDetail('${row.item}', '${row.instanceId || ''}')">
+          <div class="inv-row-main">
             <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
             <div class="inv-info">
               <div class="inv-name">${iLocked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${refTag}${displayName}${((def.slots || 0) + (inst.extraSlots || 0)) ? ` <span class="inv-slots">[${(def.slots || 0) + (inst.extraSlots || 0)}]</span>` : ''}${elemTag}</div>
@@ -4878,7 +4828,7 @@ function renderInventoryTab() {
       // 只有能穿的裝備才做比較，素材消耗品沒有比較的意義
       const compareHtml = (def.type === 'weapon' || def.type === 'armor') ? renderCompareBadge(row.item) : '';
       return `<div class="inv-row${locked ? ' locked' : ''}">
-        <div class="inv-row-main" role="button" tabindex="0" onclick="showBattleItemDetail('${row.item}')">
+        <div class="inv-row-main">
           <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
           <div class="inv-info">
             <div class="inv-name">${locked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${displayName} x${row.qty}${slotTag}${elemTag}</div>
@@ -5232,6 +5182,8 @@ function renderCharacterTab() {
     ${setListHtml}
     ${buffListHtml}
     <div class="derived-grid">
+      <div title="四轉六大特性總值，包含裝備、卡片、套裝與 JobLv 成長效果。">四轉特性：POW ${state.traitStats?.pow || 0}　STA ${state.traitStats?.sta || 0}　WIS ${state.traitStats?.wis || 0}　SPL ${state.traitStats?.spl || 0}　CON ${state.traitStats?.con || 0}　CRT ${state.traitStats?.crt || 0}</div>
+      <div title="四轉特性衍生值：RES 由 STA、MRES 由 WIS、H.PLUS 與 C.RATE 由 CRT、P.ATK 與 S.MATK 由 CON 計算。">四轉衍生：RES ${state.res || 0}　MRES ${state.mres || 0}　H.PLUS ${state.hPlus || 0}　C.RATE ${state.cRate || 0}　P.ATK ${state.pAtk || 0}　S.MATK ${state.sMatk || 0}</div>
       <div>物理攻擊 ATK：${state.atk}${(() => { const r = getRefinementLevel('weapon'); const wId = getEquipBaseItemId('weapon'); const wLv = wId ? getRefineWeaponLv(ITEMS[wId]) : 1; return r > 0 ? ` (+${getRefinementAtkBonus(r, wLv)}精煉)` : ''; })()}</div>
       <div>魔法攻擊 MATK：${state.matkMin}~${state.matkMax}</div>
       <div title="硬防（裝備）走比例減傷、軟防（等級+VIT）每一擊固定扣血，兩者運算方式不同">防禦 DEF：${state.defHard || 0}+${state.defSoft || 0}${(() => { let refBonus = 0; ['head_top','head_mid','head_bottom','armor','shield','garment','footgear','accessory1','accessory2'].forEach(s => { const lv = getRefinementLevel(s); if (lv > 0) refBonus += getRefinementDefBonus(lv); }); return refBonus > 0 ? ` (+${refBonus}精煉)` : ''; })()}　<span class="dim">硬防減傷 ${Math.round((1 - (4000 + (state.defHard||0)) / (4000 + 10 * (state.defHard||0))) * 100)}%</span></div>

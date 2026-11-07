@@ -1018,7 +1018,7 @@ function recomputeDerived(fullHeal) {
   const atkMain = dexAtk ? cDex : cStr;
   const atkSub = dexAtk ? cStr : cDex;
   const statusAtk = atkMain + Math.floor((atkMain / 10) ** 2) + Math.floor(atkSub / 5) + Math.floor(cLuk / 5)
-    + getCardBonus('pow') * 5; // 四轉 POW：每 1 點 Status ATK +5（裝備／卡片條件同樣適用）
+    + getCardBonus('pow') * 5 + Math.floor(getCardBonus('con') / 5); // 四轉 POW + CON：Status ATK
   state._atkUsesDex = dexAtk;
   /* ATK 拆成三個桶子，總和仍然是 state.atk（其他地方照舊只讀 state.atk）。
      普通攻擊的傷害鏈要分開處理它們——官方的體型修正與屬性倍率**只作用在武器ATK**上：
@@ -1036,7 +1036,7 @@ function recomputeDerived(fullHeal) {
   state._atkMastery += buffAtkFlat;
 
   // MATK：區間公式，min = INT+(INT/7)²，max = INT+(INT/5)²，取平均當戰鬥數值
-  const traitSplMatk = getCardBonus('spl') * 5; // 四轉 SPL：每 1 點 Status MATK +5
+  const traitSplMatk = getCardBonus('spl') * 5 + Math.floor(getCardBonus('con') / 5); // 四轉 SPL + CON：Status MATK
   const matkMinRaw = cInt + Math.floor((cInt / 7) ** 2) + Math.floor(cDex / 5) + traitSplMatk;
   const matkMaxRaw = cInt + Math.floor((cInt / 5) ** 2) + Math.floor(cDex / 5) + Math.floor(cLuk / 3) + traitSplMatk;
   state.matkMin = Math.round(matkMinRaw * job.matkMod) + equippedMatk();
@@ -1074,9 +1074,25 @@ function recomputeDerived(fullHeal) {
      那兩條路在遠攻模式下會補出第 2~5 隻。 */
   state.maxMonsters = state.encounterMode === 'ranged' ? 1 : MELEE_MAX_MONSTERS;
 
-  // HIT / FLEE：經典 RO 常數公式
-  state.hit = 175 + bl + cDex;
-  state.flee = 100 + bl + cAgi;
+  // HIT / FLEE：經典 RO 常數公式；四轉 CON 的命中／迴避加成在此統一併入。
+  const traitCON = getCardBonus('con');
+  const traitSTA = getCardBonus('sta');
+  const traitWIS = getCardBonus('wis');
+  const traitCRT = getCardBonus('crt');
+  const traitPOW = getCardBonus('pow');
+  const traitSPL = getCardBonus('spl');
+  state.hit = 175 + bl + cDex + traitCON * 2;
+  state.flee = 100 + bl + cAgi + traitCON * 2;
+
+  // 四轉特性衍生值。保留獨立欄位，供面板、戰鬥公式與後續裝備效果共用。
+  state.traitStats = { pow: traitPOW, sta: traitSTA, wis: traitWIS, spl: traitSPL, con: traitCON, crt: traitCRT };
+  state.res = traitSTA + Math.floor(traitSTA / 3) * 5 + (getCardBonus('res') || 0);
+  state.mres = traitWIS + Math.floor(traitWIS / 3) * 5 + (getCardBonus('mres') || 0);
+  state.hPlus = traitCRT;
+  state.cRate = Math.floor(traitCRT / 3);
+  state.critDmgPct = state.cRate;
+  state.pAtk = Math.floor(traitCON / 5);
+  state.sMatk = Math.floor(traitCON / 5);
 
   // 完全迴避（無視命中判定）與暴擊率（無視閃避判定）
   state.perfectDodge = Math.floor(cLuk / 10);
@@ -2359,7 +2375,7 @@ function recomputeDerived(fullHeal) {
   /* 戰鬥迴圈每次揮擊都會用到的卡片數值，先在這裡收斂成純量，
      免得每一擊都去掃一遍所有插槽的卡片 */
   // 女神之吻（#68）的暴擊傷害併進這一格：三個消費點（普攻、單體技、範圍技）一次接滿
-  state.cardCritDmgPct = getCardBonus('critDmgPct') + buffMult('critdmg').flatBonus;
+  state.cardCritDmgPct = getCardBonus('critDmgPct') + buffMult('critdmg').flatBonus + (state.critDmgPct || 0); // 四轉 CRT：每 3 點 C.RATE +1% 暴擊傷害
   state.cardBossDmgPct = getCardBonus('bossDmgPct');
   state.cardAllTargetDmgPct = getCardBonus('allTargetDmgPct');
   state.cardAllRaceDmgPct = getCardBonus('allRaceDmgPct');
@@ -2711,6 +2727,8 @@ function cardTargetDmgMult(monDef) {
   if (monDef.id && state.cardMonsterDmgBonus && state.cardMonsterDmgBonus[monDef.id]) bonus += state.cardMonsterDmgBonus[monDef.id];
   // 對所有階級敵人增傷（烏龜將軍／狂徒那類），以及只對首領類的增傷（深淵騎士）
   if (state.cardAllTargetDmgPct) bonus += state.cardAllTargetDmgPct / 100;
+  // 古代夢羅克貴族首飾：對所有屬性目標的物理傷害，與魔法端共用同一條專用詞條。
+  if (getCardBonus('allPropertyDmgPct')) bonus += getCardBonus('allPropertyDmgPct') / 100;
   if (monDef.isBoss && state.cardBossDmgPct) bonus += state.cardBossDmgPct / 100;
   return 1 + bonus;
 }
@@ -2934,6 +2952,13 @@ function monDebuffAspd(mon) {
    `MONSTER_DAMAGE_SCALE` 是唯一的難度旋鈕：官方數值是給有走位、有隊友、
    會嗑藥的即時遊戲用的，放置遊戲是站著硬扛。要調難度只改這一個數。 */
 const MONSTER_DAMAGE_SCALE = 1.0;
+function applyTraitResistance(rawDmg, isMagic) {
+  const resistance = Math.max(0, isMagic ? (state.mres || 0) : (state.res || 0));
+  // Official fourth-job RES/MRES: final damage multiplier (2000 + R) / (2000 + 5R).
+  // This resistance is applied after the existing DEF/MDEF calculation.
+  const multiplier = (2000 + resistance) / (2000 + 5 * resistance);
+  return Math.max(1, Math.round(rawDmg * multiplier));
+}
 function mitigatePlayerIncoming(rawDmg, hardDef, softDef) {
   /* 下限從 0 放寬到 −100：**硬魔防可以是負的**（迪塔勒泰晤勒斯卡片免疫冰凍的代價是
      MDEF−20），夾在 0 會讓那張卡的代價完全不存在，變成純賺。
@@ -6700,6 +6725,8 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
       if (monDef.race === 'brute') targetPct += getCardBonus('magicRaceDmg_animal');
     }
     targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
+    // 古代夢羅克貴族首飾：全屬性目標的魔法傷害，與物理端使用相同專用詞條，避免雙重計算。
+    targetPct += getCardBonus('allPropertyDmgPct');
     if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
     // 米德加爾特大太陽神頭盔：全屬性魔法傷害加成，與物理近／遠距離乘區分開。
     // 全屬性魔法傷害（裝備 allEleDmg）：獨立於指定屬性、種族與體型的通用魔法增傷。
@@ -7250,7 +7277,7 @@ function isMonsterRangedPhysicalSkill(sk) {
     }
     // 睡眠 ×1.5 與永恆之光 ×2：官方是**最後**的傷害倍率，要在防禦之後乘。
     // 乘在防禦之前的話，軟防那一段是固定減值，會讓實際倍率大於寫出來的數字
-    dmg = Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult()));
+    dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), !!sk.magic);
     dmg = rejectSwordAbsorb(dmg, mon, monDef);  // 霸王魂（#79）
     /* 遺物免傷（#113）也要擋技能。只擋普攻的話，會放技能的怪身上
        「20% 免疫」等於不存在——而高等圖幾乎每隻怪都會放技能。 */
@@ -7528,7 +7555,7 @@ function monsterAttackSingle(mon) {
      等於睡著的玩家被技能打會痛、被普攻打卻不會。
      位置在防禦之後：官方這類是最後的傷害倍率，乘在防禦之前的話軟防那段固定減值
      會讓實際倍率大於寫出來的數字（實測 ×2 會變成 ×2.5）。 */
-  let dmg = Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult()));
+  let dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), false);
   dmg = rejectSwordAbsorb(dmg, mon, monDef);    // 霸王魂（#79）
   // 能量外套：啟動中減傷並消耗SP，SP%低於下限時暫停生效
   if (state.hasEnergyCoatUnlock && state.energyCoatEnabled) {
@@ -10029,7 +10056,7 @@ function castSkillInner(skillId, opts) {
           const intPct = (state.stats.int / 99) * (sk.intScaleMax || 0);
           aoeMult *= (1 + lvlPct / 100 + intPct / 100);
         }
-        // 第四轉 POW／SPL 尚未有獨立素質欄，物理 POW 以 STR、魔法 SPL 以 INT 作近似比例。
+        // 四轉 POW／SPL 的獨立素質已由裝備共用引擎提供；此處技能專屬 powScaleMax 仍依技能資料設定。
         if (sk.powScaleMax) aoeMult *= 1 + (state.stats.str / 99) * sk.powScaleMax / 100;
         if ((sk.id === 'rk_dragonbreath' || sk.id === 'v25_dragon_knight_12') && state.dragonBreathBonusPct) {
           aoeMult *= (1 + state.dragonBreathBonusPct / 100);
@@ -12015,7 +12042,9 @@ function openAllBoxes(itemId) {
   let worth = 0;
   Object.entries(got).forEach(([id, q]) => {
     addItem(id, q);
-    recordLootNotice(id, q, (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) ? '卡冊' : '開寶箱');
+    if (def.boxOpen === 'violet' || def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) {
+      recordLootNotice(id, q, def.boxOpen === 'violet' ? '紫箱' : '卡冊');
+    }
     if (def.boxOpen === 'any' || def.boxOpen === 'violet') codexRecordBox(id);
     if (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) codexRecordBoxCardIfAlbumOnly(id);
     worth += (ITEMS[id].sell || 0) * q;
@@ -12051,7 +12080,9 @@ function useItem(itemId) {
       if (!got) { logMsg(`⚠️ ${def.name} 打不開（道具池是空的）。`); return false; }
       removeItem(itemId, 1);
       addItem(got, 1);
-      recordLootNotice(got, 1, (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) ? '卡冊' : '開寶箱');
+      if (def.boxOpen === 'violet' || def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) {
+        recordLootNotice(got, 1, def.boxOpen === 'violet' ? '紫箱' : '卡冊');
+      }
       if (def.boxOpen === 'any' || def.boxOpen === 'violet') codexRecordBox(got);
       if (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) codexRecordBoxCardIfAlbumOnly(got);
       const g = ITEMS[got];
@@ -12777,7 +12808,7 @@ function skillSpCost(sk, lv) {
    注意 `hpItemEffectBonusPct` 是**道具**專用（禪心給的），跟治癒術是兩回事，不要混。 */
 function healOutputMult() {
   const passive = 1 + ((state.healBonusPct || 0) / 100);
-  return passive * buffMult('healrecv').mult;
+  return passive * buffMult('healrecv').mult * (1 + Math.max(0, state.hPlus || 0) / 100);
 }
 
 /* ---------------- 條件式裝備加成 ----------------
@@ -12922,11 +12953,13 @@ function canonicalBonusKey(key) {
   const raw = String(key || '');
   const lower = raw.toLowerCase();
   if (aliases[lower]) return aliases[lower];
-  const prefixes = ['perBaseLv1_', 'perBaseLv5Cap100_', 'perBaseLv10Cap150_', 'perBaseLv5_', 'perBaseLv10_', 'perBaseLv15_',
-    'perBaseLv210_', 'perBaseLv2_', 'perJobLv1_', 'perJobLv2_', 'perJobLv10_', 'perStat_', 'perSkill_'];
+  const prefixes = ['perBaseLv1_', 'perBaseLv5Cap100_', 'perBaseLv10Cap150_', 'perBaseLv10Cap160_', 'perBaseLv10Start20Cap120_', 'perBaseLv5_', 'perBaseLv10_', 'perBaseLv15_',
+    'perBaseLv210_', 'perBaseLv2_', 'perJobLv1_', 'perJobLv2_', 'perJobLv5_', 'perJobLv10_', 'perStat_', 'perSkill_'];
   for (const prefix of prefixes) {
     if (!raw.startsWith(prefix)) continue;
     const suffix = raw.slice(prefix.length);
+    // 多段別名（p_atk／s_matk）必須先整段比對，不能只正規化最後一段。
+    if (aliases[suffix.toLowerCase()]) return prefix + aliases[suffix.toLowerCase()];
     const bits = suffix.split('_');
     if (bits.length) {
       const last = bits[bits.length - 1];
@@ -13008,7 +13041,7 @@ function effectiveGearBonuses() {
     /* 平鋪的特殊鍵（perBaseLv10_atk 等）也要進總表——getCardBonus() 會按前綴解析。
        只挑底線開頭的鍵，避免把 atk/def 那些平鋪數值重複算一次。 */
     for (const [k, v] of Object.entries(def)) {
-      if (/^per(BaseLv1|BaseLv2|BaseLv5Cap100|BaseLv10Cap150|BaseLv5|BaseLv10|BaseLv15|BaseLv210|JobLv1|JobLv2|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') { const nk = canonicalBonusKey(k); total[nk] = (total[nk] || 0) + v; }
+      if (/^per(BaseLv1|BaseLv2|BaseLv5Cap100|BaseLv10Cap150|BaseLv10Cap160|BaseLv10Start20Cap120|BaseLv5|BaseLv10|BaseLv15|BaseLv210|JobLv1|JobLv2|JobLv5|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') { const nk = canonicalBonusKey(k); total[nk] = (total[nk] || 0) + v; }
       if (k.startsWith('spCost_') && typeof v === 'number') total[k] = (total[k] || 0) + v;
     }
     if (def.perRefine) {
@@ -13070,7 +13103,24 @@ function effectiveGearBonuses() {
       const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
       mergeBonus(total, def.perRefineSquareMatkHalf, r * r / 2);
     }
-    (def.condBonus || []).forEach(cb => { if (condMet(cb.when, host, lo)) mergeBonus(total, cb.bonus); });
+    (def.condBonus || []).forEach(cb => {
+      if (!condMet(cb.when, host, lo)) return;
+      /* 裝備條件式精煉詞條（perNRefine_<目標>）：
+         例如「精煉每+3時 DEX+1」或「精煉每+1時 DEF+5」。
+         卡片已有相同格式的處理；裝備本體也必須走相同規則，否則資料只會顯示不會生效。 */
+      const effBonus = {};
+      let hasPerRefine = false;
+      for (const [bk, bv] of Object.entries(cb.bonus || {})) {
+        const pm = /^per(\\d+)Refine_(.+)$/.exec(bk);
+        if (pm) {
+          const tgt = {};
+          tgt[pm[2]] = bv * Math.floor((host.refine || 0) / Number(pm[1]));
+          mergeBonus(total, tgt);
+          hasPerRefine = true;
+        } else effBonus[bk] = bv;
+      }
+      if (Object.keys(effBonus).length || !hasPerRefine) mergeBonus(total, cb.bonus ? effBonus : cb.bonus);
+    });
     /* condPerRefine：依職業／裝備條件啟動的精煉成長。
        例如瓦爾基里的披風：服事／法師／弓手成長完全迴避，近戰系成長近距離物理反射；
        每精煉+1增加指定值，並可用 cap 將計算封頂。 */
@@ -13548,6 +13598,21 @@ function getCardBonus(stat) {
     if (target !== stat) continue;
     total += Math.floor(Math.min(state.baseLevel || 0, 150) / 10) * all[k];
   }
+  /* perBaseLv10Cap160_<目標>：BaseLv 每滿 10 級增加指定目標，最高計至 Lv160（時間守護者試用武器）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv10Cap160_')) continue;
+    const target = k.slice('perBaseLv10Cap160_'.length);
+    if (target !== stat) continue;
+    total += Math.floor(Math.min(state.baseLevel || 0, 160) / 10) * all[k];
+  }
+  /* perBaseLv10Start20Cap120_<目標>：BaseLv20 起算，每滿 10 級增加，最高計至 Lv120（超合金武器）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv10Start20Cap120_')) continue;
+    const target = k.slice('perBaseLv10Start20Cap120_'.length);
+    if (target !== stat) continue;
+    const lv = Math.min(state.baseLevel || 0, 120);
+    if (lv >= 20) total += (Math.floor((lv - 20) / 10) + 1) * all[k];
+  }
   /* perBaseLv15_<目標>（成長型武器系列）：官方「BaseLv 每+15時 MATK+3（上限為Lv195）」。
      desc 沒寫起算門檻，從 Lv1 起算、封頂 195（195/15＝13 層）。 */
   for (const k in all) {
@@ -13591,6 +13656,14 @@ function getCardBonus(stat) {
     const target = k.slice('perJobLv2_'.length);
     if (target !== stat) continue;
     total += Math.floor((state.jobLevel || 0) / 2) * all[k];
+  }
+  /* perJobLv5_<目標>：JobLv 每滿 5 級增減指定目標（沙漏項鍊四轉六素質衰減）。
+     bonus 可為負值；依完整 JobLv 級距計算，不做猜測性封頂。 */
+  for (const k in all) {
+    if (!k.startsWith('perJobLv5_')) continue;
+    const target = k.slice('perJobLv5_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.jobLevel || 0) / 5) * all[k];
   }
   /* perJobLv10_<目標>：JOB 每滿 10 級增加指定目標。支援任意 bonus key，
      不限於舊版硬編碼的 ATK/HIT/CRI。 */

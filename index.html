@@ -232,7 +232,6 @@ window.getitemDisplayName = getItemDisplayName;
           </div>
           <div class="monster-area-right" id="monster-area"></div>
           <div id="damage-container" class="damage-container"></div>
-          <section id="loot-notice-feed" class="loot-notice-feed" aria-label="道具獲得紀錄"></section>
         </div>
         <div id="loot-detail-modal" class="loot-detail-modal hidden" onclick="if(event.target===this)closeLootNoticeDetail()">
           <div class="loot-detail-card" role="dialog" aria-modal="true" aria-labelledby="loot-detail-title">
@@ -247,10 +246,7 @@ window.getitemDisplayName = getItemDisplayName;
           <div class="log-pane"><div class="log-pane-head">技能</div><div id="log-skill" class="log-pane-body"></div></div>
           <div class="log-pane"><div class="log-pane-head">隊友</div><div id="log-ally" class="log-pane-body"></div></div>
         </div>
-        <div id="battle-item-detail" class="battle-item-detail hidden" aria-live="polite">
-          <div class="battle-item-detail-head"><b>📦 物品詳細資料</b><button class="btn-small ghost" onclick="clearBattleItemDetail()">收起</button></div>
-          <div id="battle-item-detail-body"></div>
-        </div>
+        <section id="loot-notice-feed" class="loot-notice-feed" aria-label="紫箱／卡冊開啟紀錄"></section>
       </section>
 
       <section class="side-panel">
@@ -328,28 +324,28 @@ window.getitemDisplayName = getItemDisplayName;
 <!-- 免責聲明的唯一一份文字，其餘各處都從這裡取用 -->
 
 
-<script src="js/about.js?v=2.5.124"></script>
-<script src="js/hp_sp_tables.js?v=2.5.124"></script>
-<script src="js/img_alias.js?v=2.5.124"></script>
-<script src="js/aspd_data.js?v=2.5.124"></script>
-<script src="js/skills.js?v=2.5.124"></script>
-<script src="js/monster_skills.js?v=2.5.124"></script>
-<script src="js/jobs.js?v=2.5.124"></script>
-<script src="js/data.js?v=2.5.124"></script>
+<script src="js/about.js?v=2.5.144"></script>
+<script src="js/hp_sp_tables.js?v=2.5.144"></script>
+<script src="js/img_alias.js?v=2.5.144"></script>
+<script src="js/aspd_data.js?v=2.5.144"></script>
+<script src="js/skills.js?v=2.5.144"></script>
+<script src="js/monster_skills.js?v=2.5.144"></script>
+<script src="js/jobs.js?v=2.5.144"></script>
+<script src="js/data.js?v=2.5.144"></script>
 <!-- 遺物要在 data.js 之後：它會把自己的道具 Object.assign 進 ITEMS -->
-<script src="js/relics.js?v=2.5.124"></script>
-<script src="js/v2_content.js?v=2.5.124"></script>
-<script src="js/v2_4_content.js?v=2.5.124"></script>
-<script src="js/v2_5_content.js?v=2.5.124"></script>
-  <script src="js/v2_6_skill_migration.js?v=2.5.124"></script>
-  <script src="js/v2_7_headgear_migration.js?v=2.5.124"></script>
-  <script src="js/v2_8_headgear_round16.js?v=2.5.124"></script>
-  <script src="js/v2_9_headgear_round17.js?v=2.5.124"></script>
-<script src="js/item_display_name_fix.js?v=2.5.124"></script>
-<script src="js/v2_artifacts.js?v=2.5.124"></script>
-<script src="js/achievements.js?v=2.5.124"></script>
-<script src="js/engine.js?v=2.5.124"></script>
-<script src="js/ui.js?v=2.5.124"></script>
+<script src="js/relics.js?v=2.5.144"></script>
+<script src="js/v2_content.js?v=2.5.144"></script>
+<script src="js/v2_4_content.js?v=2.5.144"></script>
+<script src="js/v2_5_content.js?v=2.5.144"></script>
+  <script src="js/v2_6_skill_migration.js?v=2.5.144"></script>
+  <script src="js/v2_7_headgear_migration.js?v=2.5.144"></script>
+  <script src="js/v2_8_headgear_round16.js?v=2.5.144"></script>
+  <script src="js/v2_9_headgear_round17.js?v=2.5.144"></script>
+<script src="js/item_display_name_fix.js?v=2.5.144"></script>
+<script src="js/v2_artifacts.js?v=2.5.144"></script>
+<script src="js/achievements.js?v=2.5.144"></script>
+<script src="js/engine.js?v=2.5.144"></script>
+<script src="js/ui.js?v=2.5.144"></script>
 <script>
   window.addEventListener('load', initApp);
   window.addEventListener('beforeunload', () => { if (typeof state !== 'undefined' && state) saveGame(); });

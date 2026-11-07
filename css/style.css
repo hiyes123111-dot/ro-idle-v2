@@ -305,10 +305,10 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .monster-card { text-align: center; min-width: 100px; }
 .monster-card.target { border: 2px solid var(--gold); border-radius: 12px; padding: 8px; background: rgba(212,175,55,0.05); }
 
-/* 寶箱／卡冊獲得紀錄：放在戰鬥場景左下方的對話泡泡位置 */
+/* 紫箱／卡冊開啟紀錄：位於戰鬥日誌下方、分頁上方 */
 .loot-notice-feed {
-  position: absolute; left: 8px; bottom: 8px; z-index: 8;
-  width: min(340px, 58%); max-height: 116px; overflow: hidden;
+  position: relative; z-index: 1;
+  width: 100%; max-height: 132px; overflow: auto; box-sizing: border-box;
   padding: 6px 8px; border: 1px solid rgba(224,184,75,.72);
   border-radius: 10px; background: rgba(18,20,31,.88);
   color: var(--ink); box-shadow: 0 3px 12px rgba(0,0,0,.32);
@@ -333,7 +333,7 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .loot-detail-item h3 { margin:0 0 4px; color:var(--gold-soft); font-size:16px; }
 .loot-detail-desc { margin-top:12px; white-space:pre-wrap; line-height:1.55; color:var(--ink-dim); font-size:13px; }
 @media (max-width: 600px) {
-  .loot-notice-feed { width:min(290px,64%); max-height:104px; left:5px; bottom:5px; padding:5px 6px; font-size:10px; }
+  .loot-notice-feed { width:100%; max-height:120px; padding:5px 6px; font-size:10px; }
   .loot-notice-icon { width:16px; height:16px; flex-basis:16px; }
 }
 
@@ -2026,26 +2026,3 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .drill-source-empty{font-size:.85em;opacity:.7}
 
 
-/* 戰鬥紀錄下方、戰場地圖上方的常駐物品詳細資料區 */
-.battle-item-detail {
-  position: relative;
-  z-index: 3;
-  margin: 6px 8px 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--gold, #b99a4b);
-  border-radius: 10px;
-  background: rgba(25, 20, 29, 0.94);
-  color: var(--text, #e8dfd0);
-  max-height: 190px;
-  overflow-y: auto;
-}
-.battle-item-detail.hidden { display: none; }
-.battle-item-detail-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
-.battle-item-detail-content { display:flex; align-items:flex-start; gap:10px; }
-.battle-item-detail-icon { flex:0 0 38px; font-size:28px; text-align:center; }
-.battle-item-detail-info { min-width:0; }
-.battle-item-detail-info p { margin:4px 0 0; color:#b9c9c5; font-size:12px; }
-.battle-item-sources { margin-top:7px; padding-top:6px; border-top:1px solid rgba(185,154,75,.35); font-size:12px; }
-.battle-item-sources > div { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:4px; }
-.inv-row-main[role="button"] { cursor:pointer; }
-.inv-row-main[role="button"]:active { opacity:.78; }
