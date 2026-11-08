@@ -1952,7 +1952,7 @@ function triggerMonsterDie() {
    一律只取最後 30 則，畫完捲到底。 */
 const LOG_PANES = { main: 'log-main', skill: 'log-skill', ally: 'log-ally' };
 
-let _lootFeedCollapsed = false;
+let _lootFeedCollapsed = true; // 預設收合，避免戰鬥畫面被獲得紀錄佔用
 function lootEscapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -5179,11 +5179,14 @@ function renderCharacterTab() {
           >🔄 洗點 ${STAT_RESET_COST_ZENY.toLocaleString()}z</button>`;
       })()}
     </div>
+    <div class="derived-grid trait-summary" style="margin-top:10px;">
+      <div style="grid-column:1 / -1;font-weight:700;color:var(--gold);">四轉六大特性</div>
+      <div title="四轉六大特性總值，包含裝備、卡片、套裝與 JobLv 成長效果。">四轉特性：POW ${state.traitStats?.pow || 0}　STA ${state.traitStats?.sta || 0}　WIS ${state.traitStats?.wis || 0}　SPL ${state.traitStats?.spl || 0}　CON ${state.traitStats?.con || 0}　CRT ${state.traitStats?.crt || 0}</div>
+      <div title="四轉特性衍生值：RES 由 STA、MRES 由 WIS、H.PLUS 與 C.RATE 由 CRT、P.ATK 與 S.MATK 由 CON 計算。">四轉衍生：RES ${state.res || 0}　MRES ${state.mres || 0}　H.PLUS ${state.hPlus || 0}　C.RATE ${state.cRate || 0}　P.ATK ${state.pAtk || 0}　S.MATK ${state.sMatk || 0}</div>
+    </div>
     ${setListHtml}
     ${buffListHtml}
     <div class="derived-grid">
-      <div title="四轉六大特性總值，包含裝備、卡片、套裝與 JobLv 成長效果。">四轉特性：POW ${state.traitStats?.pow || 0}　STA ${state.traitStats?.sta || 0}　WIS ${state.traitStats?.wis || 0}　SPL ${state.traitStats?.spl || 0}　CON ${state.traitStats?.con || 0}　CRT ${state.traitStats?.crt || 0}</div>
-      <div title="四轉特性衍生值：RES 由 STA、MRES 由 WIS、H.PLUS 與 C.RATE 由 CRT、P.ATK 與 S.MATK 由 CON 計算。">四轉衍生：RES ${state.res || 0}　MRES ${state.mres || 0}　H.PLUS ${state.hPlus || 0}　C.RATE ${state.cRate || 0}　P.ATK ${state.pAtk || 0}　S.MATK ${state.sMatk || 0}</div>
       <div>物理攻擊 ATK：${state.atk}${(() => { const r = getRefinementLevel('weapon'); const wId = getEquipBaseItemId('weapon'); const wLv = wId ? getRefineWeaponLv(ITEMS[wId]) : 1; return r > 0 ? ` (+${getRefinementAtkBonus(r, wLv)}精煉)` : ''; })()}</div>
       <div>魔法攻擊 MATK：${state.matkMin}~${state.matkMax}</div>
       <div title="硬防（裝備）走比例減傷、軟防（等級+VIT）每一擊固定扣血，兩者運算方式不同">防禦 DEF：${state.defHard || 0}+${state.defSoft || 0}${(() => { let refBonus = 0; ['head_top','head_mid','head_bottom','armor','shield','garment','footgear','accessory1','accessory2'].forEach(s => { const lv = getRefinementLevel(s); if (lv > 0) refBonus += getRefinementDefBonus(lv); }); return refBonus > 0 ? ` (+${refBonus}精煉)` : ''; })()}　<span class="dim">硬防減傷 ${Math.round((1 - (4000 + (state.defHard||0)) / (4000 + 10 * (state.defHard||0))) * 100)}%</span></div>

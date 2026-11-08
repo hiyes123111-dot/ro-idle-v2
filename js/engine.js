@@ -2280,8 +2280,9 @@ function recomputeDerived(fullHeal) {
     });
   }
 
-  // 女神項鍊：裝備提供的治癒量 +6%，與冥想被動共用治癒倍率消費端。
-  state.healBonusPct += getCardBonus('healRecvPct');
+  // 裝備治癒量加成：healPct（自身治癒技能效果）與 healRecvPct（受到治癒效果）
+  // 在本作單人戰鬥中共用治癒輸出倍率；熾天使花冠 perStat_int_8_healPct 也由此生效。
+  state.healBonusPct += getCardBonus('healPct') + getCardBonus('healRecvPct');
 
   // 卡片加成 — 固定值（僅影響衍生數值，不修改 base stats 避免累加）
   // 裝備與卡片的 ATK 算「裝備攻擊力」，跟武器本體同一桶，會吃體型與屬性修正
@@ -2454,32 +2455,31 @@ function recomputeDerived(fullHeal) {
   state.cardKillDrops = [];
   {
     const lo = buildLoadout();
-    lo.cards.forEach(cardId => {
+    Object.entries(lo.cardHosts).forEach(([cardId, hosts]) => {
       const c = CARDS[cardId];
       if (!c) return;
-      // 條件式的那幾條（精煉、職業、同時裝了哪張卡、素質門檻）共用 condMet()
-      const pass = e => {
-        if (!e.when) return true;
-        const host = (lo.cardHosts[cardId] || [])[0] || null;
-        return condMet(e.when, host, lo);
-      };
-      (c.autoSpell || []).forEach(e => {
-        // 自動念咒也可以帶條件（例：鴞裊首領要跟鴞裊男爵一起裝備才會放雷擊術）
-        if (!pass(e)) return;
-        const bucket = state.cardAutoSpells[e.on];
-        if (bucket) bucket.push(e);
+      // 同一張卡可插在多件裝備上；每張實際插入的卡都要獨立檢查宿主精煉條件。
+      // 舊版只拿 hosts[0]，第二張同名卡即使精煉達標也會被漏掉。
+      (hosts || [null]).forEach(host => {
+        const pass = e => !e.when || condMet(e.when, host, lo);
+        (c.autoSpell || []).forEach(e => {
+          // 自動念咒也可以帶條件（例：鴞裊首領要跟鴞裊男爵一起裝備才會放雷擊術）
+          if (!pass(e)) return;
+          const bucket = state.cardAutoSpells[e.on];
+          if (bucket) bucket.push(e);
+        });
+        (c.ailment || []).forEach(e => {
+          if (!pass(e)) return;
+          const bucket = state.cardAilments[e.on];
+          if (bucket) bucket.push(e);
+        });
+        (c.onAttackBuff || []).forEach(e => {
+          if (!pass(e)) return;
+          const bucket = state.cardAttackBuffs[e.on];
+          if (bucket) bucket.push(e);
+        });
+        (c.killDrop || []).forEach(e => { if (pass(e)) state.cardKillDrops.push(e); });
       });
-      (c.ailment || []).forEach(e => {
-        if (!pass(e)) return;
-        const bucket = state.cardAilments[e.on];
-        if (bucket) bucket.push(e);
-      });
-      (c.onAttackBuff || []).forEach(e => {
-        if (!pass(e)) return;
-        const bucket = state.cardAttackBuffs[e.on];
-        if (bucket) bucket.push(e);
-      });
-      (c.killDrop || []).forEach(e => { if (pass(e)) state.cardKillDrops.push(e); });
     });
     /* 裝備**自己**的觸發型特效（#127）。跟卡片走同一組籃子、同一套資料格式——
        官方有一整批武器寫著「攻擊時有一定機率施展○○」「機率讓敵人中毒」，
@@ -2494,6 +2494,29 @@ function recomputeDerived(fullHeal) {
         if (!pass(e)) return;
         const bucket = state.cardAutoSpells[e.on];
         if (bucket) bucket.push(e);
+      });
+      /* 部分高階裝備把精煉觸發寫在 condBonus 的 autoSpell_<skill> 欄位，
+         不是 def.autoSpell 陣列。舊版只把它當一般 bonus，導致精煉達標後仍不會念咒。
+         只轉換已核對技能 ID 與等級的項目；未收錄技能不猜測替代。 */
+      const conditionalAutoSpellMeta = {
+        'smoky_transformhat_lt:autoSpell_chainLightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
+        // 同一件裝備在舊資料與新資料有兩種 itemId 寫法，兩者都必須接到同一個觸發效果。
+        'smoky_transform_hat_lt:autoSpell_chainLightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
+        'changeable_magic_cape:autoSpell_thunderstorm': { skill: 'thunderstorm', lv: 5, melee: true },
+        'changeable_magic_cape:autoSpell_heavensdrive': { skill: 'heavensdrive', lv: 5, melee: true },
+        'magic_sword_lt:autoSpell_meteorstorm': { skill: 'meteorstorm', lv: 7, melee: true },
+        'magic_sword_lt:autoSpell_psychicwave': { skill: 'so_psychicwave', lv: 5, melee: true },
+        'oriental_sword_lt:autoSpell_sonicwave': { skill: 'rk_sonicwave', lv: 2, melee: true },
+        'cd_in_mouthk:autoSpell_gravitation': { skill: 'hw_gravitation', lv: 3, melee: true }
+      };
+      (def.condBonus || []).forEach(cb => {
+        if (!cb || !cb.bonus || (cb.when && !condMet(cb.when, host, lo))) return;
+        Object.entries(cb.bonus).forEach(([key, chance]) => {
+          const meta = conditionalAutoSpellMeta[`${d.itemId}:${key}`];
+          if (!meta || !(Number(chance) > 0) || !findSkillAnywhere(meta.skill)) return;
+          state.cardAutoSpells.attack.push({ on: 'attack', skill: meta.skill, lv: meta.lv,
+            chance: Number(chance), melee: !!meta.melee, sourceItemId: d.itemId });
+        });
       });
       (def.ailment || []).forEach(e => {
         if (!pass(e)) return;
@@ -2521,6 +2544,8 @@ function recomputeDerived(fullHeal) {
     'raceDmgTaken_': 'cardRaceDmgTaken',
     'monDmg_': 'cardMonsterDmgBonus',
     'eleReduce_': 'cardEleDmgReduce',
+    // 裝備資料的全屬性承傷減免沿用 eleDmgReduce_all 命名；保留在同一桶供通用承傷公式讀取。
+    'eleDmgReduce_': 'cardEleDmgReduce',
     'raceDmgReduce_': 'cardRaceDmgReduce',
     'sizeDmgReduce_': 'cardSizeDmgReduce'
   };
@@ -2725,8 +2750,12 @@ function cardTargetDmgMult(monDef) {
     if (fam && state.cardFamilyDmgBonus[fam]) bonus += state.cardFamilyDmgBonus[fam];
   }
   if (monDef.id && state.cardMonsterDmgBonus && state.cardMonsterDmgBonus[monDef.id]) bonus += state.cardMonsterDmgBonus[monDef.id];
-  // 對所有階級敵人增傷（烏龜將軍／狂徒那類），以及只對首領類的增傷（深淵騎士）
+  // 對所有階級敵人增傷（烏龜將軍／狂徒那類），以及只對首領類的增傷（深淵騎士）。
+  // 天秤座寶冠的 allClassDmg 明確是「物理傷害」，不可併入 allTargetDmgPct，
+  // 因為後者同時被魔法傷害公式使用。
   if (state.cardAllTargetDmgPct) bonus += state.cardAllTargetDmgPct / 100;
+  const allClassPhysical = getCardBonus('allClassDmg');
+  if (allClassPhysical) bonus += allClassPhysical / 100;
   // 古代夢羅克貴族首飾：對所有屬性目標的物理傷害，與魔法端共用同一條專用詞條。
   if (getCardBonus('allPropertyDmgPct')) bonus += getCardBonus('allPropertyDmgPct') / 100;
   if (monDef.isBoss && state.cardBossDmgPct) bonus += state.cardBossDmgPct / 100;
@@ -3839,6 +3868,26 @@ function takeReflectDamage(monDef, amount) {
    後面補齊其餘屬性：這份清單漏了哪個屬性，`armorEle_<那個屬性>` 就會**默默沒作用**——
    醬缸章魚卡片（水）就是這樣寫好了卻不生效（#126）。列全比列剛好安全。 */
 const ARMOR_ELEMENT_PRIORITY = ['shadow', 'holy', 'ghost', 'water', 'fire', 'wind', 'earth', 'poison', 'undead'];
+
+// 怪物普通攻擊的遠距離名單：僅列出資料中可確認使用弓、火槍或投射武器的怪物。
+// 不依種族或名稱關鍵字推測，避免把一般近戰怪物誤判成遠距離。
+const MONSTER_RANGED_BASIC_ATTACKS = new Set([
+  'archer_skeleton', 'orc_archer', 'goblin_archer', 'raydric_archer',
+  'kobold_archer', 'archer_guardian', 'antique_firelock',
+  'g_archer_skeleton', 'g_raydric_archer', 'g_kobold_archer',
+  'g_orc_archer', 'g_antique_firelock', 'g_goblin_archer',
+  'wootan_shooter', 'g_gargoyle', 'shecil', 'kavac', 'g_kavac',
+  'a_shecil', 'bow_guardian', 'i_orc_archer', 'silversniper',
+  'gld_kobold_archer', 'mg_raydric_archer', 'c1_kobold_archer',
+  'c3_gargoyle', 'c4_gargoyle', 'mm_m_gargoyle',
+  'p_archer_skeleton', 'ill_archer_skeleton', 'ill_stone_shooter',
+  'ill_wootan_shooter', 'g_ill_wootan_shooter', 'raydric_archer_h',
+  'gargoyle_h'
+]);
+
+function isMonsterRangedBasicAttack(monDef) {
+  return !!(monDef && MONSTER_RANGED_BASIC_ATTACKS.has(String(monDef.id || '').toLowerCase()));
+}
 
 function applyPlayerReflect(mon, monDef, dmgTaken) {
   // 反射盾（#66）跟卡片的反射相加：官方兩者本來就是各自獨立的一份比率
@@ -6683,11 +6732,12 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   const allSizeBonus = typeof getCardBonus === 'function'
     ? getCardBonus('allSizeDmgPct') + getCardBonus('sizeDmg_all') : 0;
   const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus) / 100;
-  // 近／遠距離物理加成放在共用武器鏈，讓普攻與物理技能都能吃到且不重複計算。
-  // 本作 isBowWeapon() 同時辨識弓、樂器、鞭子；其他武器視為近距離。
+  // 物理攻擊依武器判斷距離：弓、樂器、鞭子的普攻與物理技能皆視為遠距離；
+  // 其他武器的普攻與物理技能皆視為近距離。物理增傷 physPct 不受距離分類影響，
+  // 因此遠距離物理攻擊會同時吃到物理增傷與遠距離增傷。
   const rangedWeapon = !!(wId && isBowWeapon(wId));
   const meleePct = !rangedWeapon && typeof getCardBonus === 'function' ? getCardBonus('meleeDmgPct') : 0;
-  const rangedPct = rangedWeapon && typeof getCardBonus === 'function' ? getCardBonus('rangedDmgPct') : 0;
+  const rangedPct = rangedWeapon && typeof getCardBonus === 'function' ? (getCardBonus('rangedDmgPct') + getCardBonus('rangedPhysDmgPct')) : 0;
   // 詛咒 −25% 與挑釁 ±N%，整包 ATK 都吃
   return (wpn * variance * sizeMult * elemMult + nonWpn) * playerAtkMult() * buffMult('atk').mult * physPct * (1 + (meleePct + rangedPct) / 100);
 }
@@ -6724,6 +6774,10 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
       // 若未來出現 animal 魔法詞條，亦對應本專案的 brute。
       if (monDef.race === 'brute') targetPct += getCardBonus('magicRaceDmg_animal');
     }
+    // 魔法專用屬性增傷依「技能本身的屬性」計算；放在共用基底，
+    // 讓主動施法、自動念咒、受擊反制與場地／持續傷害都能吃到，避免只在主動施法乘區生效。
+    const magicElement = (sk && sk.element) || 'none';
+    targetPct += getCardBonus('magicEleDmg_' + magicElement);
     targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
     // 古代夢羅克貴族首飾：全屬性目標的魔法傷害，與物理端使用相同專用詞條，避免雙重計算。
     targetPct += getCardBonus('allPropertyDmgPct');
@@ -6732,6 +6786,8 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     // 全屬性魔法傷害（裝備 allEleDmg）：獨立於指定屬性、種族與體型的通用魔法增傷。
     targetPct += getCardBonus('allEleDmg');
     targetPct += getCardBonus('magicDmgPct');
+    // 魔法技能一律視為遠距離：遠距離增傷與魔法增傷是兩個獨立乘區，必須同時生效。
+    targetPct += getCardBonus('rangedDmgPct');
     return state.matk * buffMult('matk').mult * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
   }
   return weaponChainDamage(monDef, elemMult, state.buffs.some(b => b.type === 'maxroll'), sk);
@@ -7205,15 +7261,7 @@ function monsterCastSkillInner(mon, monDef, sk) {
     }
   }
 
-// 明確可判定為遠距離物理攻擊的怪物技能；不把一般魔法或不明攻擊誤算為遠距離。
-function isMonsterRangedPhysicalSkill(sk) {
-  if (!sk || sk.magic) return false;
-  const rangedIds = new Set([
-    'AC_DOUBLE', 'AC_SHOWER', 'AC_CHARGEARROW',
-    'SN_SHARPSHOOTING', 'HT_PHANTASMSHOOT', 'HT_POWER'
-  ]);
-  return rangedIds.has(String(sk.s || '').toUpperCase());
-}
+// 怪物技能距離分類依本作規則：魔法技能遠距離、物理技能近距離。
 
   let dmg = 0;
   if (sk.mult > 0) {
@@ -7250,8 +7298,9 @@ function isMonsterRangedPhysicalSkill(sk) {
     raw *= Math.max(0, 1 - Math.max(0, skillElemResist) / 100);
     raw *= Math.max(0, 1 - Math.max(0, skillRaceResist) / 100);
     raw *= Math.max(0, 1 - Math.max(0, skillSizeResist) / 100);
-    // 遠距離承傷：僅對技能資料可明確辨識的遠距離物理技能套用，避免把魔法或近戰技能誤判。
-    if (isMonsterRangedPhysicalSkill(sk)) {
+    // 距離與傷害類型分開判定：魔法技能一律遠距離；物理技能一律近距離。
+    // 遠距離減傷可與魔法技能自身的魔法承傷分類同時生效。
+    if (sk.magic) {
       const rangedResist = getCardBonus('rangedDmgResist') - getCardBonus('rangedDmgTakenPct');
       raw *= Math.max(0, 1 - Math.max(0, rangedResist) / 100);
     }
@@ -7304,8 +7353,11 @@ function isMonsterRangedPhysicalSkill(sk) {
         if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '+' + (mon.hp - before), 'heal');
       }
     }
-    // 卡片反射（#17）：技能傷害也算，只要不是魔法
-    if (!sk.magic) applyPlayerReflect(mon, monDef, dmg);
+    // 本作規則：物理攻擊技能一律視為近距離，因此可觸發近距離物理反射。
+    // 魔法技能一律視為遠距離，魔法反射另由上方 cardMagicReflectChance 處理。
+    if (!sk.magic) {
+      applyPlayerReflect(mon, monDef, dmg);
+    }
   } else {
     logMsg(`✨ ${nameOf()} 發動了！`);
   }
@@ -7495,6 +7547,13 @@ function monsterAttackSingle(mon) {
   // 詛咒：怪物 ATK 下降
   raw *= ailAtkMult(mon);
   if (state.physDmgTakenPct) raw *= Math.max(0, 1 - state.physDmgTakenPct / 100);
+  // 怪物普通攻擊：弓、火槍與投射武器視為遠距離物理，套用遠距離減傷。
+  // 其餘普通攻擊維持近距離物理；技能則依魔法遠距離／物理近距離規則處理。
+  const rangedBasicAttack = isMonsterRangedBasicAttack(monDef);
+  if (rangedBasicAttack) {
+    const rangedResist = getCardBonus('rangedDmgResist') - getCardBonus('rangedDmgTakenPct');
+    raw *= Math.max(0, 1 - Math.max(0, rangedResist) / 100);
+  }
 
   // 屬性相剋。防守側是玩家的鎧甲屬性（#17），沒插鎧甲屬性卡時是 none
   const elemMult = getElementMultiplier(monDef.element || 'none', state.playerElement || 'none');
@@ -7574,8 +7633,8 @@ function monsterAttackSingle(mon) {
   pDebuffConsumeOnce('dmgTakenPct');
   const berserkMsg = (state.hasBerserk && state.hp < state.maxHp * 0.25) ? '（狂暴中：ATK+32% DEF-55%）' : '';
   logMsg(`${monDef.name} 對你造成 ${dmg} 點傷害。${berserkMsg}`);
-  // 卡片反射（#17）：彈回去的是扣完防禦與護盾之後的實際傷害
-  applyPlayerReflect(mon, monDef, dmg);
+  // 卡片比例反射只適用近距離物理普攻；弓、火槍與投射武器的普攻不觸發。
+  if (!rangedBasicAttack) applyPlayerReflect(mon, monDef, dmg);
   // 怪物傷害飄字（玩家頭上）
   if (typeof showPlayerFloat === 'function') showPlayerFloat('-' + dmg, 'element-bad');
   if (state.hp <= 0) {
@@ -9502,8 +9561,16 @@ function skillCooldownItemBonus(skillId) {
   };
   const exact = getCardBonus('skillCd_' + skillId);
   if (exact) return exact;
+  // 舊裝備資料使用 cooldown_<技能ID>，與新版 skillCd_<技能ID> 同義；
+  // 只在實際技能冷卻計算時讀取，保留原本秒數與最低 0.5 秒限制。
+  const legacyCooldown = getCardBonus('cooldown_' + skillId);
+  if (legacyCooldown) return legacyCooldown;
   const legacyKey = Object.keys(legacyAliases).find(key => legacyAliases[key] === skillId);
-  if (legacyKey) return getCardBonus('skillCd_' + legacyKey);
+  if (legacyKey) {
+    const mapped = getCardBonus('skillCd_' + legacyKey);
+    if (mapped) return mapped;
+    return getCardBonus('cooldown_' + legacyKey);
+  }
   return 0;
 }
 function effectiveCooldownMs(skillId, baseCdSec) {
@@ -9579,8 +9646,11 @@ function tryAutoSpells(trigger, mon) {
   if (!list || !list.length) return;
   const melee = !isBowWeapon(getEquipBaseItemId('weapon'));
   for (const e of list) {
-    // 官方寫「受到近距離物理傷害時」的那幾張（邪惡噬人花），判斷同 tryCardAilments
-    if (e.melee && !melee) continue;
+    // attack/chain 是玩家主動攻擊，近距離條件依玩家武器判斷。
+    // hit 是玩家承受怪物攻擊，不能拿玩家手上的弓判斷怪物是否近戰；
+    // 目前怪物資料沒有完整的攻擊距離欄位，因此受擊觸發不套用玩家武器限制，
+    // 避免玩家拿弓時錯誤封鎖「受擊時」自動念咒。
+    if (e.melee && trigger !== 'hit' && !melee) continue;
     if (Math.random() * 100 >= e.chance) continue;
     const sk = findSkillAnywhere(e.skill);
     if (!sk) continue;
@@ -9588,6 +9658,8 @@ function tryAutoSpells(trigger, mon) {
     // 判斷方式跟 tryAutoCastSupportSkills() 一致，用 skillId 而不是 type。
     if (sk.type === 'buff_shield' && state.shields && state.shields.some(sh => sh.id === sk.id)) continue;
     if (state.buffs && state.buffs.some(b => b.skillId === sk.id)) continue;
+    // 持續場域也視為技能效果仍存在；避免裝備／卡片自動念咒在場域存續期間反覆重放。
+    if (state.activeFieldEffects && state.activeFieldEffects.some(f => f.skillId === sk.id)) continue;
 
     /* 「習得該技能到某等級時，改放高階版」（半龍人的火球術10、古鐘魔的自動防禦10、
        朽魔的泥沼地5、風魔巫師的雷鳴術10）。官方寫的是同一個技能升級，
@@ -9604,6 +9676,10 @@ function tryAutoSpells(trigger, mon) {
       const learned = skillLv(e.skill);
       if (learned > 0) lv = Math.min(sk.maxLv || learned, learned);
     }
+    // 一般技能會由 castSkill(forceLv) 統一限制等級；被動技能走
+    // applyPassiveSkillOnce()，不經過 castSkill，因此必須在分流前共用同一個等級上限。
+    // 否則卡片資料若指定高於技能 maxLv，陣列型效果會讀到不存在的等級欄位。
+    lv = Math.max(1, Math.min(Number(sk.maxLv) || lv || 1, Number(lv) || 1));
 
     // 本作把火狩／泥沼地／冰凍術／天使之怒做成了被動（passiveStat），castSkill() 放不出來，
     // 改成直接套用那個被動原本的效果一次
@@ -9833,11 +9909,7 @@ function castSkillInner(skillId, opts) {
 
   // 屬性相剋：技能屬性 vs 怪物屬性
   const skElement = sk.element || 'none';
-  /* 卡片的「某屬性**魔法**傷害 +N%」（無頭騾：水/聖魔法 +20%）。
-     跟 eleDmg_ 是兩件不同的事——那個看的是**怪物的屬性**（打水屬性的怪 +N%），
-     這個看的是**自己這一發的屬性**，而且只算魔法。放在 mult 上跟 skillDmg_ 同理。 */
-  const magicElePct = useMag && skElement !== 'none' && skElement !== 'neutral'
-    ? getCardBonus('magicEleDmg_' + skElement) : 0;
+  /* 魔法屬性增傷已集中在 skillBaseDamage()，讓主動、觸發及持續魔法共用，避免重複乘算。 */
   /* 聖十字攻擊：官方「裝備雙手矛時傷害會變成雙倍」（#66）。
      乘進 mult 而不是另外算一份傷害，理由跟 skillDmg_ 那條完全一樣——
      mult 是唯一能同時涵蓋直接傷害與場地／持續傷害的位置。 */
@@ -9850,7 +9922,7 @@ function castSkillInner(skillId, opts) {
   const weaponSpecial = (sk.daggerMult && wCat === 'dagger') ? sk.daggerMult
     : (sk.bowMult && wCat === 'bow') ? sk.bowMult : 1;
   const mult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult)
-    * (1 + skillDmgPct / 100) * (1 + magicElePct / 100) * twoHandSpear * weaponSpecial;
+    * (1 + skillDmgPct / 100) * twoHandSpear * weaponSpecial;
 
   // 各 case 推 buff 時常忘了標 skillId，導致「同 type 就算已生效」的判斷把不同來源
   // 混為一談（例：喝了集中藥水後，雙手劍加速因為都是 type:'aspd' 而永遠不再自動施放）。
@@ -11191,12 +11263,17 @@ function tryChainSpells(afterSkillId, afterLv) {
     if (Math.random() * 100 >= e.chance) continue;
     const sk = findSkillAnywhere(e.skill);
     if (!sk) continue;
+    // 被動技能不經過 castSkill(forceLv) 的等級限制，連鎖路徑也要自行夾限。
+    const lv = Math.max(1, Math.min(Number(sk.maxLv) || Number(e.lv) || 1, Number(e.lv) || 1));
     const ok = sk.type === 'passive'
-      ? applyPassiveSkillOnce(sk, e.lv || 1, 'chain', state.monsters && state.monsters[0])
-      : castSkill(e.skill, { free: true, forceLv: e.lv || 1 });
-    if (ok) logMsg(`🎴 元素連鎖！${sk.name} Lv${e.lv || 1} 發動！`);
-    // 連鎖成功就跳出：一環只接一發，下一環由那一發自己的 tryChainSpells 接手
-    break;
+      ? applyPassiveSkillOnce(sk, lv, 'chain', state.monsters && state.monsters[0])
+      : castSkill(e.skill, { free: true, forceLv: lv });
+    if (ok) {
+      logMsg(`🎴 元素連鎖！${sk.name} Lv${lv} 發動！`);
+      // 只有真正施放成功才結束本輪；失敗時繼續檢查同一 after 的下一條設定。
+      // 成功後下一環由該技能自己的 tryChainSpells 接手，避免同一環重複觸發。
+      break;
+    }
   }
 }
 
@@ -12863,6 +12940,12 @@ function condMet(when, host, lo) {
   if (when.refineMax != null && !(host && host.refine <= when.refineMax)) return false;
   if (when.baseLevelMin != null && (state.baseLevel || 0) < when.baseLevelMin) return false;
   if (when.baseLevelMax != null && (state.baseLevel || 0) > when.baseLevelMax) return false;
+  // 技能等級門檻：支援裝備「習得技能最高等級時」的條件效果。
+  if (when.skillMin) {
+    for (const [skillId, minLv] of Object.entries(when.skillMin)) {
+      if (skillLv(skillId) < minLv) return false;
+    }
+  }
   if (when.jobLine && !lo.jobLine.has(when.jobLine)) return false;
   /* `jobIs` 看的是**目前的職業本身**，不是血脈。官方有一批卡片寫「初學者或超級初學者
      裝備時」，用 jobLine 判斷會永遠成立——每個職業的血脈都從初學者開始。 */
@@ -12937,19 +13020,31 @@ function getSkillDamageBonus(sk) {
     holyspear: 'v2_ca_holy_spear', // 聖光之槍，對應元素使武器詞條的既有技能本體
     counterSlash: 'gx_counter', // 裝備說明明確寫「反擊斬」，對應十字斬首者技能
     melodystrike: 'cg_arrowvulcan', // 套裝條件明確寫「奧義箭亂舞」，對應既有技能
+    holy_light: 'holylight', // 盧雅帽子詞條「神聖之光」，本作技能登錄 ID 為 holylight
+    me_axe_tornado: 'me_tornado',
+    heavyearthquake: 'heavensdrive', // 機匠「戰斧颶風」裝備舊鍵，對應既有龍捲風斧技能
+    hundredspear: 'rk_hundredspear', // 百矛穿刺，對應盧恩騎士技能資料
+    rollingcutter: 'gx_rollingcutter', // 迴旋刃，對應十字斬首者技能資料
+    windcutter: 'rk_windcutter', // 風刃，對應盧恩騎士技能資料
   };
-  const mappedId = legacySkillAliases[shortId] || legacySkillAliases[sk.id];
-  // 僅在目標技能確實存在時套用別名；防止舊版曾使用的虛構／不存在 ID 吃掉裝備加成。
-  if (mappedId && typeof SKILLS !== 'undefined' && SKILLS[mappedId]) {
-    return getCardBonus('skillDmg_' + mappedId);
-  }
-  const legacyKey = Object.keys(legacySkillAliases).find(key => legacySkillAliases[key] === sk.id);
-  return legacyKey ? getCardBonus('skillDmg_' + legacyKey) : 0;
+  // 舊資料鍵指向目前技能 ID；必須讀取舊鍵本身，而不是錯讀成 skillDmg_<目標ID>。
+  // 同一技能可能有多個歷史短名（例如 axe_tornado、me_axe_tornado），全部加總。
+  // 目標技能不存在時不套用，避免舊鍵誤加到未建檔或不相干的技能。
+  const legacyKeys = Object.keys(legacySkillAliases).filter(key =>
+    legacySkillAliases[key] === sk.id && typeof SKILLS !== 'undefined' && SKILLS[sk.id]
+  );
+  return legacyKeys.reduce((sum, key) => sum + getCardBonus('skillDmg_' + key), 0);
 }
 
 function canonicalBonusKey(key) {
   const aliases = { patk: 'pAtk', 'p.atk': 'pAtk', p_atk: 'pAtk',
-    smatk: 'sMatk', 's.matk': 'sMatk', s_matk: 'sMatk' };
+    smatk: 'sMatk', 's.matk': 'sMatk', s_matk: 'sMatk',
+    // 舊裝備資料「所有屬性承傷減少」統一接到現行承傷計算桶。
+    allelereduce: 'eleDmgReduce_all',
+    // 舊裝備資料 rangedDmg 與現行 rangedDmgPct 同義；統一接到遠距離增傷入口。
+    rangeddmg: 'rangedDmgPct',
+    // 變幻莫測魔術斗篷：無視一般／BOSS 階級魔防，沿用現有通用 MDEF 無視入口。
+    magicignoredef: 'mdefIgnorePct' };
   const raw = String(key || '');
   const lower = raw.toLowerCase();
   if (aliases[lower]) return aliases[lower];
@@ -12993,6 +13088,7 @@ function effectiveGearBonuses() {
     const d = lo.slots[s];
     return d ? `${d.itemId}+${d.refine}[${d.cards.join(',')}]` : '-';
   }).join('|') + '#' + state.jobId
+    + '#skills:' + Object.entries(state.learnedSkills || {}).sort(([a],[b]) => a.localeCompare(b)).map(([id, lv]) => `${id}:${lv}`).join(',')
     + '#' + BASE_STAT_KEYS.map(k => (state.stats && state.stats[k]) || 0).join(',')
     /* 等級與技能等級也會影響 perBaseLv / perJobLv / perSkill；必須進快取簽章，
        否則升級後會沿用舊加成，直到換裝才更新。 */
@@ -13111,7 +13207,7 @@ function effectiveGearBonuses() {
       const effBonus = {};
       let hasPerRefine = false;
       for (const [bk, bv] of Object.entries(cb.bonus || {})) {
-        const pm = /^per(\\d+)Refine_(.+)$/.exec(bk);
+        const pm = /^per(\d+)Refine_(.+)$/.exec(bk);
         if (pm) {
           const tgt = {};
           tgt[pm[2]] = bv * Math.floor((host.refine || 0) / Number(pm[1]));
