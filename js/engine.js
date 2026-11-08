@@ -12918,7 +12918,7 @@ function buildLoadout() {
     const inst = getEquipInstance(slot);
     const refine = (inst && inst.refine) || 0;
     const list = (inst && inst.cards) ? inst.cards.filter(Boolean) : [];
-    slots[slot] = { itemId, refine, cards: list };
+    slots[slot] = { itemId, refine, grade: (inst && (inst.grade || inst.itemGrade)) || null, cards: list };
     items.add(itemId);
     list.forEach(cid => {
       cards.add(cid);
@@ -12956,6 +12956,34 @@ function condMet(when, host, lo) {
   /* withAnyItem：陣列中**任一件**有裝就算成立（官方同一件裝備常有無孔/有孔兩個 id，
      「與XX一起裝備」應該兩種都算——沙漠雙劍那次踩過同一個坑）。 */
   if (when.withAnyItem && !when.withAnyItem.some(i => lo.items.has(i))) return false;
+  /* itemRefineMin：裝備描述中「搭配指定武器，該武器精煉+N以上」。
+     與 refineMin（卡片宿主自身精煉）分開，避免誤讀成吊墜/卡片本身精煉。 */
+  if (when.itemRefineMin != null) {
+    const targets = when.withAnyItem || when.withItems || [];
+    const hasRefinedTarget = targets.some(id =>
+      Object.values(lo.slots || {}).some(slot =>
+        slot && slot.itemId === id && (slot.refine || 0) >= when.itemRefineMin
+      )
+    );
+    if (!hasRefinedTarget) return false;
+  }
+  /* itemGradeMin：指定裝備達到某階級以上（例如 C 階級）。
+     階級儲存在裝備個體 inst.grade；支援 A/B/C/D 與數字階級，未設定時不觸發。 */
+  if (when.itemGradeMin != null) {
+    const gradeRank = value => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      const key = String(value || '').trim().toUpperCase();
+      return ({D:1,C:2,B:3,A:4,S:5}[key] || 0);
+    };
+    const required = gradeRank(when.itemGradeMin);
+    const targets = when.withAnyItem || when.withItems || [];
+    const hasGrade = targets.some(id =>
+      Object.values(lo.slots || {}).some(slot =>
+        slot && slot.itemId === id && gradeRank(slot.grade) >= required
+      )
+    );
+    if (!required || !hasGrade) return false;
+  }
   /* when.ammo：目前裝備的箭矢（陣列＝任一種都算）。箭矢不在裝備欄、
      buildLoadout() 特別帶了 `ammo` 欄位出來——大地之弓＋地靈箭矢那類配對用。 */
   if (when.ammo) {
@@ -13086,7 +13114,7 @@ function effectiveGearBonuses() {
      素質只有加點時會變（一次 recomputeDerived），不是每一擊都在動，成本可以忽略。 */
   const key = EQUIP_SLOTS_ALL.map(s => {
     const d = lo.slots[s];
-    return d ? `${d.itemId}+${d.refine}[${d.cards.join(',')}]` : '-';
+    return d ? `${d.itemId}+${d.refine}@${d.grade || '-'}[${d.cards.join(',')}]` : '-';
   }).join('|') + '#' + state.jobId
     + '#skills:' + Object.entries(state.learnedSkills || {}).sort(([a],[b]) => a.localeCompare(b)).map(([id, lv]) => `${id}:${lv}`).join(',')
     + '#' + BASE_STAT_KEYS.map(k => (state.stats && state.stats[k]) || 0).join(',')

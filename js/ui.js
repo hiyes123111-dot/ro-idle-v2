@@ -4174,6 +4174,9 @@ function showSlotActions(slotKey) {
   const ref = getRefinementLevel(slotKey);
   const cards = getEquippedCards(slotKey);
   const maxSlots = getEquipCardSlots(slotKey);
+  const instRef = state.equip && state.equip[slotKey];
+  const inst = instRef && state.instances && state.instances[instRef] ? state.instances[instRef] : null;
+  const currentGrade = inst && (inst.grade || inst.itemGrade) ? String(inst.grade || inst.itemGrade).toUpperCase() : '';
 
   let html = `<h3 class="panel-title">${ref > 0 ? `+${ref} ` : ''}${window.getItemDisplayName(itemId)}</h3>`;
   html += `<button class="btn-small" onclick="renderEquipTab()">← 返回裝備欄</button>`;
@@ -4184,6 +4187,15 @@ function showSlotActions(slotKey) {
   if (cards.length) {
     html += `<div class="equip-pick-cards">🃏 ${cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}</div>`;
   }
+  if (d.type === 'weapon' && Number(d.weaponLv || 0) >= 5) {
+    html += `<div class="equip-pick-stats" style="margin:8px 0">
+      武器階級（依實際裝備記錄）：
+      <select onchange="setEquipGrade('${slotKey}',this.value)">
+        <option value="" ${!currentGrade ? 'selected' : ''}>未設定</option>
+        ${['D','C','B','A','S'].map(g => `<option value="${g}" ${currentGrade===g?'selected':''}>${g} 階級</option>`).join('')}
+      </select>
+    </div>`;
+  }
   html += `<div class="equip-pick-head">
     <button class="btn-small" onclick="unequipItem('${slotKey}');renderEquipTab();renderTopBar();">卸下</button>
     ${maxSlots > cards.length ? `<button class="btn-small ghost" onclick="showCardSelect('${slotKey}')">插卡</button>` : ''}
@@ -4191,6 +4203,25 @@ function showSlotActions(slotKey) {
     <button class="btn-small ghost" onclick="showRefinePanel('${slotKey}')">精煉</button>
   </div>`;
   el.innerHTML = html;
+}
+
+
+function setEquipGrade(slotKey, grade) {
+  const itemId = getEquipBaseItemId(slotKey);
+  const def = itemId && ITEMS[itemId];
+  if (!def || def.type !== 'weapon' || Number(def.weaponLv || 0) < 5) return;
+  const value = String(grade || '').trim().toUpperCase();
+  if (value && !['D','C','B','A'].includes(value)) return;
+  const ref = getOrCreateEquipInstance(slotKey);
+  if (!ref) return;
+  if (value) state.instances[ref].grade = value;
+  else delete state.instances[ref].grade;
+  delete state.instances[ref].itemGrade;
+  saveGame();
+  if (typeof recomputeDerived === 'function') recomputeDerived();
+  showSlotActions(slotKey);
+  if (typeof renderTopBar === 'function') renderTopBar();
+  showToast(value ? `已記錄武器 ${value} 階級` : '已清除武器階級記錄');
 }
 
 function buildEquipGridHtml() {
