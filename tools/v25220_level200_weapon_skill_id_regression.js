@@ -9,8 +9,8 @@ const tests = [
   ['Level-200 Ether Bow no longer uses the invalid arrowstorm alias', !/"fourth_bh_bow"[^\n]*skillDmg_arrowstorm/.test(data)],
   ['Cardinal mace correction remains intact', /"fourth_1h_mace"[^\n]*"skillDmg_cd_framen":5/.test(data)],
   ['HE equipment remains untouched by this targeted patch', /"hs_cr_sword"[^\n]*"reqLevel":200/.test(data)],
-  ['Release version is 2.5.220', version === '2.5.220'],
-  ['All HTML cache refs use 2.5.220', (index.match(/\?v=2\.5\.220/g) || []).length === (index.match(/\?v=/g) || []).length]
+  ['Release version is 2.5.221', version === '2.5.221'],
+  ['All HTML cache refs use 2.5.221', (index.match(/\?v=2\.5\.221/g) || []).length === (index.match(/\?v=/g) || []).length]
 ];
 let failed = 0;
 for (const [name, ok] of tests) { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}`); if (!ok) failed++; }
