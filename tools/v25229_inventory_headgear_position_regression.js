@@ -10,5 +10,5 @@ const checks = [
 ];
 for (const [name, ok] of checks) console.log(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 const failed = checks.filter(([, ok]) => !ok).length;
-console.log(`v2.5.230 inventory headgear position: ${checks.length - failed}/${checks.length} passed`);
+console.log(`v2.5.231 inventory headgear position: ${checks.length - failed}/${checks.length} passed`);
 if (failed) process.exit(1);

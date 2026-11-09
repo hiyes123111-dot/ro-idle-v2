@@ -2757,16 +2757,16 @@ function renderSkillsTab() {
         let typeTag = '';
         if (sk.type === 'passive') typeTag = '<span class="skill-type passive">被動</span>';
         else if (['damage', 'magic'].includes(sk.type)) typeTag = '<span class="skill-type attack">攻擊</span>';
-        else if (sk.type === 'heal' || sk.type === 'heal_over_time') typeTag = '<span class="skill-type heal">治療</span>';
+        else if (['heal', 'heal_over_time', 'cardinal_heal'].includes(sk.type)) typeTag = '<span class="skill-type heal">治療</span>';
+        else if (['cardinal_support', 'elemental_summon'].includes(sk.type) || sk.type.includes('buff')) typeTag = '<span class="skill-type buff">輔助</span>'; 
         else if (sk.type === 'dot') typeTag = '<span class="skill-type dot">持續</span>';
-        else if (sk.type.includes('buff')) typeTag = '<span class="skill-type buff">輔助</span>';
         else if (sk.type.includes('debuff')) typeTag = '<span class="skill-type debuff">減益</span>';
 
         /* 無屬性在資料裡有兩種寫法：SKILLS 用 'neutral'（60 個）、ITEMS 用 'none'。
            以前只擋了 'none'，所以那 60 個技能全都印出 `undefined` 當圖示。 */
         const elemTag = sk.element && sk.element !== 'none' && sk.element !== 'neutral'
           ? `<span class="skill-element elem-${sk.element}">${ELEMENT_ICONS[sk.element] || '⚪'}</span>` : '';
-        const skillArt = sk.type === 'passive' ? 'skill-passive.svg' : (['magic','magic_aoe'].includes(sk.type) ? 'skill-magic.svg' : 'skill-physical.svg');
+        const skillArt = sk.type === 'passive' ? 'skill-passive.svg' : (['magic','magic_aoe','elemental_summon','cardinal_support','cardinal_heal'].includes(sk.type) ? 'skill-magic.svg' : 'skill-physical.svg');
 
         html += `<div class="skill-row ${lv > 0 ? 'learned' : ''}">
           <div class="skill-info">
@@ -3941,7 +3941,7 @@ const WEAPON_TYPE_LABELS = {
   book: '書', gun: '槍'
 };
 const ARMOR_TYPE_LABELS = {
-  headgear: '頭飾', head_top: '頭飾（上）', head_mid: '頭飾（中）', head_bottom: '頭飾（下）', leather: '鎧甲', shield: '盾牌',
+  headgear: '頭飾', head_top: '頭上', head_mid: '頭中', head_bottom: '頭下', leather: '鎧甲', shield: '盾牌',
   garment: '披風', footgear: '鞋子', accessory: '飾品'
 };
 const ITEM_SUBTYPE_LABELS = { consumable: '消耗品', material: '素材', ammo: '箭矢', etc: '雜物' };
@@ -4801,7 +4801,13 @@ function renderInventoryTab() {
     const inCat = known.filter(r => invCategoryOf(r.item) === invCategory);
     const subCount = {};
     inCat.forEach(r => { const s = invSubOf(r.item); subCount[s] = (subCount[s] || 0) + 1; });
-    const subKeys = Object.keys(subCount).sort((a, b) => subCount[b] - subCount[a]);
+    if (invCategory === 'armor') ['head_top', 'head_mid', 'head_bottom'].forEach(k => { if (inCat.some(r => ITEMS[r.item].armorType === 'headgear')) subCount[k] = subCount[k] || 0; });
+  const subKeys = Object.keys(subCount).sort((a, b) => {
+    const headOrder = ['head_top', 'head_mid', 'head_bottom'];
+    const ai = headOrder.indexOf(a), bi = headOrder.indexOf(b);
+    if (ai >= 0 || bi >= 0) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    return subCount[b] - subCount[a];
+  });
 
     let rows = inCat;
     if (invSub !== 'all') rows = rows.filter(r => invSubOf(r.item) === invSub);
@@ -6614,7 +6620,16 @@ function renderWarehouseInner() {
 
   const subCount = {};
   inCat(bagAll).concat(inCat(whAll)).forEach(r => { const s = invSubOf(r.item); subCount[s] = (subCount[s] || 0) + 1; });
-  const subKeys = Object.keys(subCount).sort((a, b) => subCount[b] - subCount[a]);
+  // 背包與倉庫都固定提供頭上／頭中／頭下三個篩選；複合位置依頭上優先規則歸類。
+  if (whCategory === 'armor' && inCat(bagAll).concat(inCat(whAll)).some(r => ITEMS[r.item].armorType === 'headgear')) {
+    ['head_top', 'head_mid', 'head_bottom'].forEach(k => { subCount[k] = subCount[k] || 0; });
+  }
+  const subKeys = Object.keys(subCount).sort((a, b) => {
+    const headOrder = ['head_top', 'head_mid', 'head_bottom'];
+    const ai = headOrder.indexOf(a), bi = headOrder.indexOf(b);
+    if (ai >= 0 || bi >= 0) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    return subCount[b] - subCount[a];
+  });
 
   const listHtml = (rows, side) => rows.length
     ? rows.map(r => {

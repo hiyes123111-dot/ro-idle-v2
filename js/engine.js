@@ -10129,7 +10129,7 @@ function castSkillInner(skillId, opts) {
     hpCost += hpPctCost;
   }
 
-  const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time';
+  const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time' || sk.type === 'cardinal_heal';
   const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
   const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
@@ -11079,24 +11079,33 @@ function castSkillInner(skillId, opts) {
         type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
         msRemaining: dur, skillId: sk.id
       });
+      // 樞機主教的全隊輔助：施術者先套用一次，再透過換身機制套用到每位存活隊友。
+      const pushParty = (type, multValue, flatBonus) => {
+        push(type, multValue, flatBonus);
+        if (sk.party) forEachPartyMate(() => push(type, multValue, flatBonus));
+      };
       switch (sk.effect) {
-        case 'mresIgnore': push('mresignore', 1, value); break;
-        case 'resIgnore': push('resignore', 1, value); break;
+        case 'mresIgnore': pushParty('mresignore', 1, value); break;
+        case 'resIgnore': pushParty('resignore', 1, value); break;
         case 'medialeHot':
-          state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
-          state.buffs.push({ type:'cardinal_mediale_hot', healPct:value, nextHealAt:Date.now()+2000, msRemaining:dur, skillId:sk.id });
+          const applyHot = () => {
+            state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+            state.buffs.push({ type:'cardinal_mediale_hot', healPct:value, nextHealAt:Date.now()+2000, msRemaining:dur, skillId:sk.id });
+          };
+          applyHot();
+          if (sk.party) forEachPartyMate(() => applyHot());
           break;
         case 'physicalStats':
           // 專案目前沒有 POW/CRT/CON 第四轉素質欄；以 ATK、暴擊率、HIT 三項對應實裝。
-          push('atk', 1 + value / 100);
-          push('crit', 1, value);
-          push('hit', 1, value);
+          pushParty('atk', 1 + value / 100);
+          pushParty('crit', 1, value);
+          pushParty('hit', 1, value);
           break;
         case 'magicStats':
           // 專案目前沒有 SPL/WIS/STA 第四轉素質欄；以 MATK、MDEF、DEF 三項對應實裝。
-          push('matk', 1 + value / 100);
-          push('mdef', 1, value);
-          push('def', 1 + value / 100);
+          pushParty('matk', 1 + value / 100);
+          pushParty('mdef', 1, value);
+          pushParty('def', 1 + value / 100);
           break;
         case 'competentia': {
           const hpPct = Array.isArray(sk.healPct) ? sk.healPct[lv - 1] : (sk.healPct || 0);
@@ -11111,16 +11120,16 @@ function castSkillInner(skillId, opts) {
             const gain = recoverSelf();
             if (gain.hp || gain.sp) recovered.push({ mate, ...gain });
           });
-          // 官方效果是 P.ATK、S.MATK 固定增加，不是一般 ATK/MATK 百分比。
-          push('pAtk', 1, value);
-          push('sMatk', 1, value);
+          // 官方效果是 P.ATK、S.MATK 固定增加，不是一般 ATK/MATK 百分比；全隊技能需套用到每位存活隊友。
+          pushParty('pAtk', 1, value);
+          pushParty('sMatk', 1, value);
           const partyText = recovered.length
             ? `；隊友 ${recovered.map(x => `${x.mate === allyOwnerState() ? '你' : x.mate._allyName} HP+${x.hp}`).join('、')}`
             : '';
           logMsg(`✨ 「${sk.name}」恢復自身 HP ${own.hp}${partyText}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
           break;
         }
-        case 'presensAcies': push('crit', 1, value); break;
+        case 'presensAcies': pushParty('crit', 1, value); break;
       }
       if (sk.effect !== 'competentia') logMsg(`✨ 「${sk.name}」Lv${lv} 發動，全隊效果生效 ${Math.round(dur/1000)} 秒。`);
       recomputeDerived(false);
