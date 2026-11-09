@@ -113,8 +113,13 @@
      「充能貫穿」及「僕從武裝－印記」標示效果待實作：只建立技能容量，
      不新增戰鬥效果。其餘技能採用圖鑑明示的倍率、SP、冷卻。 */
   const dk = [];
-  dk.push(passive('dk_chargingpierce','充能貫穿 Charging Pierce',10,'capacityOnly',Array(10).fill(0),
-    '效果待實作；僅補技能容量。'));
+  // 官方龍騎士技能表另有「雙手防禦」；先前技能樹漏列，補上被動技能本體。
+  dk.push(passive('dk_twohanddef','雙手防禦 Two-handed Defense',10,'passive',Array(10).fill(0),
+    '裝備雙手劍、雙手矛或雙手斧時，依敵人體型降低受到的物理傷害。',{ damageReduceBySize: [[1,2,3],[2,3,5],[3,5,7],[4,6,9],[5,8,10],[6,9,12],[7,11,13],[8,12,15],[9,14,16],[10,15,18]] }));
+  dk.push(put('dk_chargingpierce','充能貫穿 Charging Pierce',10,'dk_charging_pierce','neutral',
+    [25,30,35,40,45,50,55,60,65,70],Array(10).fill(60),Array(10).fill(1),
+    '持續90～180秒。使用連刺攻擊、螺旋擊刺、百矛穿刺或狂氣粉碎累積充能，最多10層；5秒未增加層數則歸零。滿10層後，下一次指定技能傷害提升（螺旋擊刺×1.5，其餘×2），並消耗充能。',
+    { duration: [90,100,110,120,130,140,150,160,170,180], requiresWeapon: 'spear_or_twohand_sword', requiresSkill: 'rk_hundredspear' }));
   dk.push(put('dk_madnesscrusher','狂氣粉碎 Madness Crusher',5,'damage','neutral',
     ints(27,39,5),[2,2,2,2,2],lin(9,19,5),
     '長矛／雙手劍專用。灌注狂氣的一擊，造成 ATK 900%～1900% 傷害。',
@@ -211,6 +216,6 @@
     shadow_cross: JOB_TREE.shadow_cross.skills.length,
     priestSkillsAdded: 0,
     priestSkillsUpdated: ['ab_judex','ab_adoremus'].filter(id => !!SKILLS[id]),
-    capacityOnly: ['dk_chargingpierce','dk_servantsign','sc_enchantingshadow','sc_dancingknife','sc_impactcrater']
+    capacityOnly: ['dk_servantsign','sc_enchantingshadow','sc_dancingknife','sc_impactcrater']
   };
 })();

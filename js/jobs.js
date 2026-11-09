@@ -698,7 +698,7 @@ const JOB_TREE = {
     borrowSkillsFrom: ['professor'],
     next: [], nextLocked: [],
     bonusLevels: { str:[5,18,27,36,45,56], agi:[3,12,23,32,43,50,54,60,69], vit:[7,24,39,63], int:[1,2,11,14,22,30,38,41,49,57,64,68,70], dex:[8,16,20,26,29,34,37,46,52,55,62], luk:[21,66] },
-    skills: ['so_psychicwave', 'so_vacuum', 'so_elementburst'],
+    skills: ['so_psychicwave', 'so_elementburst', 'so_diamonddust', 'so_killingcloud', 'so_poisonburst', 'so_spellfist', 'so_striking', 'so_warmer', 'so_extremevacuum', 'so_firewalk', 'so_electricwalk', 'so_el_cure', 'so_el_action', 'so_elemental_shield', 'so_summon_agni', 'so_summon_aqua', 'so_summon_ventus', 'so_summon_tera', 'so_earthgrave', 'so_fire_insignia', 'so_water_insignia', 'so_wind_insignia', 'so_earth_insignia', 'so_elementanalysis', 'so_elementcontrol', 'so_elementsympathy'],
     desc: '四大元素在他手上不是力量，是同事。'
   },
   ranger: {
@@ -804,7 +804,7 @@ const JOB_TREE = {
     hpSpFrom: 'highpriest', aspdFrom: 'archbishop',
     next: [], nextLocked: [],
     bonusLevels: { str:[1,15,18,21,24,39], agi:[5,6,16,19,26,31,32], vit:[9,10,17,20,29,34,37], int:[1,3,8,11,12,18,20,22,28,30,33,36], dex:[4,13,16,19,23,27], luk:[7,17,34,41] },
-    skills: ['cd_argutus_vita','cd_argutus_telum','cd_mediale_votum','cd_petitio','cd_benedictum','cd_divinus_flos','cd_arbitrium','cd_competentia','cd_religio','cd_fidus_animus','cd_presens_acies','cd_reparatio','cd_framen','cd_pneumaticus_procella','cd_dilectio_heal','cd_effligo'],
+    skills: ['cd_mace_book_m','cd_argutus_vita','cd_argutus_telum','cd_mediale_votum','cd_petitio','cd_benedictum','cd_divinus_flos','cd_arbitrium','cd_competentia','cd_religio','cd_fidus_animus','cd_presens_acies','cd_reparatio','cd_framen','cd_pneumaticus_procella','cd_dilectio_heal','cd_effligo'],
     desc: '承接大主教的聖職力量，以全隊祝福、治癒與聖光裁決守護戰場。'
   },
   sura: {
