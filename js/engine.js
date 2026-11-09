@@ -28,7 +28,9 @@ function loadWarehouse() {
   try {
     const raw = localStorage.getItem(WAREHOUSE_KEY);
     const wh = raw ? JSON.parse(raw) : { items: [] };
-    if (!wh.items) wh.items = [];
+    if (!Array.isArray(wh.items)) wh.items = [];
+    // 已從 ITEMS 移除的裝備（包含封印雷神腰帶）不再留在跨角色倉庫。
+    wh.items = wh.items.filter(r => r && typeof r.item === 'string' && !!ITEMS[r.item]);
     if (typeof wh.gold !== 'number') wh.gold = 0;
     return wh;
   } catch (e) { return { items: [], gold: 0 }; }
@@ -119,7 +121,7 @@ function depositToWarehouse(itemId, qty) {
   if (whRow) whRow.qty += qty; else wh.items.push({ item: itemId, qty });
   saveWarehouse(wh);
   saveGame();
-  logMsg(`📦 將 ${getItemDisplayName(itemId)} x${qty} 存入倉庫。`);
+  logMsg(`📦 將 ${window.getItemDisplayName(itemId)} x${qty} 存入倉庫。`);
   return true;
 }
 function depositToWarehouseAll(itemId) {
@@ -136,7 +138,7 @@ function withdrawFromWarehouse(itemId, qty) {
   saveWarehouse(wh);
   addItem(itemId, qty);
   saveGame();
-  logMsg(`📦 從倉庫領出 ${getItemDisplayName(itemId)} x${qty}。`);
+  logMsg(`📦 從倉庫領出 ${window.getItemDisplayName(itemId)} x${qty}。`);
   return true;
 }
 function withdrawFromWarehouseAll(itemId) {
@@ -389,9 +391,10 @@ function renameCharacter(newName) {
 function currentJob() { return JOB_TREE[state.jobId]; }
 
 // 可雙持單手武器的職業（左手欄位可放武器而非盾牌）
-// 刺客系全部都可以：刺客（二轉）／十字刺客（進階二轉）／十字斬首者（三轉）
+// 刺客系全部都可以：刺客／十字刺客／十字斬首者／暗影十字（四轉）。
+// 暗影十字仍保留雙持能力，可在主、副手各裝一把符合職業限制的單手武器。
 function canDualWield(jobId) {
-  return jobId === 'assassin' || jobId === 'assassincross' || jobId === 'guillotinecross';
+  return jobId === 'assassin' || jobId === 'assassincross' || jobId === 'guillotinecross' || jobId === 'shadow_cross';
 }
 
 // 長矛類武器判定（矛限定技能共用）：道具資料的weaponType欄位對矛類武器標示很乾淨，直接用它判斷
@@ -1014,7 +1017,8 @@ function recomputeDerived(fullHeal) {
   const dexAtk = isDexAtkWeapon(getEquipBaseItemId('weapon'));
   const atkMain = dexAtk ? cDex : cStr;
   const atkSub = dexAtk ? cStr : cDex;
-  const statusAtk = atkMain + Math.floor((atkMain / 10) ** 2) + Math.floor(atkSub / 5) + Math.floor(cLuk / 5);
+  const statusAtk = atkMain + Math.floor((atkMain / 10) ** 2) + Math.floor(atkSub / 5) + Math.floor(cLuk / 5)
+    + getCardBonus('pow') * 5 + Math.floor(getCardBonus('con') / 5); // 四轉 POW + CON：Status ATK
   state._atkUsesDex = dexAtk;
   /* ATK 拆成三個桶子，總和仍然是 state.atk（其他地方照舊只讀 state.atk）。
      普通攻擊的傷害鏈要分開處理它們——官方的體型修正與屬性倍率**只作用在武器ATK**上：
@@ -1032,8 +1036,9 @@ function recomputeDerived(fullHeal) {
   state._atkMastery += buffAtkFlat;
 
   // MATK：區間公式，min = INT+(INT/7)²，max = INT+(INT/5)²，取平均當戰鬥數值
-  const matkMinRaw = cInt + Math.floor((cInt / 7) ** 2) + Math.floor(cDex / 5);
-  const matkMaxRaw = cInt + Math.floor((cInt / 5) ** 2) + Math.floor(cDex / 5) + Math.floor(cLuk / 3);
+  const traitSplMatk = getCardBonus('spl') * 5 + Math.floor(getCardBonus('con') / 5); // 四轉 SPL + CON：Status MATK
+  const matkMinRaw = cInt + Math.floor((cInt / 7) ** 2) + Math.floor(cDex / 5) + traitSplMatk;
+  const matkMaxRaw = cInt + Math.floor((cInt / 5) ** 2) + Math.floor(cDex / 5) + Math.floor(cLuk / 3) + traitSplMatk;
   state.matkMin = Math.round(matkMinRaw * job.matkMod) + equippedMatk();
   state.matkMax = Math.round(matkMaxRaw * job.matkMod) + equippedMatk();
   state.matk = Math.round((state.matkMin + state.matkMax) / 2);
@@ -1056,7 +1061,7 @@ function recomputeDerived(fullHeal) {
      **精煉不加 MDEF**，官方精煉只給 DEF。
      軟魔防是 INT/2，官方玩家軟魔防就是這條。 */
   state.mdefHard = 0;
-  state.mdefSoft = Math.floor(cInt / 2);
+  state.mdefSoft = Math.floor(cInt / 2) + buffMult('mdef').flatBonus;
   state.mdef = state.mdefSoft;
 
   /* 場上同時最多幾隻怪：一律由遇怪模式推導，不要用「取大值」的寫法累積。
@@ -1069,9 +1074,25 @@ function recomputeDerived(fullHeal) {
      那兩條路在遠攻模式下會補出第 2~5 隻。 */
   state.maxMonsters = state.encounterMode === 'ranged' ? 1 : MELEE_MAX_MONSTERS;
 
-  // HIT / FLEE：經典 RO 常數公式
-  state.hit = 175 + bl + cDex;
-  state.flee = 100 + bl + cAgi;
+  // HIT / FLEE：經典 RO 常數公式；四轉 CON 的命中／迴避加成在此統一併入。
+  const traitCON = getCardBonus('con');
+  const traitSTA = getCardBonus('sta');
+  const traitWIS = getCardBonus('wis');
+  const traitCRT = getCardBonus('crt');
+  const traitPOW = getCardBonus('pow');
+  const traitSPL = getCardBonus('spl');
+  state.hit = 175 + bl + cDex + traitCON * 2;
+  state.flee = 100 + bl + cAgi + traitCON * 2;
+
+  // 四轉特性衍生值。保留獨立欄位，供面板、戰鬥公式與後續裝備效果共用。
+  state.traitStats = { pow: traitPOW, sta: traitSTA, wis: traitWIS, spl: traitSPL, con: traitCON, crt: traitCRT };
+  state.res = traitSTA + Math.floor(traitSTA / 3) * 5 + (getCardBonus('res') || 0);
+  state.mres = traitWIS + Math.floor(traitWIS / 3) * 5 + (getCardBonus('mres') || 0);
+  state.hPlus = traitCRT;
+  state.cRate = Math.floor(traitCRT / 3);
+  state.critDmgPct = state.cRate;
+  state.pAtk = Math.floor(traitCON / 5);
+  state.sMatk = Math.floor(traitCON / 5);
 
   // 完全迴避（無視命中判定）與暴擊率（無視閃避判定）
   state.perfectDodge = Math.floor(cLuk / 10);
@@ -1111,11 +1132,9 @@ function recomputeDerived(fullHeal) {
   state.cartDmgBonusMult = 0;
   state.hasElementalStoneProc = false;
   state.elementalStoneChance = 0;
-  state.craftBonusPct = 0;
-  state.unlockedCraftCategories = [];
   state.unlockedMaterialCrafts = [];
   state.fireResistPct = 0;
-  state.neutralResistPct = 0;
+  state.neutralResistPct = getCardBonus('neutralResistPct');
   state.hasFindingOreProc = false;
   state.findingOreChance = 0;
   state.hasGreedProc = false;
@@ -1226,7 +1245,7 @@ function recomputeDerived(fullHeal) {
   state.parryingChance = 0;
   state.onAttackStrikes = [];   // 傷害增壓／巧打：普攻追擊，一個技能一筆
   // 十字刺客被動（#59）
-  state.physDmgPct = 0;         // 高階拳刃修練：物理傷害 +N%（拳刃限定）
+  state.physDmgPct = getCardBonus('physDmgPct'); // 裝備與技能的物理傷害加成共用同一結算入口
   state.hasEdpProc = false;     // 致命塗毒：敵人中毒時觸發
   state.edpWeaponMult = 1;
   state.edpPoisonMult = 2;
@@ -1358,10 +1377,6 @@ function recomputeDerived(fullHeal) {
             const hb = Array.isArray(sk.hitBonus) ? sk.hitBonus[lv - 1] : sk.hitBonus;
             state.hit += Math.round(hb);
           }
-          if (sk.craftBonusExtra) {
-            const cbe = Array.isArray(sk.craftBonusExtra) ? sk.craftBonusExtra[lv - 1] : sk.craftBonusExtra;
-            state.craftBonusPct += cbe;
-          }
           // 武器保有：使速度激發/凶砍持續時間延長
           if (sk.buffDurationBonusPct) {
             const bd = Array.isArray(sk.buffDurationBonusPct) ? sk.buffDurationBonusPct[lv - 1] : sk.buffDurationBonusPct;
@@ -1426,6 +1441,11 @@ function recomputeDerived(fullHeal) {
            怪物攻擊迴圈是 forEach 全部），而玩家普攻只打 monsters[0]，
            拉高上限對單體流是純粹挨打，會把一個獎勵技能變成懲罰。 */
         case 'riding': state.hasRiding = true; break;
+        case 'dragonTraining': {
+          state.dragonBreathBonusPct = Math.max(state.dragonBreathBonusPct || 0,
+            Array.isArray(sk.dragonBreathPct) ? sk.dragonBreathPct[lv - 1] : (sk.dragonBreathPct || 0));
+          break;
+        }
         case 'cavalierBonus': {
           state.flee += Math.round(val);
           if (sk.atkBonus) { const ab = Array.isArray(sk.atkBonus) ? sk.atkBonus[lv - 1] : sk.atkBonus; state.atk += Math.round(ab); state._atkMastery += Math.round(ab); }
@@ -1931,7 +1951,7 @@ function recomputeDerived(fullHeal) {
             id: sk.id,
             name: sk.name,
             chance: Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance,
-            mult: val,
+            mult: val * (1 + getSkillDamageBonus(sk) / 100),
             cdSec: Array.isArray(sk.internalCooldown) ? sk.internalCooldown[lv - 1] : (sk.internalCooldown || 5),
             inflict: sk.inflict || null,
             lv,
@@ -1964,7 +1984,7 @@ function recomputeDerived(fullHeal) {
             id: sk.id,
             name: sk.name,
             chance: Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance,
-            mult: val,
+            mult: val * (1 + getSkillDamageBonus(sk) / 100),
             cdSec: Array.isArray(sk.internalCooldown) ? sk.internalCooldown[lv - 1] : (sk.internalCooldown || 0),
             inflict: sk.inflict || null,
             element: sk.element || 'neutral',
@@ -2115,11 +2135,6 @@ function recomputeDerived(fullHeal) {
         }
         case 'cartDmgBonus': state.cartDmgBonusMult = val; break;
         case 'vending': break; // 露天商店本身不影響數值，實際邏輯在 tryAutoVending()
-        case 'craftBonus': state.craftBonusPct += val; break;
-        case 'weaponCraft': {
-          if (sk.craftCategory) state.unlockedCraftCategories.push(sk.craftCategory);
-          break;
-        }
         case 'materialCraft': {
           if (sk.craftCategory) state.unlockedMaterialCrafts.push(sk.craftCategory);
           break;
@@ -2216,7 +2231,8 @@ function recomputeDerived(fullHeal) {
         case 'onHitAoeProc': {
           state.hasOnHitAoeProc = true;
           state.onHitAoeProcChance = Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance;
-          state.onHitAoeProcMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
+          state.onHitAoeProcMult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult) * (1 + getSkillDamageBonus(sk) / 100);
+          state.onHitAoeProcSkillId = sk.id;
           state.onHitAoeProcElement = sk.element || 'none';
           state.onHitAoeProcCooldownSec = Array.isArray(sk.internalCooldown) ? sk.internalCooldown[lv - 1] : (sk.internalCooldown || 5);
           break;
@@ -2227,7 +2243,7 @@ function recomputeDerived(fullHeal) {
           // 火柱攻擊在本作做成被動（普攻機率觸發），不走 castSkill，
           // 所以卡片的 skillDmg_firepillar 要在這裡自己套上去
           {
-            const fpBonus = 1 + getCardBonus('skillDmg_' + sk.id) / 100;
+            const fpBonus = 1 + getSkillDamageBonus(sk) / 100;
             state.onAttackAoeFlatDmg = Math.round((Array.isArray(sk.flatDmg) ? sk.flatDmg[lv - 1] : (sk.flatDmg || 0)) * fpBonus);
             state.onAttackAoeMult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : (sk.mult || 0)) * fpBonus;
           }
@@ -2245,7 +2261,8 @@ function recomputeDerived(fullHeal) {
         case 'onHitAoeStunProc': {
           state.hasOnHitAoeStunProc = true;
           state.onHitAoeStunChance = Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance;
-          state.onHitAoeStunMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
+          state.onHitAoeStunMult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult) * (1 + getSkillDamageBonus(sk) / 100);
+          state.onHitAoeStunSkillId = sk.id;
           state.onHitAoeStunElement = sk.element || 'none';
           state.onHitAoeStunStunChance = Array.isArray(sk.stunChance) ? sk.stunChance[lv - 1] : (sk.stunChance || 0);
           state.onHitAoeStunStunSec = Array.isArray(sk.stunSec) ? sk.stunSec[lv - 1] : (sk.stunSec || 1);
@@ -2262,6 +2279,10 @@ function recomputeDerived(fullHeal) {
       }
     });
   }
+
+  // 裝備治癒量加成：healPct（自身治癒技能效果）與 healRecvPct（受到治癒效果）
+  // 在本作單人戰鬥中共用治癒輸出倍率；熾天使花冠 perStat_int_8_healPct 也由此生效。
+  state.healBonusPct += getCardBonus('healPct') + getCardBonus('healRecvPct');
 
   // 卡片加成 — 固定值（僅影響衍生數值，不修改 base stats 避免累加）
   // 裝備與卡片的 ATK 算「裝備攻擊力」，跟武器本體同一桶，會吃體型與屬性修正
@@ -2306,20 +2327,8 @@ function recomputeDerived(fullHeal) {
     if (hpFlat) state.maxHp = Math.max(1, state.maxHp + hpFlat);
   }
 
-  /* perJobLv10_<目標>（#17）：官方「增加與自身 JOB 等級十位數相同的數值」
-     （伊夫利特卡片的 ATK／CRI／HIT）。轉職會把 jobLevel 打回 1，所以這個加成
-     在轉職當下會歸零再長回來——官方就是這個行為，不特別補償。
-     放在這裡是因為要等 ATK/HIT/CRI 三個衍生值都算完才加得上去。 */
-  {
-    const tens = Math.floor((state.jobLevel || 1) / 10);
-    if (tens > 0) {
-      const per = n => getCardBonus('perJobLv10_' + n) * tens;
-      const a = per('atk');
-      if (a) { state.atk += a; state._atkWeapon += a; }
-      state.hit += per('hit');
-      state.critRate = Math.min(100, state.critRate + per('critRate'));
-    }
-  }
+  /* perJobLv10_<目標> 由 getCardBonus() 統一依目前 JOB 等級計算，
+     因此 ATK、HIT、CRI 及未來新增的 HP/MATK/技能傷害等目標都走同一入口。 */
 
   // 卡片加成 — 百分比（負值也要吃，塔奧群卡那種有取捨的卡才成立）
   const hpPctBonus = getCardBonus('hpPct') / 100;
@@ -2367,13 +2376,15 @@ function recomputeDerived(fullHeal) {
   /* 戰鬥迴圈每次揮擊都會用到的卡片數值，先在這裡收斂成純量，
      免得每一擊都去掃一遍所有插槽的卡片 */
   // 女神之吻（#68）的暴擊傷害併進這一格：三個消費點（普攻、單體技、範圍技）一次接滿
-  state.cardCritDmgPct = getCardBonus('critDmgPct') + buffMult('critdmg').flatBonus;
+  state.cardCritDmgPct = getCardBonus('critDmgPct') + buffMult('critdmg').flatBonus + (state.critDmgPct || 0); // 四轉 CRT：每 3 點 C.RATE +1% 暴擊傷害
   state.cardBossDmgPct = getCardBonus('bossDmgPct');
   state.cardAllTargetDmgPct = getCardBonus('allTargetDmgPct');
+  state.cardAllRaceDmgPct = getCardBonus('allRaceDmgPct');
   state.cardRangedDmgPct = getCardBonus('rangedDmgPct');
   state.cardIgnoreSizePenalty = getCardBonus('ignoreSizePenalty') > 0;
   state.cardSplashAttack = getCardBonus('splashAttack') > 0;   // 巴風特卡片（#136）：普攻濺射
   state.cardBossDmgTakenPct = getCardBonus('bossDmgTakenPct');
+  state.physDmgTakenPct = getCardBonus('physDmgTakenPct'); // 阿斯普利卡：受到物理攻擊傷害降低
   state.cardNormalDmgTakenPct = getCardBonus('normalDmgTakenPct');
   state.cardSpCostPct = getCardBonus('spCostPct');
   state.cardRangedCritRate = getCardBonus('rangedCritRate');
@@ -2440,36 +2451,35 @@ function recomputeDerived(fullHeal) {
   // 自動念咒與異常狀態：都依觸發時機分籃，戰鬥時直接取用不必再掃卡片
   state.cardAutoSpells = { attack: [], hit: [], chain: [] };
   state.cardAilments = { attack: [], hit: [], magic: [] };
-  state.cardAttackBuffs = { attack: [], hit: [] };
+  state.cardAttackBuffs = { attack: [], hit: [], magic: [] };
   state.cardKillDrops = [];
   {
     const lo = buildLoadout();
-    lo.cards.forEach(cardId => {
+    Object.entries(lo.cardHosts).forEach(([cardId, hosts]) => {
       const c = CARDS[cardId];
       if (!c) return;
-      // 條件式的那幾條（精煉、職業、同時裝了哪張卡、素質門檻）共用 condMet()
-      const pass = e => {
-        if (!e.when) return true;
-        const host = (lo.cardHosts[cardId] || [])[0] || null;
-        return condMet(e.when, host, lo);
-      };
-      (c.autoSpell || []).forEach(e => {
-        // 自動念咒也可以帶條件（例：鴞裊首領要跟鴞裊男爵一起裝備才會放雷擊術）
-        if (!pass(e)) return;
-        const bucket = state.cardAutoSpells[e.on];
-        if (bucket) bucket.push(e);
+      // 同一張卡可插在多件裝備上；每張實際插入的卡都要獨立檢查宿主精煉條件。
+      // 舊版只拿 hosts[0]，第二張同名卡即使精煉達標也會被漏掉。
+      (hosts || [null]).forEach(host => {
+        const pass = e => !e.when || condMet(e.when, host, lo);
+        (c.autoSpell || []).forEach(e => {
+          // 自動念咒也可以帶條件（例：鴞裊首領要跟鴞裊男爵一起裝備才會放雷擊術）
+          if (!pass(e)) return;
+          const bucket = state.cardAutoSpells[e.on];
+          if (bucket) bucket.push(e);
+        });
+        (c.ailment || []).forEach(e => {
+          if (!pass(e)) return;
+          const bucket = state.cardAilments[e.on];
+          if (bucket) bucket.push(e);
+        });
+        (c.onAttackBuff || []).forEach(e => {
+          if (!pass(e)) return;
+          const bucket = state.cardAttackBuffs[e.on];
+          if (bucket) bucket.push(e);
+        });
+        (c.killDrop || []).forEach(e => { if (pass(e)) state.cardKillDrops.push(e); });
       });
-      (c.ailment || []).forEach(e => {
-        if (!pass(e)) return;
-        const bucket = state.cardAilments[e.on];
-        if (bucket) bucket.push(e);
-      });
-      (c.onAttackBuff || []).forEach(e => {
-        if (!pass(e)) return;
-        const bucket = state.cardAttackBuffs[e.on];
-        if (bucket) bucket.push(e);
-      });
-      (c.killDrop || []).forEach(e => { if (pass(e)) state.cardKillDrops.push(e); });
     });
     /* 裝備**自己**的觸發型特效（#127）。跟卡片走同一組籃子、同一套資料格式——
        官方有一整批武器寫著「攻擊時有一定機率施展○○」「機率讓敵人中毒」，
@@ -2484,6 +2494,29 @@ function recomputeDerived(fullHeal) {
         if (!pass(e)) return;
         const bucket = state.cardAutoSpells[e.on];
         if (bucket) bucket.push(e);
+      });
+      /* 部分高階裝備把精煉觸發寫在 condBonus 的 autoSpell_<skill> 欄位，
+         不是 def.autoSpell 陣列。舊版只把它當一般 bonus，導致精煉達標後仍不會念咒。
+         只轉換已核對技能 ID 與等級的項目；未收錄技能不猜測替代。 */
+      const conditionalAutoSpellMeta = {
+        'smoky_transformhat_lt:autoSpell_chainLightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
+        // 同一件裝備在舊資料與新資料有兩種 itemId 寫法，兩者都必須接到同一個觸發效果。
+        'smoky_transform_hat_lt:autoSpell_chainLightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
+        'changeable_magic_cape:autoSpell_thunderstorm': { skill: 'thunderstorm', lv: 5, melee: true },
+        'changeable_magic_cape:autoSpell_heavensdrive': { skill: 'heavensdrive', lv: 5, melee: true },
+        'magic_sword_lt:autoSpell_meteorstorm': { skill: 'meteorstorm', lv: 7, melee: true },
+        'magic_sword_lt:autoSpell_psychicwave': { skill: 'so_psychicwave', lv: 5, melee: true },
+        'oriental_sword_lt:autoSpell_sonicwave': { skill: 'rk_sonicwave', lv: 2, melee: true },
+        'cd_in_mouthk:autoSpell_gravitation': { skill: 'hw_gravitation', lv: 3, melee: true }
+      };
+      (def.condBonus || []).forEach(cb => {
+        if (!cb || !cb.bonus || (cb.when && !condMet(cb.when, host, lo))) return;
+        Object.entries(cb.bonus).forEach(([key, chance]) => {
+          const meta = conditionalAutoSpellMeta[`${d.itemId}:${key}`];
+          if (!meta || !(Number(chance) > 0) || !findSkillAnywhere(meta.skill)) return;
+          state.cardAutoSpells.attack.push({ on: 'attack', skill: meta.skill, lv: meta.lv,
+            chance: Number(chance), melee: !!meta.melee, sourceItemId: d.itemId });
+        });
       });
       (def.ailment || []).forEach(e => {
         if (!pass(e)) return;
@@ -2511,6 +2544,8 @@ function recomputeDerived(fullHeal) {
     'raceDmgTaken_': 'cardRaceDmgTaken',
     'monDmg_': 'cardMonsterDmgBonus',
     'eleReduce_': 'cardEleDmgReduce',
+    // 裝備資料的全屬性承傷減免沿用 eleDmgReduce_all 命名；保留在同一桶供通用承傷公式讀取。
+    'eleDmgReduce_': 'cardEleDmgReduce',
     'raceDmgReduce_': 'cardRaceDmgReduce',
     'sizeDmgReduce_': 'cardSizeDmgReduce'
   };
@@ -2560,7 +2595,13 @@ function recomputeDerived(fullHeal) {
         .find(p => k.startsWith(p));
       if (!prefix) continue;
       const bucket = state[CARD_BONUS_MAPS[prefix]];
-      const key = k.slice(prefix.length);
+      let key = k.slice(prefix.length);
+      // 舊裝備／卡片資料使用 dark，怪物屬性表統一使用 shadow；兩者是同一暗屬性。
+      if ((prefix === 'eleDmg_' || prefix === 'eleReduce_') && key === 'dark') key = 'shadow';
+      // 官方裝備舊種族名稱與本專案怪物資料的 race enum 不一致。
+      // animal 對應 brute（動物系），demihuman 對應 humanoid（人形系）。
+      if ((prefix === 'raceDmg_' || prefix === 'raceDmgReduce_') && key === 'animal') key = 'brute';
+      if ((prefix === 'raceDmg_' || prefix === 'raceDmgReduce_') && key === 'demihuman') key = 'humanoid';
       bucket[key] = (bucket[key] || 0) + v / 100;
     }
   }
@@ -2592,6 +2633,8 @@ function recomputeDerived(fullHeal) {
      修羅（三轉）同樣 7 顆（使用者 2026-08-22 指定）——三轉借的是母職整份技能，
      蓄氣上限照樣吃得到。 */
   if (state.spiritsMax > 0 && (state.jobId === 'champion' || state.jobId === 'sura')) state.spiritsMax = CHAMPION_SPIRITS_MAX;
+  /* 裝備／套裝的恢復道具效果加成（奔跑盔甲等）；只影響消耗型恢復道具，不影響治癒術。 */
+  state.hpItemEffectBonusPct += getCardBonus("hpItemEffectBonusPct");
   if (state._pitcherPct) state.hpItemEffectBonusPct += state._pitcherPct;
   {
     const base = state._alchemyZenyMult == null ? 1 : state._alchemyZenyMult;
@@ -2699,14 +2742,22 @@ function cardTargetDmgMult(monDef) {
   }
   if (monDef.race && state.cardRaceDmgBonus && state.cardRaceDmgBonus[monDef.race]) bonus += state.cardRaceDmgBonus[monDef.race];
   if (monDef.size && state.cardSizeDmgBonus && state.cardSizeDmgBonus[monDef.size]) bonus += state.cardSizeDmgBonus[monDef.size];
+  // 對所有種族增傷（例如米德加爾特大太陽神頭盔精煉 +13）；同一共用乘區供物理與魔法技能使用。
+  if (state.cardAllRaceDmgPct) bonus += state.cardAllRaceDmgPct / 100;
   // 魔物家族（哥布靈族／獸人族…）與指名單一隻怪的增傷
   if (state.cardFamilyDmgBonus) {
     const fam = familyOfMonster(monDef);
     if (fam && state.cardFamilyDmgBonus[fam]) bonus += state.cardFamilyDmgBonus[fam];
   }
   if (monDef.id && state.cardMonsterDmgBonus && state.cardMonsterDmgBonus[monDef.id]) bonus += state.cardMonsterDmgBonus[monDef.id];
-  // 對所有階級敵人增傷（烏龜將軍／狂徒那類），以及只對首領類的增傷（深淵騎士）
+  // 對所有階級敵人增傷（烏龜將軍／狂徒那類），以及只對首領類的增傷（深淵騎士）。
+  // 天秤座寶冠的 allClassDmg 明確是「物理傷害」，不可併入 allTargetDmgPct，
+  // 因為後者同時被魔法傷害公式使用。
   if (state.cardAllTargetDmgPct) bonus += state.cardAllTargetDmgPct / 100;
+  const allClassPhysical = getCardBonus('allClassDmg');
+  if (allClassPhysical) bonus += allClassPhysical / 100;
+  // 古代夢羅克貴族首飾：對所有屬性目標的物理傷害，與魔法端共用同一條專用詞條。
+  if (getCardBonus('allPropertyDmgPct')) bonus += getCardBonus('allPropertyDmgPct') / 100;
   if (monDef.isBoss && state.cardBossDmgPct) bonus += state.cardBossDmgPct / 100;
   return 1 + bonus;
 }
@@ -2756,11 +2807,12 @@ function defOf(mon, scale, magic, inst) {
   const fm = farmMult('def');
   const s = (scale === undefined ? 1 : scale) * (inst ? ailDefMult(inst) : 1) * fm;
   if (magic) {
-    const ig = (state.cardMdefIgnorePct || 0) + (mon.isBoss ? (state.cardBossMdefIgnorePct || 0) : 0);
-    const ms = s * Math.max(0, 1 - ig / 100) * monDebuffMdef(inst);
+    const ig = (state.cardMdefIgnorePct || 0) + (mon.isBoss ? (state.cardBossMdefIgnorePct || 0) : 0)
+      + buffMult('mresignore').flatBonus;
+    const ms = s * Math.max(0, 1 - Math.min(100, ig) / 100) * monDebuffMdef(inst);
     return [(mon.mdef || 0) * ms, (mon.mdefSoft || 0) * ms];
   }
-  const d = s * monDebuffDef(inst) * Math.max(0, 1 - physDefIgnorePct(mon) / 100);
+  const d = s * monDebuffDef(inst) * Math.max(0, 1 - Math.min(100, physDefIgnorePct(mon) + buffMult('resignore').flatBonus) / 100);
   return [(mon.def || 0) * d, (mon.defSoft || 0) * d];
 }
 /* 無視**物理**防禦（#127）。魔防那邊本來就有（cardMdefIgnorePct），物防這邊沒有——
@@ -2929,6 +2981,13 @@ function monDebuffAspd(mon) {
    `MONSTER_DAMAGE_SCALE` 是唯一的難度旋鈕：官方數值是給有走位、有隊友、
    會嗑藥的即時遊戲用的，放置遊戲是站著硬扛。要調難度只改這一個數。 */
 const MONSTER_DAMAGE_SCALE = 1.0;
+function applyTraitResistance(rawDmg, isMagic) {
+  const resistance = Math.max(0, isMagic ? (state.mres || 0) : (state.res || 0));
+  // Official fourth-job RES/MRES: final damage multiplier (2000 + R) / (2000 + 5R).
+  // This resistance is applied after the existing DEF/MDEF calculation.
+  const multiplier = (2000 + resistance) / (2000 + 5 * resistance);
+  return Math.max(1, Math.round(rawDmg * multiplier));
+}
 function mitigatePlayerIncoming(rawDmg, hardDef, softDef) {
   /* 下限從 0 放寬到 −100：**硬魔防可以是負的**（迪塔勒泰晤勒斯卡片免疫冰凍的代價是
      MDEF−20），夾在 0 會讓那張卡的代價完全不存在，變成純賺。
@@ -3332,12 +3391,13 @@ const BOX_POOLS = {
      所以改成兩段抽：先擲 20% 決定要不要給裝備，再從對應的子池裡均勻抽。
      三轉裝與 1z 雜物照樣留在池子裡——這個箱子的定位就是賭博。 */
   any: {
-    build: () => Object.keys(ITEMS).filter(boxEligible),
+    /* 藍箱只收錄有正式怪物掉落來源的裝備；沒有怪物來源的裝備統一留給紫箱。 */
+    build: () => Object.keys(ITEMS).filter(k => boxEligible(k) &&
+      (!EQUIP_TYPES.includes(ITEMS[k].type) || getItemSources(k).length > 0)),
     split: { rate: 0.2, pick: k => EQUIP_TYPES.includes(ITEMS[k].type) },
   },
-  /* 神秘紫箱：跟神秘箱子同一個道具池，差別只在**裝備比例 40%**（神秘箱子是 20%）。
-     兩者在官方都是「開出隨機道具」的雜物箱，本作拿裝備比例做出區隔——
-     紫箱比較容易開出裝備，藍箱比較容易開出雜物但兩邊的大獎池一模一樣。 */
+  /* 神秘紫箱：包含全部可抽選道具與裝備，尤其收納沒有正式怪物掉落來源的裝備。
+     神秘箱子（藍箱）只收錄有怪物來源的裝備；紫箱裝備分流 40%，藍箱 20%。 */
   violet: {
     build: () => Object.keys(ITEMS).filter(boxEligible),
     split: { rate: 0.4, pick: k => EQUIP_TYPES.includes(ITEMS[k].type) },
@@ -3450,7 +3510,45 @@ function drawFromSub(p) {
   }
   return p.ids[lo];
 }
+/* 卡冊額外稀有獎勵：只納入沒有正式怪物掉落來源、且名稱已中文化的裝備。
+   快取與其他箱池分開，避免改變藍箱／紫箱原有機率。 */
+let _noDropEquipmentPool = null;
+function noDropEquipmentPool() {
+  if (_noDropEquipmentPool) return _noDropEquipmentPool;
+  _noDropEquipmentPool = Object.keys(ITEMS).filter(k => {
+    const it = ITEMS[k];
+    return boxEligible(k) && EQUIP_TYPES.includes(it.type) && getItemSources(k).length === 0;
+  });
+  return _noDropEquipmentPool;
+}
+
+const TOMB_MVP_ALBUM_CARDS = [
+  'v_b_celia_card', 'v_b_chen_card', 'v_b_alphoccio_card',
+  'v_b_eremes_card', 'v_b_magaleta_card', 'v_b_shecil_card',
+  'v_b_harword_card', 'v_b_katrinn_card', 'v_b_seyren_card',
+  'v_b_randel_card', 'v_b_flamel_card', 'v_b_gertie_card',
+  'v_b_trentini_card',
+];
+
+/* 三種指定卡冊：13 張戰死者之墓 MVP 卡各自獨立 0.01%。
+   13 個連續區間各寬 0.0001，因此每張卡的實際機率都是 0.01%，合計 0.13%。
+   艾勒梅斯卡片既有 0.01% 獎勵保留；無正式掉落來源裝備仍保留 1% 額外抽取。 */
 function drawFromBox(kind) {
+  if (kind === 'card' || kind === 'cardFlat' || kind === 'card_garment') {
+    const r = Math.random();
+    if (r < 0.0013) {
+      const card = TOMB_MVP_ALBUM_CARDS[Math.floor(r / 0.0001)];
+      if (ITEMS[card] && CARDS[card]) return card;
+    }
+    if (r >= 0.0013 && r < 0.0014 &&
+        ITEMS.guillotine_cross_card && CARDS.guillotine_cross_card) {
+      return 'guillotine_cross_card';
+    }
+    if (r >= 0.0014 && r < 0.0114) {
+      const gear = noDropEquipmentPool();
+      if (gear.length) return gear[Math.floor(Math.random() * gear.length)];
+    }
+  }
   const p = boxPool(kind);
   if (!p || !p.ids.length) return null;
   if (p.split != null) {
@@ -3458,6 +3556,30 @@ function drawFromBox(kind) {
     if (sub.ids.length) return drawFromSub(sub);
   }
   return drawFromSub(p);
+}
+
+/* 圖鑑用：回傳道具是否能從箱子開出，以及依實際抽選分流計算的單件機率。
+   紫箱包含全部可抽選裝備；藍箱排除沒有正式怪物掉落來源的裝備。裝備分流分別為 40%／20%。 */
+function getItemBoxSources(itemId) {
+  const out = [];
+  const labels = { any: '神秘箱子', violet: '神秘紫箱' };
+  for (const kind of ['any', 'violet']) {
+    const p = boxPool(kind);
+    if (!p || !p.ids.includes(itemId)) continue;
+    let chance = 0;
+    if (p.split != null) {
+      if (p.hit.ids.includes(itemId)) chance = p.split / Math.max(1, p.hit.ids.length);
+      else if (p.miss.ids.includes(itemId)) chance = (1 - p.split) / Math.max(1, p.miss.ids.length);
+    } else if (p.cum) {
+      const idx = p.ids.indexOf(itemId);
+      const prev = idx > 0 ? p.cum[idx - 1] : 0;
+      const weight = p.cum[idx] - prev;
+      chance = weight / p.total;
+    } else chance = 1 / Math.max(1, p.ids.length);
+    out.push({ boxId: kind === 'violet' ? 'old_violet_box' : 'old_blue_box', name: labels[kind], chance,
+      note: p.split != null ? (p.hit.ids.includes(itemId) ? `裝備池 ${Math.round(p.split * 100)}% 分流` : `一般道具池 ${Math.round((1-p.split) * 100)}% 分流`) : '依箱內權重抽取' });
+  }
+  return out;
 }
 
 /* ---------------- 玩家異常狀態 ----------------
@@ -3747,6 +3869,26 @@ function takeReflectDamage(monDef, amount) {
    醬缸章魚卡片（水）就是這樣寫好了卻不生效（#126）。列全比列剛好安全。 */
 const ARMOR_ELEMENT_PRIORITY = ['shadow', 'holy', 'ghost', 'water', 'fire', 'wind', 'earth', 'poison', 'undead'];
 
+// 怪物普通攻擊的遠距離名單：僅列出資料中可確認使用弓、火槍或投射武器的怪物。
+// 不依種族或名稱關鍵字推測，避免把一般近戰怪物誤判成遠距離。
+const MONSTER_RANGED_BASIC_ATTACKS = new Set([
+  'archer_skeleton', 'orc_archer', 'goblin_archer', 'raydric_archer',
+  'kobold_archer', 'archer_guardian', 'antique_firelock',
+  'g_archer_skeleton', 'g_raydric_archer', 'g_kobold_archer',
+  'g_orc_archer', 'g_antique_firelock', 'g_goblin_archer',
+  'wootan_shooter', 'g_gargoyle', 'shecil', 'kavac', 'g_kavac',
+  'a_shecil', 'bow_guardian', 'i_orc_archer', 'silversniper',
+  'gld_kobold_archer', 'mg_raydric_archer', 'c1_kobold_archer',
+  'c3_gargoyle', 'c4_gargoyle', 'mm_m_gargoyle',
+  'p_archer_skeleton', 'ill_archer_skeleton', 'ill_stone_shooter',
+  'ill_wootan_shooter', 'g_ill_wootan_shooter', 'raydric_archer_h',
+  'gargoyle_h'
+]);
+
+function isMonsterRangedBasicAttack(monDef) {
+  return !!(monDef && MONSTER_RANGED_BASIC_ATTACKS.has(String(monDef.id || '').toLowerCase()));
+}
+
 function applyPlayerReflect(mon, monDef, dmgTaken) {
   // 反射盾（#66）跟卡片的反射相加：官方兩者本來就是各自獨立的一份比率
   const pct = (state.cardReflectPct || 0) + buffMult('reflect').flatBonus;
@@ -3873,17 +4015,18 @@ function tryCardAilments(trigger, mon) {
 }
 
 /* ---------------- 獵人陷阱：被動觸發（攻擊時機率/固定觸發，各自獨立冷卻）---------------- */
-const TRAP_SKILL_IDS = ['trap', 'skidtrap', 'flasher', 'sleeptrap', 'freezingtrap', 'blastmine', 'claymoretrap', 'magnumbreak_h'];
+const TRAP_SKILL_IDS = ['trap', 'skidtrap', 'flasher', 'sleeptrap', 'freezingtrap', 'blastmine', 'claymoretrap', 'magnumbreak_h', 'v25_wind_hawk_7', 'v25_wind_hawk_8', 'v25_wind_hawk_9', 'v25_wind_hawk_10'];
 function tryTrapProcs(target, monDef) {
   if (!state.learnedSkills) return;
   if (!state.trapReadyAt) state.trapReadyAt = {};
   TRAP_SKILL_IDS.forEach(skillId => {
     const lv = state.learnedSkills[skillId];
     if (!lv) return;
-    const readyAt = state.trapReadyAt[skillId] || 0;
-    if (Date.now() < readyAt) return;
-
     const sk = findSkillById(skillId);
+    if (!sk || !sk.rangerTrapProc && !TRAP_SKILL_IDS.slice(0,8).includes(skillId)) return;
+    const readyAt = state.trapReadyAt[skillId] || 0;
+    if (Date.now() < readyAt) { return; }
+
     let proc = false;
     if (sk.procChance == null) {
       proc = true; // 定時爆炸陷阱：無機率判定，冷卻好就必定觸發
@@ -3909,7 +4052,7 @@ function tryTrapProcs(target, monDef) {
     } else if (sk.trapEffect === 'damage') {
       const mult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
       const elemMult = getElementMultiplierVsMonster(sk.element || 'none', monDef, target);
-      const dmg = mitigateDamage(skillBaseDamage(false, monDef, elemMult) * mult, ...defOf(monDef));
+      const dmg = mitigateDamage(skillBaseDamage(false, monDef, elemMult, sk) * mult * (1 + getSkillDamageBonus(sk) / 100) * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(monDef) * ailDmgTakenMult(target), ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
       target.hp -= dmg;
       logMsg(`💥 「${sk.name}」觸發！對 ${monDef.name} 造成 ${dmg} 點傷害！`);
       if (target.hp <= 0) killMonster(monDef, target);
@@ -3920,13 +4063,49 @@ function tryTrapProcs(target, monDef) {
         const mon = state.monsters[i];
         const mDef = MONSTERS[mon.defId];
         const elemMult = getElementMultiplierVsMonster(sk.element || 'none', mDef, mon);
-        const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult) * mult, ...defOf(mDef));
+        const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult, sk) * mult * (1 + getSkillDamageBonus(sk) / 100) * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(mDef) * ailDmgTakenMult(mon), ...defOf(mDef, 1, false, mon)) + raceFlatBonus(mDef);
         mon.hp -= dmg;
         logMsg(`  → 對 ${mDef.name} 造成 ${dmg} 點傷害！`);
         if (mon.hp <= 0) killMonster(mDef, mon);
       }
     }
   });
+}
+
+/* ---------------- 遊俠三轉／四轉被動技能：普攻自動觸發 ---------------- */
+// 三轉／四轉技能已依技能圖鑑改回主動攻擊與增益；陷阱仍由 tryTrapProcs() 獨立處理。
+const RANGER_PASSIVE_SKILL_IDS = [];
+function tryRangerPassiveProcs(target, monDef) {
+  if (!state.learnedSkills || !isBowWeapon(getEquipBaseItemId('weapon'))) return;
+  if (!state.rangerPassiveReadyAt) state.rangerPassiveReadyAt = {};
+  const now = Date.now();
+  for (const id of RANGER_PASSIVE_SKILL_IDS) {
+    const lv = state.learnedSkills[id] || 0;
+    if (!lv || !target || target.hp <= 0) continue;
+    const sk = findSkillById(id);
+    if (!sk || !sk.rangerPassiveProc) continue;
+    if (now < (state.rangerPassiveReadyAt[id] || 0)) { continue; }
+    const chance = Array.isArray(sk.procChance) ? sk.procChance[Math.min(lv-1,sk.procChance.length-1)] : (sk.procChance || 0);
+    if (Math.random()*100 >= chance) continue;
+    const cd = Array.isArray(sk.internalCooldown) ? sk.internalCooldown[Math.min(lv-1,sk.internalCooldown.length-1)] : (sk.internalCooldown || 0);
+    state.rangerPassiveReadyAt[id] = now + Math.max(0,cd)*1000;
+    const mult = Array.isArray(sk.mult) ? sk.mult[Math.min(lv-1,sk.mult.length-1)] : (sk.mult || 1);
+    const bonus = 1 + getSkillDamageBonus(sk)/100;
+    const hitOne = (mon, def) => {
+      const elem = getElementMultiplierVsMonster(sk.element || 'neutral', def, mon);
+      const dmg = mitigateDamage(skillBaseDamage(false, def, elem, sk) * mult * bonus * elementDmgMult(sk.element || 'neutral') * cardTargetDmgMult(def) * ailDmgTakenMult(mon), ...defOf(def,1,false,mon)) + raceFlatBonus(def);
+      mon.hp -= dmg;
+      if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, 'normal', sk.element || null);
+      logMsg(`🏹「${sk.name}」被動觸發！對 ${def.name} 造成 ${dmg} 點傷害！`);
+      if (mon.hp <= 0) killMonster(def,mon);
+    };
+    if (sk.aoe) {
+      for (let i=state.monsters.length-1;i>=0;i--) {
+        const mon=state.monsters[i]; const def=MONSTERS[mon.defId];
+        if (mon.hp>0) hitOne(mon,def);
+      }
+    } else hitOne(target,monDef);
+  }
 }
 
 /* ---------------- 冰凍術/石化術：被攻擊時機率反制暈眩並造成魔法傷害（各自獨立冷卻）---------------- */
@@ -3951,8 +4130,15 @@ function tryMagicStunProcs(mon, monDef) {
     applyStun(mon, stunSec, true);
     mon.frozenByProc = true;
     const dmgMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
-    const elemMult = getElementMultiplierVsMonster(sk.element || 'none', monDef, mon);
-    const dmg = mitigateDamage(state.matk * dmgMult * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(sk.element || 'none', monDef, mon)
+      * elementDmgMult(sk.element || 'neutral');
+    // 冰凍術／石化術雖是受擊觸發，仍屬技能魔法傷害：走統一 MATK 技能基底，
+    // 套用技能增傷、目標卡片與異常承傷，避免只吃裸 MATK 而漏掉角色養成效果。
+    const dmg = mitigateDamage(
+      skillBaseDamage(true, monDef, elemMult, sk) * dmgMult
+        * (1 + getSkillDamageBonus(sk) / 100)
+        * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon),
+      ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, 'normal', sk.element || null);
     logMsg(`❄️ 「${sk.name}」觸發！${monDef.name} 暈眩了，並受到 ${dmg} 點魔法傷害！`);
@@ -3979,7 +4165,7 @@ function tryOnAttackStrikes(target, monDef) {
 
     const elemMult = getElementMultiplierVsMonster('neutral', monDef, target);
     const dmg = mitigateDamage(
-      skillBaseDamage(false, monDef, elemMult) * e.mult * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
+      skillBaseDamage(false, monDef, elemMult, findSkillById(e.id)) * e.mult * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
       ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
     target.hp -= dmg;
     if (typeof showDamageFloatAt === 'function') showDamageFloatAt(target.id, '-' + dmg, 'normal');
@@ -4144,7 +4330,7 @@ function tryPhysAoeStrikes(monDef) {
       if (!md) continue;
       const elemMult = getElementMultiplierVsMonster(e.element, md, mon) * elementDmgMult(e.element);
       const dmg = mitigateDamage(
-        skillBaseDamage(false, md, elemMult) * e.mult * cardTargetDmgMult(md) * ailDmgTakenMult(mon),
+        skillBaseDamage(false, md, elemMult, findSkillById(e.id)) * e.mult * cardTargetDmgMult(md) * ailDmgTakenMult(mon),
         ...defOf(md, 1, false, mon)) + raceFlatBonus(md);
       mon.hp -= dmg;
       wakeIfFrozen(mon);
@@ -4685,7 +4871,7 @@ function sagePay(ids, qty, goldFallback) {
   const gemFree = buffMult('gemfree').flatBonus;
   if (gemFree > 0 && Math.random() * 100 < gemFree) return { id: null, label: '（觸媒之所免除）' };
   for (const id of ids || []) {
-    if (getItemQty(id) >= qty) { removeItem(id, qty); return { id, label: `${getItemDisplayName(id)}×${qty}` }; }
+    if (getItemQty(id) >= qty) { removeItem(id, qty); return { id, label: `${window.getItemDisplayName(id)}×${qty}` }; }
   }
   const wh = loadWarehouse();
   for (const id of ids || []) {
@@ -4694,7 +4880,7 @@ function sagePay(ids, qty, goldFallback) {
     row.qty -= qty;
     if (row.qty <= 0) wh.items = wh.items.filter(r => !(r.item === id && !r.instanceId));
     saveWarehouse(wh);
-    return { id, label: `倉庫的 ${getItemDisplayName(id)}×${qty}` };
+    return { id, label: `倉庫的 ${window.getItemDisplayName(id)}×${qty}` };
   }
   if (goldFallback && state.gold >= goldFallback) {
     state.gold -= goldFallback;
@@ -4765,7 +4951,7 @@ function tickConverter() {
   const paid = sagePay([SAGE_CONVERTER_ORE[pick]], 1, c.goldFallback);
   if (!paid) {
     if (!state._converterWarned) {
-      logMsg(`⚠️ 肯貝特武器附魔：${getItemDisplayName(SAGE_CONVERTER_ORE[pick])}與鋅幣都不足，暫停附魔。`);
+      logMsg(`⚠️ 肯貝特武器附魔：${window.getItemDisplayName(SAGE_CONVERTER_ORE[pick])}與鋅幣都不足，暫停附魔。`);
       state._converterWarned = true;
     }
     return;
@@ -5185,9 +5371,13 @@ function tryMagicCrasher(target, monDef) {
   if (Math.random() * 100 >= state.magicCrasherChance) return;
   state.magicCrasherReadyAt = Date.now() + state.magicCrasherCdSec * 1000;
   const elemMult = getElementMultiplierVsMonster('neutral', monDef, target);
+  const procSkill = findSkillById('hw_magiccrasher');
   const dmg = mitigateDamage(
-    state.matk * state.magicCrasherMult * elemMult * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
-    ...defOf(monDef, 1, false, target));
+    state.matk * state.magicCrasherMult * elemMult
+      * elementDmgMult(procSkill && procSkill.element || 'neutral')
+      * (1 + getSkillDamageBonus(procSkill) / 100)
+      * cardTargetDmgMult(monDef) * ailDmgTakenMult(target),
+    ...defOf(monDef, 1, false, target)) + raceFlatBonus(monDef);
   target.hp -= dmg;
   if (typeof showDamageFloatAt === 'function') showDamageFloatAt(target.id, '-' + dmg, 'normal');
   logMsg(`💫 魔擊術發動！追加 ${dmg} 點傷害！`);
@@ -5221,7 +5411,8 @@ function trySpearCounterProc(mon, monDef) {
   if (Date.now() < (state.spearCounterReadyAt || 0)) return;
   if (Math.random() * 100 >= state.spearCounterChance) return;
   state.spearCounterReadyAt = Date.now() + (state.spearCounterCooldownSec || 10) * 1000;
-  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.spearCounterMult, ...defOf(monDef));
+  const procSkill = findSkillById('spearstab');
+  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * state.spearCounterMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
   mon.hp -= dmg;
   applyStun(mon, state.spearCounterStunSec || 2, true);
   logMsg(`🔱 長矛刺擊發動！對 ${monDef.name} 造成 ${dmg} 點反擊傷害，並使其暈眩了！`);
@@ -5236,7 +5427,8 @@ function trySpearBoomerangProc() {
   state.spearBoomerangReadyAt = Date.now() + (state.spearBoomerangCooldownSec || 5) * 1000;
   const mon = state.monsters[Math.floor(Math.random() * state.monsters.length)];
   const monDef = MONSTERS[mon.defId];
-  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.spearBoomerangMult, ...defOf(monDef));
+  const procSkill = findSkillById('spearboomerang');
+  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * state.spearBoomerangMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
   mon.hp -= dmg;
   logMsg(`🔱 投擲長矛發動！對 ${monDef.name} 造成 ${dmg} 點傷害！`);
   if (mon.hp <= 0) killMonster(monDef, mon);
@@ -5250,7 +5442,8 @@ function tryChargeRandomProc() {
   state.chargeRandomReadyAt = Date.now() + (state.chargeRandomCooldownSec || 5) * 1000;
   const mon = state.monsters[Math.floor(Math.random() * state.monsters.length)];
   const monDef = MONSTERS[mon.defId];
-  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.chargeRandomMult, ...defOf(monDef));
+  const procSkill = findSkillById('charge');
+  const dmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * state.chargeRandomMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
   mon.hp -= dmg;
   logMsg(`🐎 衝鋒攻擊發動！對 ${monDef.name} 造成 ${dmg} 點傷害！`);
   if (mon.hp <= 0) killMonster(monDef, mon);
@@ -5266,8 +5459,9 @@ function tryOnHitAoeProc() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     const mon = state.monsters[i];
     const monDef = MONSTERS[mon.defId];
-    const elemMult = getElementMultiplierVsMonster(state.onHitAoeProcElement, monDef, mon);
-    const dmg = mitigateDamage(state.matk * state.onHitAoeProcMult * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(state.onHitAoeProcElement, monDef, mon) * elementDmgMult(state.onHitAoeProcElement);
+    const procSkill = findSkillById(state.onHitAoeProcSkillId || 'firebolt_wiz');
+    const dmg = mitigateDamage(skillBaseDamage(true, monDef, elemMult, procSkill) * state.onHitAoeProcMult * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     wakeIfFrozen(mon);
     pushCombatLog(`  → 對 ${monDef.name} 造成 ${dmg} 點傷害！`);
@@ -5287,8 +5481,9 @@ function tryOnAttackAoeProc() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     const mon = state.monsters[i];
     const monDef = MONSTERS[mon.defId];
-    const elemMult = getElementMultiplierVsMonster(state.onAttackAoeElement, monDef, mon);
-    const dmg = mitigateDamage((state.onAttackAoeFlatDmg + state.matk * state.onAttackAoeMult) * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(state.onAttackAoeElement, monDef, mon) * elementDmgMult(state.onAttackAoeElement);
+    const procSkill = findSkillById('firepillar');
+    const dmg = mitigateDamage((state.onAttackAoeFlatDmg + skillBaseDamage(true, monDef, elemMult, procSkill) * state.onAttackAoeMult) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     wakeIfFrozen(mon);
     pushCombatLog(`  → 對 ${monDef.name} 造成 ${dmg} 點傷害！`);
@@ -5319,8 +5514,9 @@ function tryOnHitAoeStunProc() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     const mon = state.monsters[i];
     const monDef = MONSTERS[mon.defId];
-    const elemMult = getElementMultiplierVsMonster(state.onHitAoeStunElement, monDef, mon);
-    const dmg = mitigateDamage(state.matk * state.onHitAoeStunMult * elemMult, ...defOf(monDef, 1, true));
+    const elemMult = getElementMultiplierVsMonster(state.onHitAoeStunElement, monDef, mon) * elementDmgMult(state.onHitAoeStunElement);
+    const procSkill = findSkillById(state.onHitAoeStunSkillId || 'frostdiver_wiz');
+    const dmg = mitigateDamage(skillBaseDamage(true, monDef, elemMult, procSkill) * state.onHitAoeStunMult * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, true, mon)) + raceFlatBonus(monDef);
     mon.hp -= dmg;
     wakeIfFrozen(mon);
     if (Math.random() * 100 < state.onHitAoeStunStunChance) applyStun(mon, state.onHitAoeStunStunSec, true);
@@ -5490,8 +5686,24 @@ function tickFieldEffects() {
   }
 }
 
+// 戰鬥數值防毒：避免怪物資料缺欄位或某次傷害公式產生 NaN 後，血量永久失效。
+function normalizeMonsterVitals() {
+  if (!Array.isArray(state.monsters)) return;
+  state.monsters.forEach(mon => {
+    if (!mon) return;
+    const def = MONSTERS[mon.defId];
+    const fallbackMax = Number(def && def.hp);
+    if (typeof mon.maxHp !== 'number' || !Number.isFinite(mon.maxHp) || mon.maxHp <= 0) {
+      mon.maxHp = Number.isFinite(fallbackMax) && fallbackMax > 0 ? fallbackMax : 1;
+    }
+    if (typeof mon.hp !== 'number' || !Number.isFinite(mon.hp)) mon.hp = mon.maxHp;
+    mon.hp = Math.max(0, Math.min(mon.maxHp, mon.hp));
+  });
+}
 function gameTick() {
   if (!state) return;
+  ensureSafeGold();
+  normalizeMonsterVitals();
   tickCooldowns();
   tickBuffs();
   /* 隊友身上的全體輔助 buff 也要倒數（#95）。**跟 tickBuffs 同一拍**——
@@ -6035,6 +6247,19 @@ function tickCooldowns() {
   });
 }
 function tickBuffs() {
+  const now = Date.now();
+  (state.buffs || []).forEach(b => {
+    if (b.type !== 'cardinal_mediale_hot') return;
+    if (!b.nextHealAt) b.nextHealAt = now + 2000;
+    if (now >= b.nextHealAt) {
+      const ticks = Math.max(1, Math.floor((now - b.nextHealAt) / 2000) + 1);
+      const amount = Math.round(state.maxHp * (b.healPct || 0) / 100) * ticks;
+      const before = state.hp;
+      state.hp = Math.min(state.maxHp, state.hp + amount);
+      b.nextHealAt += ticks * 2000;
+      if (state.hp > before) logMsg(`💚 「治癒誓言」持續恢復 ${state.hp - before} HP。`);
+    }
+  });
   state.buffs = state.buffs.filter(b => {
     b.msRemaining -= TICK_MS;
     return b.msRemaining > 0;
@@ -6130,6 +6355,9 @@ function computeAspd() {
   // 官方上限：未滿100等 190，100等以上 193
   const cap = state.baseLevel >= 100 ? 193 : 190;
   state.aspd = Math.min(cap, Math.max(100, finalAspd));
+  /* 雷神之錘：裝備時獲得無限攻擊速度加速，直接達到官方攻速上限。 */
+  const weaponDef = ITEMS[getEquipBaseItemId('weapon')];
+  if (weaponDef && weaponDef.aspdMax) state.aspd = cap;
   /* 刺客遺物 5 件的「攻速恆定 193」（#113）：直接頂到上限。
      寫成「頂到 cap」而不是寫死 193——99 級以下上限是 190，
      寫死會讓那段時間的角色拿到官方拿不到的攻速。 */
@@ -6180,7 +6408,9 @@ function skillHits(sk, lv, monDef, inst) {
 }
 // 攻擊力的臨時修正：詛咒（×0.75）與挑釁（±N%）
 function playerAtkMult() {
-  return playerAilAtkMult() * (1 + pDebuff('atkPct') / 100);
+  // P.ATK 是最終物理傷害百分比，必須放在武器／素質／熟練度合併後的最終乘區。
+  const pAtkPct = (typeof getCardBonus === 'function' ? getCardBonus('pAtk') : 0);
+  return playerAilAtkMult() * (1 + pDebuff('atkPct') / 100) * (1 + pAtkPct / 100);
 }
 /* 自動防禦（#22）：這一擊有沒有被完全擋下。只擋物理，跟「完全迴避」是兩件事——
    完全迴避看的是 LUK，這個是技能給的限時 buff。 */
@@ -6498,9 +6728,18 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   /* 高階拳刃修練（#59）：官方是「以拳刃攻擊時**物理傷害**+12~20%」——
      傷害%而不是 ATK 固定值，所以乘在整條鏈的最後，普攻與物理技能都吃得到。
      武器條件在 recomputeDerived 就判掉了（沒拿拳刃時 physDmgPct 是 0）。 */
-  const physPct = 1 + (state.physDmgPct || 0) / 100;
+  // `sizeDmg_all` 是舊裝備資料使用的「對所有體型增傷」鍵，與新鍵 allSizeDmgPct 同義。
+  const allSizeBonus = typeof getCardBonus === 'function'
+    ? getCardBonus('allSizeDmgPct') + getCardBonus('sizeDmg_all') : 0;
+  const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus) / 100;
+  // 物理攻擊依武器判斷距離：弓、樂器、鞭子的普攻與物理技能皆視為遠距離；
+  // 其他武器的普攻與物理技能皆視為近距離。物理增傷 physPct 不受距離分類影響，
+  // 因此遠距離物理攻擊會同時吃到物理增傷與遠距離增傷。
+  const rangedWeapon = !!(wId && isBowWeapon(wId));
+  const meleePct = !rangedWeapon && typeof getCardBonus === 'function' ? getCardBonus('meleeDmgPct') : 0;
+  const rangedPct = rangedWeapon && typeof getCardBonus === 'function' ? (getCardBonus('rangedDmgPct') + getCardBonus('rangedPhysDmgPct')) : 0;
   // 詛咒 −25% 與挑釁 ±N%，整包 ATK 都吃
-  return (wpn * variance * sizeMult * elemMult + nonWpn) * playerAtkMult() * buffMult('atk').mult * physPct;
+  return (wpn * variance * sizeMult * elemMult + nonWpn) * playerAtkMult() * buffMult('atk').mult * physPct * (1 + (meleePct + rangedPct) / 100);
 }
 
 /* 技能傷害的基底，跟普通攻擊走同一條官方鏈。
@@ -6520,8 +6759,36 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
      魔法那半沒有現成的桶，掛在這裡——這是全專案唯一一個「知道自己在算魔法、
      手上又有 monDef」的地方，放別處都得再開一條平行的管線。 */
   if (useMag) {
+    const sMatkPct = (typeof getCardBonus === 'function' ? getCardBonus('sMatk') : 0);
     const dragon = (state.dragonMatkPct && monDef && monDef.race === 'dragon') ? state.dragonMatkPct : 0;
-    return state.matk * elemMult * (1 + dragon / 100);
+    /* 魔法體型／種族增傷與物理分開計算：一般 sizeDmg_、raceDmg_ 是物理裝備詞條，
+       不能直接挪用，否則同一張物理卡片會意外增加魔法傷害。世界之光與滅世魔靴
+       使用 magicSizeDmg_ / magicRaceDmg_ 專用鍵。全種族、全目標、BOSS 通用乘區
+       則與物理共用。 */
+    let targetPct = 0;
+    if (monDef && monDef.size) targetPct += getCardBonus('magicSizeDmg_' + monDef.size);
+    if (monDef && monDef.race) {
+      targetPct += getCardBonus('magicRaceDmg_' + monDef.race);
+      // 舊裝備官方詞條使用 demihuman；本專案魔物種族值使用 humanoid。
+      if (monDef.race === 'humanoid') targetPct += getCardBonus('magicRaceDmg_demihuman');
+      // 若未來出現 animal 魔法詞條，亦對應本專案的 brute。
+      if (monDef.race === 'brute') targetPct += getCardBonus('magicRaceDmg_animal');
+    }
+    // 魔法專用屬性增傷依「技能本身的屬性」計算；放在共用基底，
+    // 讓主動施法、自動念咒、受擊反制與場地／持續傷害都能吃到，避免只在主動施法乘區生效。
+    const magicElement = (sk && sk.element) || 'none';
+    targetPct += getCardBonus('magicEleDmg_' + magicElement);
+    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
+    // 古代夢羅克貴族首飾：全屬性目標的魔法傷害，與物理端使用相同專用詞條，避免雙重計算。
+    targetPct += getCardBonus('allPropertyDmgPct');
+    if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
+    // 米德加爾特大太陽神頭盔：全屬性魔法傷害加成，與物理近／遠距離乘區分開。
+    // 全屬性魔法傷害（裝備 allEleDmg）：獨立於指定屬性、種族與體型的通用魔法增傷。
+    targetPct += getCardBonus('allEleDmg');
+    targetPct += getCardBonus('magicDmgPct');
+    // 魔法技能一律視為遠距離：遠距離增傷與魔法增傷是兩個獨立乘區，必須同時生效。
+    targetPct += getCardBonus('rangedDmgPct');
+    return state.matk * buffMult('matk').mult * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
   }
   return weaponChainDamage(monDef, elemMult, state.buffs.some(b => b.type === 'maxroll'), sk);
 }
@@ -6639,12 +6906,7 @@ function playerAttackInner() {
   }
   // 暴擊 1.5 倍，卡片的「暴擊時傷害增加N%」再乘上去（紙妖、無顱武士那類）
   if (isCrit) raw *= 1.5 * (1 + (state.cardCritDmgPct || 0) / 100);
-  // 遠距離物理傷害加成：官方限定遠程武器，本作以弓為準（邪骸弓箭手卡片）
-  if (state.cardRangedDmgPct && isBowWeapon(atkWeaponId)) {
-    raw *= 1 + state.cardRangedDmgPct / 100;
-  }
-
-  // 天使之怒被動：冷卻好時下一次攻擊必定雙倍傷害
+  // 近／遠距離物理加成已在 weaponChainDamage() 共用結算，普攻與物理技能一致。\n\n  // 天使之怒被動：冷卻好時下一次攻擊必定雙倍傷害
   if (state.hasAngelusProc && Date.now() >= (state.angelusReadyAt || 0)) {
     raw *= 2;
     state.angelusReadyAt = Date.now() + (state.angelusCooldownSec || 10) * 1000;
@@ -6856,7 +7118,8 @@ function playerAttackInner() {
       const mon = state.monsters[i];
       const mDef = MONSTERS[mon.defId];
       const elemMult = getElementMultiplierVsMonster('poison', mDef, mon) * elementDmgMult('poison');
-      const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult) * state.venominfusionDmgMult, ...defOf(mDef));
+      const procSkill = findSkillById('venominfusion');
+      const dmg = mitigateDamage(skillBaseDamage(false, mDef, elemMult, procSkill) * state.venominfusionDmgMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(mDef) * ailDmgTakenMult(mon), ...defOf(mDef, 1, false, mon)) + raceFlatBonus(mDef);
       mon.hp -= dmg;
       logMsg(`  → 對 ${mDef.name} 造成 ${dmg} 點傷害！`);
       if (mon.hp <= 0) killMonster(mDef, mon);
@@ -6866,6 +7129,7 @@ function playerAttackInner() {
   // 獵人陷阱被動：攻擊時各陷阱獨立判定觸發
   if (state.monsters.includes(target)) {
     tryTrapProcs(target, monDef);
+    tryRangerPassiveProcs(target, monDef);
   }
 
   // 閃電衝擊被動：普攻時依LUK機率額外觸發一次獵鷹單體攻擊
@@ -6877,7 +7141,7 @@ function playerAttackInner() {
       const bbSkill = findSkillById('blitzbeat');
       const passiveMultVal = bbSkill.passiveMult[bbLv - 1];
       const bbElemMult = getElementMultiplierVsMonster(bbSkill.element || 'none', monDef, target);
-      let bbDmg = mitigateDamage(skillBaseDamage(false, monDef, bbElemMult) * passiveMultVal, ...defOf(monDef));
+      let bbDmg = mitigateDamage(skillBaseDamage(false, monDef, bbElemMult, bbSkill) * passiveMultVal, ...defOf(monDef));
       if (state.falconFlatBonus) bbDmg += state.falconFlatBonus;
       target.hp -= bbDmg;
       logMsg(`🦅 獵鷹突襲！對 ${monDef.name} 造成 ${bbDmg} 點傷害！`);
@@ -6997,6 +7261,8 @@ function monsterCastSkillInner(mon, monDef, sk) {
     }
   }
 
+// 怪物技能距離分類依本作規則：魔法技能遠距離、物理技能近距離。
+
   let dmg = 0;
   if (sk.mult > 0) {
     const el = sk.elem || monDef.element || 'none';
@@ -7017,8 +7283,27 @@ function monsterCastSkillInner(mon, monDef, sk) {
     let raw = monsterBaseAtk(monDef, undefined, mon) * sk.mult * (sk.magic ? 1.2 : 1);
     if (sk.magic) raw *= stripMult(mon, 'matk');   // 卸除頭盔（#69）
     raw *= ailAtkMult(mon);                                   // 詛咒讓怪物 ATK 下降
+    if (!sk.magic && state.physDmgTakenPct) raw *= Math.max(0, 1 - state.physDmgTakenPct / 100);
     // 防守側的屬性是玩家的鎧甲屬性（#17）。沒有鎧甲屬性卡時就是 none，行為跟以前一樣
     raw *= getElementMultiplier(el, state.playerElement || 'none');
+    // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免；魔法攻擊同樣適用。
+    if (el === 'none') raw *= Math.max(0, 1 - getCardBonus('neutralDmgResistPct') / 100);
+    if (monDef.isBoss) raw *= Math.max(0, 1 - getCardBonus('bossDmgResistPct') / 100);
+    // 裝備元素／種族／體型通用耐性；與指定耐性相加後統一限制在 100%。
+    const skillElemResist = getCardBonus('eleDmgReduce_all')
+      + (el === 'earth' ? getCardBonus('earthDmgResistPct') : 0);
+    const skillRaceResist = getCardBonus('raceDmgResist_all');
+    const skillSizeResist = getCardBonus('sizeDmgResist_all')
+      + (monDef.size === 'large' ? getCardBonus('sizeResist_large') : 0);
+    raw *= Math.max(0, 1 - Math.max(0, skillElemResist) / 100);
+    raw *= Math.max(0, 1 - Math.max(0, skillRaceResist) / 100);
+    raw *= Math.max(0, 1 - Math.max(0, skillSizeResist) / 100);
+    // 距離與傷害類型分開判定：魔法技能一律遠距離；物理技能一律近距離。
+    // 遠距離減傷可與魔法技能自身的魔法承傷分類同時生效。
+    if (sk.magic) {
+      const rangedResist = getCardBonus('rangedDmgResist') - getCardBonus('rangedDmgTakenPct');
+      raw *= Math.max(0, 1 - Math.max(0, rangedResist) / 100);
+    }
     // 卡片的屬性/種族/體型減傷跟普攻共用同一組
     if (state.cardEleDmgReduce && state.cardEleDmgReduce[el]) raw *= (1 - state.cardEleDmgReduce[el]);
     if (monDef.race && state.cardRaceDmgReduce && state.cardRaceDmgReduce[monDef.race]) raw *= (1 - state.cardRaceDmgReduce[monDef.race]);
@@ -7041,7 +7326,7 @@ function monsterCastSkillInner(mon, monDef, sk) {
     }
     // 睡眠 ×1.5 與永恆之光 ×2：官方是**最後**的傷害倍率，要在防禦之後乘。
     // 乘在防禦之前的話，軟防那一段是固定減值，會讓實際倍率大於寫出來的數字
-    dmg = Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult()));
+    dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), !!sk.magic);
     dmg = rejectSwordAbsorb(dmg, mon, monDef);  // 霸王魂（#79）
     /* 遺物免傷（#113）也要擋技能。只擋普攻的話，會放技能的怪身上
        「20% 免疫」等於不存在——而高等圖幾乎每隻怪都會放技能。 */
@@ -7068,8 +7353,11 @@ function monsterCastSkillInner(mon, monDef, sk) {
         if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '+' + (mon.hp - before), 'heal');
       }
     }
-    // 卡片反射（#17）：技能傷害也算，只要不是魔法
-    if (!sk.magic) applyPlayerReflect(mon, monDef, dmg);
+    // 本作規則：物理攻擊技能一律視為近距離，因此可觸發近距離物理反射。
+    // 魔法技能一律視為遠距離，魔法反射另由上方 cardMagicReflectChance 處理。
+    if (!sk.magic) {
+      applyPlayerReflect(mon, monDef, dmg);
+    }
   } else {
     logMsg(`✨ ${nameOf()} 發動了！`);
   }
@@ -7228,7 +7516,8 @@ function monsterAttackSingle(mon) {
   // 毒性反彈被動：被毒屬性怪物攻擊時觸發反擊（10秒冷卻，目前遊戲無毒屬性怪物，暫無實際效果）
   if (state.hasPoisonReact && monDef.element === 'poison' && Date.now() >= (state.poisonReactReadyAt || 0)) {
     logMsg(`🛡️ 毒性反彈發動！完全迴避了 ${monDef.name} 的攻擊！`);
-    const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * state.poisonReactMult * elementDmgMult('poison'), ...defOf(monDef));
+    const procSkill = findSkillById('poisonreact');
+    const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, elementDmgMult('poison'), procSkill) * state.poisonReactMult * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
     mon.hp -= counterDmg;
     logMsg(`⚔️ 反擊造成 ${counterDmg} 點傷害！`);
     state.poisonReactReadyAt = Date.now() + state.poisonReactCooldownSec * 1000;
@@ -7243,7 +7532,8 @@ function monsterAttackSingle(mon) {
     const counterChance = state.counterAttackChance || 15;
     if (Math.random() * 100 < counterChance) {
       logMsg(`🛡️ 反擊發動！完全迴避了 ${monDef.name} 的攻擊！`);
-      const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, 1) * 1.5, ...defOf(monDef));
+      const procSkill = findSkillById('counter');
+      const counterDmg = mitigateDamage(skillBaseDamage(false, monDef, 1, procSkill) * 1.5 * (1 + getSkillDamageBonus(procSkill) / 100) * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
       mon.hp -= counterDmg;
       logMsg(`⚔️ 反擊造成 ${counterDmg} 點傷害（暴擊）！`);
       if (mon.hp <= 0) {
@@ -7256,10 +7546,31 @@ function monsterAttackSingle(mon) {
   let raw = monsterBaseAtk(monDef, undefined, mon);
   // 詛咒：怪物 ATK 下降
   raw *= ailAtkMult(mon);
+  if (state.physDmgTakenPct) raw *= Math.max(0, 1 - state.physDmgTakenPct / 100);
+  // 怪物普通攻擊：弓、火槍與投射武器視為遠距離物理，套用遠距離減傷。
+  // 其餘普通攻擊維持近距離物理；技能則依魔法遠距離／物理近距離規則處理。
+  const rangedBasicAttack = isMonsterRangedBasicAttack(monDef);
+  if (rangedBasicAttack) {
+    const rangedResist = getCardBonus('rangedDmgResist') - getCardBonus('rangedDmgTakenPct');
+    raw *= Math.max(0, 1 - Math.max(0, rangedResist) / 100);
+  }
 
   // 屬性相剋。防守側是玩家的鎧甲屬性（#17），沒插鎧甲屬性卡時是 none
   const elemMult = getElementMultiplier(monDef.element || 'none', state.playerElement || 'none');
   raw *= elemMult;
+
+  // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免。
+  if ((monDef.element || 'none') === 'none') raw *= Math.max(0, 1 - getCardBonus('neutralDmgResistPct') / 100);
+  if (monDef.isBoss) raw *= Math.max(0, 1 - getCardBonus('bossDmgResistPct') / 100);
+  // 裝備元素／種族／體型通用耐性；與指定耐性相加後統一限制在 100%。
+  const basicElemResist = getCardBonus('eleDmgReduce_all')
+    + ((monDef.element || 'none') === 'earth' ? getCardBonus('earthDmgResistPct') : 0);
+  const basicRaceResist = getCardBonus('raceDmgResist_all');
+  const basicSizeResist = getCardBonus('sizeDmgResist_all')
+    + (monDef.size === 'large' ? getCardBonus('sizeResist_large') : 0);
+  raw *= Math.max(0, 1 - Math.max(0, basicElemResist) / 100);
+  raw *= Math.max(0, 1 - Math.max(0, basicRaceResist) / 100);
+  raw *= Math.max(0, 1 - Math.max(0, basicSizeResist) / 100);
 
   // 強化火屬性：對火屬性/無屬性怪物攻擊的耐性
   const monAtkElement = monDef.element || 'none';
@@ -7303,7 +7614,7 @@ function monsterAttackSingle(mon) {
      等於睡著的玩家被技能打會痛、被普攻打卻不會。
      位置在防禦之後：官方這類是最後的傷害倍率，乘在防禦之前的話軟防那段固定減值
      會讓實際倍率大於寫出來的數字（實測 ×2 會變成 ×2.5）。 */
-  let dmg = Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult()));
+  let dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), false);
   dmg = rejectSwordAbsorb(dmg, mon, monDef);    // 霸王魂（#79）
   // 能量外套：啟動中減傷並消耗SP，SP%低於下限時暫停生效
   if (state.hasEnergyCoatUnlock && state.energyCoatEnabled) {
@@ -7322,8 +7633,8 @@ function monsterAttackSingle(mon) {
   pDebuffConsumeOnce('dmgTakenPct');
   const berserkMsg = (state.hasBerserk && state.hp < state.maxHp * 0.25) ? '（狂暴中：ATK+32% DEF-55%）' : '';
   logMsg(`${monDef.name} 對你造成 ${dmg} 點傷害。${berserkMsg}`);
-  // 卡片反射（#17）：彈回去的是扣完防禦與護盾之後的實際傷害
-  applyPlayerReflect(mon, monDef, dmg);
+  // 卡片比例反射只適用近距離物理普攻；弓、火槍與投射武器的普攻不觸發。
+  if (!rangedBasicAttack) applyPlayerReflect(mon, monDef, dmg);
   // 怪物傷害飄字（玩家頭上）
   if (typeof showPlayerFloat === 'function') showPlayerFloat('-' + dmg, 'element-bad');
   if (state.hp <= 0) {
@@ -7429,8 +7740,15 @@ function codexRecordBoxCardIfAlbumOnly(cardId) {
 
 // 可收集清單是靜態資料算出來的，只算一次後快取
 let _codexPoolCache = null;
+let _codexPoolSignature = '';
 function getCodexPool() {
-  if (_codexPoolCache) return _codexPoolCache;
+  // V2／擴充內容會在主資料庫載入後追加地圖與怪物；舊版永久快取會漏掉新怪物及其掉落物。
+  const poolSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${Object.keys(ITEMS).length}:` +
+    MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|') + ':' +
+    Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0);
+  if (_codexPoolCache && _codexPoolSignature === poolSignature) return _codexPoolCache;
+  _codexPoolSignature = poolSignature;
+  _codexPoolCache = null;
   const monSet = new Set();
   /* 不給經驗的怪是調校用的假人（目前只有測試波利），不進圖鑑。
      牠身上掛的掉落物也會跟著不進池——不然圖鑑會出現一件「查得到、但查不到去哪打」的死條目
@@ -7459,6 +7777,26 @@ function getCodexPool() {
     Object.keys(RELIC_ITEMS).forEach(id => { if (ITEMS[id]) itemSet.add(id); });
   }
   if (typeof RELIC_TICKET_ID !== 'undefined' && ITEMS[RELIC_TICKET_ID]) itemSet.add(RELIC_TICKET_ID);
+  // V2 職業裝備／四轉裝備即使尚未掛到地圖掉落表，也必須可在圖鑑查詢。
+  Object.keys(ITEMS).forEach(id => {
+    if (/^v2[45]_/.test(id) || /^v24_/.test(id)) itemSet.add(id);
+  });
+  // 全道具圖鑑自動收錄：只要新道具登錄在 ITEMS，且屬於玩家可取得的
+  // 武器／防具／消耗品／素材／雜物，就自動進入圖鑑，不必再手動維護白名單。
+  // 卡片仍由 CARDS 分流到卡片分頁；crafted_ 是合成內部項目，不列為獨立收藏。
+  // 取得來源由 getItemSources()、商店、箱子與 relicSourceHtml() 動態呈現。
+  Object.entries(ITEMS).forEach(([id, def]) => {
+    if (id.startsWith('crafted_')) return;
+    if (def && ['weapon', 'armor', 'consumable', 'material', 'etc'].includes(def.type)) {
+      itemSet.add(id);
+    }
+  });
+  // 所有已登錄卡片自動進入卡片分頁，即使尚未設定怪物掉落來源也能查到。
+  Object.keys(CARDS).forEach(id => { if (ITEMS[id]) itemSet.add(id); });
+  // 神器、套裝裝備也明確保留（包含未設定標準 type 的舊資料相容）。
+  ['magingiorde','helm_of_mid_sol_god'].forEach(id => {
+    if (ITEMS[id]) itemSet.add(id);
+  });
   const cardSet = new Set([...itemSet].filter(id => CARDS[id]));
   _codexPoolCache = {
     monsters: [...monSet].sort((a, b) => (MONSTERS[a].level || 0) - (MONSTERS[b].level || 0)),
@@ -7470,8 +7808,11 @@ function getCodexPool() {
 
 // 哪些怪會掉這個道具（圖鑑的「取得來源」欄用）
 let _codexSourceCache = null;
+let _codexSourceSignature = '';
 function getItemSources(itemId) {
-  if (!_codexSourceCache) {
+  const sourceSignature = `${Object.keys(MONSTERS).length}:${MAPS.length}:${Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0)}`;
+  if (!_codexSourceCache || _codexSourceSignature !== sourceSignature) {
+    _codexSourceSignature = sourceSignature;
     _codexSourceCache = {};
     getCodexPool().monsters.forEach(monId => {
       (MONSTERS[monId].drops || []).forEach(d => {
@@ -7503,8 +7844,11 @@ function isCodexFarmable(mapObj) {
   return list.some(e => MONSTERS[e.id] && (MONSTERS[e.id].exp || 0) > 0);
 }
 let _codexMapCache = null;
+let _codexMapSignature = '';
 function getMonsterMaps(monId) {
-  if (!_codexMapCache) {
+  const mapSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${typeof MVP_MAP_DATA !== 'undefined' ? Object.keys(MVP_MAP_DATA).length : 0}`;
+  if (!_codexMapCache || _codexMapSignature !== mapSignature) {
+    _codexMapSignature = mapSignature;
     _codexMapCache = {};
     MAPS.forEach(m => {
       if (!isCodexFarmable(m)) return;
@@ -7557,7 +7901,7 @@ function getItemFarmSpots(itemId) {
   const out = [];
   getItemSources(itemId).forEach(s => {
     getMonsterMaps(s.mon).forEach(m => {
-      out.push({ mapId: m.id, mapName: m.name, spawnPct: m.pct, mon: s.mon, dropChance: s.chance });
+      out.push({ mapId: m.id, mapName: m.name, spawnPct: m.pct, mon: s.mon, dropChance: s.chance, mvp: !!m.mvp });
     });
     /* MVP 的出沒地圖**已經包含在 getMonsterMaps() 裡了**（#108 那次補的）。
        這裡以前還有一段自己再掃一次 MVP_MAP_DATA 的程式，是 #108 之前寫的，
@@ -7719,7 +8063,7 @@ function killMonster(def, monObj) {
   const expMult = (1 + ((def.race && state.cardExpRace && state.cardExpRace[def.race]) || 0))
     * (1 + buffMult('exp').flatBonus / 100)
     /* 裝備的經驗值加成（快樂氣球 EXP+5%、艾咪斯可魯背包每+2 +1%）。過去只進表沒人讀。 */
-    * (1 + getCardBonus('expAllPct') / 100);
+    * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100);
   const gotExp = Math.round(def.exp * expMult * farmMult('exp'));
   const gotJobExp = Math.round(def.jobExp * expMult * farmMult('exp'));
   /* **隊友打死的怪，獎勵要記在玩家頭上。** 隊友是靠 withAlly() 換身跑
@@ -9209,17 +9553,41 @@ function learnSkill(skillId) { return levelUpSkill(skillId); }
 
    **下限 0.5 秒**：冷卻減到 0 等於無限連發，任何一張減冷卻的卡都會變成必帶。 */
 const MIN_COOLDOWN_MS = 500;
+function skillCooldownItemBonus(skillId) {
+  if (!skillId || typeof getCardBonus !== 'function') return 0;
+  // 新資料直接使用技能 ID；舊裝備資料保留官方短名，僅對已存在的技能做明確映射。
+  const legacyAliases = {
+    tigercannon: 'v2_in_tiger_cannon'
+  };
+  const exact = getCardBonus('skillCd_' + skillId);
+  if (exact) return exact;
+  // 舊裝備資料使用 cooldown_<技能ID>，與新版 skillCd_<技能ID> 同義；
+  // 只在實際技能冷卻計算時讀取，保留原本秒數與最低 0.5 秒限制。
+  const legacyCooldown = getCardBonus('cooldown_' + skillId);
+  if (legacyCooldown) return legacyCooldown;
+  const legacyKey = Object.keys(legacyAliases).find(key => legacyAliases[key] === skillId);
+  if (legacyKey) {
+    const mapped = getCardBonus('skillCd_' + legacyKey);
+    if (mapped) return mapped;
+    return getCardBonus('cooldown_' + legacyKey);
+  }
+  return 0;
+}
 function effectiveCooldownMs(skillId, baseCdSec) {
   const base = (baseCdSec || 0) * 1000;
   if (base <= 0) return base;                       // 本來就沒有冷卻的技能不給它加上冷卻
-  const delta = (getCardBonus('skillCdFlat') + getCardBonus('skillCdFlat_' + skillId)) * 1000;
+  const delta = (
+    getCardBonus('skillCdFlat') +
+    getCardBonus('skillCdFlat_' + skillId) +
+    skillCooldownItemBonus(skillId)
+  ) * 1000;
   // 布萊奇之詩（#68）：冷卻 −N%。乘在固定值增減之後，跟 #55 那批卡片同一條路
   const pct = Math.max(0, 1 - buffMult('skillcd').flatBonus / 100);
   return Math.max(MIN_COOLDOWN_MS, (base + delta) * pct);
 }
 
-/* 攻擊時機率觸發臨時 buff（凡貝爾克 CRI+100、依斯拉施法時間-50% 等）。
-   資料寫在 CARDS[x].onAttackBuff，跟 autoSpell/ailment 同一套格式：
+/* 攻擊時機率觸發臨時 buff（卡片與裝備共用）。
+   資料寫在 CARDS[x] / ITEMS[x].onAttackBuff，跟 autoSpell/ailment 同一套格式：
      { on:'attack', chance:5, durSec:5, buffType:'crit', buffFlat:100, buffName:'...' }
    buffType 對應 buffMult() 的 type（crit/aspd/atk/flee/fixedcast 等）。
    觸發後推一個臨時 buff 到 state.buffs，到期自動還原。 */
@@ -9228,14 +9596,30 @@ function tryAttackBuffs(trigger, mon) {
   if (!list || !list.length) return;
   for (const e of list) {
     if (Math.random() * 100 >= e.chance) continue;
-    // 同名 buff 已在身上就不重複推
-    if (state.buffs.some(b => b.buffName === e.buffName && b.msRemaining > 0)) continue;
-    state.buffs.push({
-      type: e.buffType, mult: 1, flatBonus: e.buffFlat,
-      msRemaining: e.durSec * 1000, skillId: 'card_' + e.buffName,
+    const group = e.buffGroup || e.buffName;
+    // 同一組效果只觸發一次；一個變身效果可同時提供 MATK 與暴擊傷害。
+    if (state.buffs.some(b => b.buffGroup === group && b.msRemaining > 0)) continue;
+    const duration = Math.max(0, Number(e.durSec) || 0) * 1000;
+    const common = {
+      buffName: e.buffName || group,
+      buffGroup: group,
+      msRemaining: duration,
+      skillId: e.sourceId || ('item_' + String(group || 'attack_buff'))
+    };
+    const effects = Array.isArray(e.effects) ? e.effects : [{
+      type: e.buffType, mult: e.buffMult, flatBonus: e.buffFlat
+    }];
+    effects.forEach(effect => {
+      if (!effect || !effect.type) return;
+      state.buffs.push({
+        ...common,
+        type: effect.type,
+        mult: (typeof effect.mult === 'number') ? effect.mult : 1,
+        flatBonus: (typeof effect.flatBonus === 'number') ? effect.flatBonus : 0
+      });
     });
     recomputeDerived(false);
-    logMsg(`✨ 「${e.buffName}」發動！持續 ${e.durSec} 秒。`);
+    logMsg(`✨ ${e.buffName || '裝備效果'}發動！持續 ${e.durSec} 秒。`);
   }
 }
 
@@ -9262,8 +9646,11 @@ function tryAutoSpells(trigger, mon) {
   if (!list || !list.length) return;
   const melee = !isBowWeapon(getEquipBaseItemId('weapon'));
   for (const e of list) {
-    // 官方寫「受到近距離物理傷害時」的那幾張（邪惡噬人花），判斷同 tryCardAilments
-    if (e.melee && !melee) continue;
+    // attack/chain 是玩家主動攻擊，近距離條件依玩家武器判斷。
+    // hit 是玩家承受怪物攻擊，不能拿玩家手上的弓判斷怪物是否近戰；
+    // 目前怪物資料沒有完整的攻擊距離欄位，因此受擊觸發不套用玩家武器限制，
+    // 避免玩家拿弓時錯誤封鎖「受擊時」自動念咒。
+    if (e.melee && trigger !== 'hit' && !melee) continue;
     if (Math.random() * 100 >= e.chance) continue;
     const sk = findSkillAnywhere(e.skill);
     if (!sk) continue;
@@ -9271,6 +9658,8 @@ function tryAutoSpells(trigger, mon) {
     // 判斷方式跟 tryAutoCastSupportSkills() 一致，用 skillId 而不是 type。
     if (sk.type === 'buff_shield' && state.shields && state.shields.some(sh => sh.id === sk.id)) continue;
     if (state.buffs && state.buffs.some(b => b.skillId === sk.id)) continue;
+    // 持續場域也視為技能效果仍存在；避免裝備／卡片自動念咒在場域存續期間反覆重放。
+    if (state.activeFieldEffects && state.activeFieldEffects.some(f => f.skillId === sk.id)) continue;
 
     /* 「習得該技能到某等級時，改放高階版」（半龍人的火球術10、古鐘魔的自動防禦10、
        朽魔的泥沼地5、風魔巫師的雷鳴術10）。官方寫的是同一個技能升級，
@@ -9287,6 +9676,10 @@ function tryAutoSpells(trigger, mon) {
       const learned = skillLv(e.skill);
       if (learned > 0) lv = Math.min(sk.maxLv || learned, learned);
     }
+    // 一般技能會由 castSkill(forceLv) 統一限制等級；被動技能走
+    // applyPassiveSkillOnce()，不經過 castSkill，因此必須在分流前共用同一個等級上限。
+    // 否則卡片資料若指定高於技能 maxLv，陣列型效果會讀到不存在的等級欄位。
+    lv = Math.max(1, Math.min(Number(sk.maxLv) || lv || 1, Number(lv) || 1));
 
     // 本作把火狩／泥沼地／冰凍術／天使之怒做成了被動（passiveStat），castSkill() 放不出來，
     // 改成直接套用那個被動原本的效果一次
@@ -9456,7 +9849,7 @@ function castSkillInner(skillId, opts) {
   if (sk.costItems && sk.costItems.length && !free
       && !(sk.type === 'buff_elementfield' && elementFieldActive())
       && !sageCanPay(sk.costItems, sk.costQty || 1)) {
-    logMsg(`⚠️ 缺少${sk.costItems.map(id => getItemDisplayName(id)).join('或')}，無法施放「${sk.name}」！`);
+    logMsg(`⚠️ 缺少${sk.costItems.map(id => window.getItemDisplayName(id)).join('或')}，無法施放「${sk.name}」！`);
     return false;
   }
 
@@ -9476,7 +9869,7 @@ function castSkillInner(skillId, opts) {
 
   const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time';
   const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
-  const needsMonster = ['damage', 'magic', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'special_charge', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
+  const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'special_charge', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
   /* 易燃之網對 BOSS 無效（官方）。**要擋在扣 SP 之前**——寫在 case 裡用 break
      只是跳出 switch，SP 已經扣掉了而且函式還是回傳 true。 */
@@ -9509,18 +9902,14 @@ function castSkillInner(skillId, opts) {
      乘在 mult 上而不是傷害基底上：直接傷害的 case 都是算 基底 × mult，
      但場地類（隕石術）與持續傷害類（火焰之壁）是把 mult 存進 activeFieldEffects
      之後才結算的，只改基底會漏掉那些。乘 mult 才是唯一涵蓋全部的位置。 */
-  const skillDmgPct = getCardBonus('skillDmg_' + sk.id);
+  const skillDmgPct = getSkillDamageBonus(sk);
   // 'magic_aoe'（例如火球術、雷爆術、光獵、怒雷強擊）先前漏判，導致誤用ATK而非MATK計算傷害
   // 傷害基底一律走 skillBaseDamage(useMag, 怪, 屬性倍率)，物理走官方武器鏈、魔法用 MATK
   const useMag = sk.type === 'magic' || sk.type === 'magic_aoe';
 
   // 屬性相剋：技能屬性 vs 怪物屬性
   const skElement = sk.element || 'none';
-  /* 卡片的「某屬性**魔法**傷害 +N%」（無頭騾：水/聖魔法 +20%）。
-     跟 eleDmg_ 是兩件不同的事——那個看的是**怪物的屬性**（打水屬性的怪 +N%），
-     這個看的是**自己這一發的屬性**，而且只算魔法。放在 mult 上跟 skillDmg_ 同理。 */
-  const magicElePct = useMag && skElement !== 'none' && skElement !== 'neutral'
-    ? getCardBonus('magicEleDmg_' + skElement) : 0;
+  /* 魔法屬性增傷已集中在 skillBaseDamage()，讓主動、觸發及持續魔法共用，避免重複乘算。 */
   /* 聖十字攻擊：官方「裝備雙手矛時傷害會變成雙倍」（#66）。
      乘進 mult 而不是另外算一份傷害，理由跟 skillDmg_ 那條完全一樣——
      mult 是唯一能同時涵蓋直接傷害與場地／持續傷害的位置。 */
@@ -9533,7 +9922,7 @@ function castSkillInner(skillId, opts) {
   const weaponSpecial = (sk.daggerMult && wCat === 'dagger') ? sk.daggerMult
     : (sk.bowMult && wCat === 'bow') ? sk.bowMult : 1;
   const mult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult)
-    * (1 + skillDmgPct / 100) * (1 + magicElePct / 100) * twoHandSpear * weaponSpecial;
+    * (1 + skillDmgPct / 100) * twoHandSpear * weaponSpecial;
 
   // 各 case 推 buff 時常忘了標 skillId，導致「同 type 就算已生效」的判斷把不同來源
   // 混為一談（例：喝了集中藥水後，雙手劍加速因為都是 type:'aspd' 而永遠不再自動施放）。
@@ -9600,11 +9989,9 @@ function castSkillInner(skillId, opts) {
       if ((sk.id === 'mammonite' || sk.id === 'cartattack' || sk.id === 'ws_cartterm') && state.cartDmgBonusMult) {
         skillMult *= (1 + state.cartDmgBonusMult);
       }
-      /* 獵鷹突擊（#61）：官方**沒有給 ATK% 欄位**——它的傷害是從閃電衝擊推導的
-         （官方原文：「依技能等級、施展者的閃電衝擊傷害、鋼製喙等級和基本等級而增加」）。
-         所以這裡 `sk.mult` 是**係數**不是倍率：拿閃電衝擊當前等級的倍率乘上去，
-         鋼製喙的固定傷害也照同一個係數放大並加在防禦之後（跟閃電衝擊本體同一個位置）。
-         結果是：把前置練滿，這招才會變強——官方的設計意圖就是這個。 */
+      /* 獵鷹突擊：主動單體技能，傷害依閃電衝擊等級與鋼製喙等級成長。
+         sk.mult 是技能係數；閃電衝擊的主動倍率決定基礎傷害，鋼製喙固定傷害再乘本技能係數，
+         固定傷害於防禦結算後加入。此處與普攻時 LUK 觸發的「獵鷹突襲」完全分開。 */
       if (sk.id === 'sn_falconassault') {
         const bLv = state.learnedSkills['blitzbeat'] || 0;
         const bSk = SKILLS.blitzbeat;
@@ -9651,7 +10038,7 @@ function castSkillInner(skillId, opts) {
       if (sk.type !== 'magic' && typeof playHitSound === 'function') playHitSound();
       ailBreakOnDamage(target, def);   // 睡眠被打就醒
       // 卡片的「魔法攻擊時對敵人施以XX」
-      if (useMag) tryCardAilments('magic', target);
+      if (useMag) { tryCardAilments('magic', target); tryAttackBuffs('magic', target); }
       // 冰凍術/石化術：魔法傷害命中會提前喚醒被反制暈眩的目標
       if (sk.type === 'magic') wakeIfFrozen(target);
       // 雷鳴術：命中必定使目標暈眩
@@ -9704,6 +10091,30 @@ function castSkillInner(skillId, opts) {
         const monEleDmgBonus = cardTargetDmgMult(monDef) - 1;
         // 負重量上升：加成手推車攻擊傷害
         let aoeMult = mult;
+        // 裁決分成鎖定目標的第一段與周圍爆裂的第二段；主目標承受兩段，周圍承受爆裂段。
+        if (sk.splashMult) {
+          const splash = Array.isArray(sk.splashMult) ? sk.splashMult[lv - 1] : sk.splashMult;
+          aoeMult = mon === state.monsters[0] ? mult + splash : splash;
+        }
+        if (useMag && (sk.element === 'holy' || sk.fidusPassive || sk.fidusFlat)) {
+          const faLv = (state.learnedSkills && state.learnedSkills.cd_fidus_animus) || 0;
+          const faSkill = SKILLS.cd_fidus_animus;
+          if (faLv && faSkill) {
+            aoeMult *= 1 + (faSkill.passiveHolyPct[faLv - 1] || 0) / 100;
+            if (sk.fidusFlat) aoeMult *= 1 + (faLv * sk.fidusFlat) / 100;
+          }
+        }
+        if (sk.raceBonusPct && (monDef.race === 'demon' || monDef.race === 'undead')) {
+          const rb = Array.isArray(sk.raceBonusPct) ? sk.raceBonusPct[lv - 1] : sk.raceBonusPct;
+          aoeMult *= 1 + rb / 100;
+        }
+        if (sk.critRateMult && sk.critRateMult > 0) {
+          const cb = buffMult('crit');
+          const own = state.critRate * cb.mult + cb.flatBonus;
+          if (Math.random() * 100 < own * sk.critRateMult) {
+            aoeMult *= 1 + (0.5 + (state.cardCritDmgPct || 0) / 100) * (sk.critDmgMult || 1);
+          }
+        }
         if (sk.id === 'cartattack' && state.cartDmgBonusMult) aoeMult *= (1 + state.cartDmgBonusMult);
         // 騎乘攻擊：依STR增加傷害（STR120封頂）
         if (sk.id === 'brandishspear') {
@@ -9716,6 +10127,11 @@ function castSkillInner(skillId, opts) {
           const lvlPct = (state.baseLevel / 99) * (sk.levelScaleMax || 0);
           const intPct = (state.stats.int / 99) * (sk.intScaleMax || 0);
           aoeMult *= (1 + lvlPct / 100 + intPct / 100);
+        }
+        // 四轉 POW／SPL 的獨立素質已由裝備共用引擎提供；此處技能專屬 powScaleMax 仍依技能資料設定。
+        if (sk.powScaleMax) aoeMult *= 1 + (state.stats.str / 99) * sk.powScaleMax / 100;
+        if ((sk.id === 'rk_dragonbreath' || sk.id === 'v25_dragon_knight_12') && state.dragonBreathBonusPct) {
+          aoeMult *= (1 + state.dragonBreathBonusPct / 100);
         }
         /* 範圍技的暴擊（#61 銳利射擊）。
 
@@ -9734,13 +10150,13 @@ function castSkillInner(skillId, opts) {
           const cdm = (typeof sk.critDmgMult === 'number') ? sk.critDmgMult : 1;
           aoeMult *= 1 + (0.5 + (state.cardCritDmgPct || 0) / 100) * cdm;
         }
-        let dmg = mitigateDamage(skillBaseDamage(useMag, monDef, monElemMult) * aoeMult * (1 + monEleDmgBonus) * ailDmgTakenMult(mon), ...defOf(monDef, 1, useMag, mon)) + raceFlatBonus(monDef);
+        let dmg = mitigateDamage(skillBaseDamage(useMag, monDef, monElemMult, sk) * aoeMult * (1 + monEleDmgBonus) * ailDmgTakenMult(mon), ...defOf(monDef, 1, useMag, mon)) + raceFlatBonus(monDef);
         // 鋼製喙：閃電衝擊額外固定傷害（不受倍率影響）
         if (sk.id === 'blitzbeat' && state.falconFlatBonus) dmg += state.falconFlatBonus;
         if (dmg > aoeTopDmg) aoeTopDmg = dmg;
         mon.hp -= dmg;
         ailBreakOnDamage(mon, monDef);   // 睡眠被打就醒
-        if (useMag) tryCardAilments('magic', mon);
+        if (useMag) { tryCardAilments('magic', mon); tryAttackBuffs('magic', mon); }
         // 冰凍術/石化術：魔法傷害命中會提前喚醒被反制暈眩的目標
         if (sk.type === 'magic_aoe') wakeIfFrozen(mon);
         // 怒雷強擊：範圍技附加機率暈眩
@@ -9752,6 +10168,10 @@ function castSkillInner(skillId, opts) {
           }
         }
         // 技能附帶的異常狀態（#58 的 inflict，範圍分支以前沒接，#61 補上）
+        if (sk.silenceChance && mon.hp > 0) {
+          const sc = Array.isArray(sk.silenceChance) ? sk.silenceChance[lv - 1] : sk.silenceChance;
+          if (Math.random() * 100 < sc) applyAilment(mon, monDef, 'silence');
+        }
         if (sk.inflict && mon.hp > 0) {
           const ic = Array.isArray(sk.inflict.chance) ? sk.inflict.chance[lv - 1] : sk.inflict.chance;
           if (Math.random() * 100 < ic) {
@@ -10255,7 +10675,7 @@ function castSkillInner(skillId, opts) {
       }
       const elemMult = getElementMultiplierVsMonster(skElement, def, target);
       const dotEleDmgBonus = cardTargetDmgMult(def) - 1;
-      const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult) * mult * (1 + dotEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 0.6, false, target));
+      const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * mult * (1 + dotEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 0.6, false, target));
       target.hp -= dmg;
       logMsg(`☠️ 「${sk.name}」Lv${lv} 造成 ${dmg} 點持續傷害！`);
       if (target.hp <= 0) killMonster(def, target);
@@ -10272,15 +10692,90 @@ function castSkillInner(skillId, opts) {
         break;
       }
       const elemMult = getElementMultiplierVsMonster(skElement, def, target);
-      const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult) * mult * ailDmgTakenMult(target), ...defOf(def, 1, false, target));
+      const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * mult * ailDmgTakenMult(target), ...defOf(def, 1, false, target));
       target.hp -= dmg;
       logMsg(`⚡ 「${sk.name}」Lv${lv} 造成 ${dmg} 點傷害！`);
       if (target.hp <= 0) { killMonster(def, target); break; }
       const procChance = Array.isArray(sk.procChance) ? sk.procChance[lv - 1] : sk.procChance;
       if (Math.random() * 100 < procChance) {
-        applyPoisonDot(target, def, skillBaseDamage(useMag, def, elemMult) * mult);
+        applyPoisonDot(target, def, skillBaseDamage(useMag, def, elemMult, sk) * mult);
         logMsg(`☠️ ${def.name} 中毒了！`);
       }
+      break;
+    }
+    case 'cardinal_support': {
+      const dur = (Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration || 120) * 1000;
+      const value = Array.isArray(sk.value) ? sk.value[lv - 1] : (sk.value || 0);
+      const push = (type, multValue, flatBonus) => state.buffs.push({
+        type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
+        msRemaining: dur, skillId: sk.id
+      });
+      switch (sk.effect) {
+        case 'mresIgnore': push('mresignore', 1, value); break;
+        case 'resIgnore': push('resignore', 1, value); break;
+        case 'medialeHot':
+          state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+          state.buffs.push({ type:'cardinal_mediale_hot', healPct:value, nextHealAt:Date.now()+2000, msRemaining:dur, skillId:sk.id });
+          break;
+        case 'physicalStats':
+          // 專案目前沒有 POW/CRT/CON 第四轉素質欄；以 ATK、暴擊率、HIT 三項對應實裝。
+          push('atk', 1 + value / 100);
+          push('crit', 1, value);
+          push('hit', 1, value);
+          break;
+        case 'magicStats':
+          // 專案目前沒有 SPL/WIS/STA 第四轉素質欄；以 MATK、MDEF、DEF 三項對應實裝。
+          push('matk', 1 + value / 100);
+          push('mdef', 1, value);
+          push('def', 1 + value / 100);
+          break;
+        case 'competentia': {
+          const hpPct = Array.isArray(sk.healPct) ? sk.healPct[lv - 1] : (sk.healPct || 0);
+          const hpGain = Math.round(state.maxHp * hpPct / 100);
+          const spGain = Math.round(state.maxSp * hpPct / 100);
+          state.hp = Math.min(state.maxHp, state.hp + hpGain);
+          state.sp = Math.min(state.maxSp, state.sp + spGain);
+          push('atk', 1 + value / 100);
+          push('matk', 1 + value / 100);
+          logMsg(`✨ 「${sk.name}」恢復 HP ${hpGain}、SP ${spGain}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
+          break;
+        }
+        case 'presensAcies': push('crit', 1, value); break;
+      }
+      if (sk.effect !== 'competentia') logMsg(`✨ 「${sk.name}」Lv${lv} 發動，全隊效果生效 ${Math.round(dur/1000)} 秒。`);
+      recomputeDerived(false);
+      break;
+    }
+    case 'cardinal_heal': {
+      const applyHeal = () => {
+        if (sk.effect === 'fullHeal') {
+          const amount = Math.max(0, state.maxHp - state.hp);
+          state.hp = state.maxHp;
+          return amount;
+        }
+        const healMultValue = Array.isArray(sk.healMult) ? sk.healMult[lv - 1] : (sk.healMult || 1);
+        const amount = Math.round((state.stats.int + state.baseLevel) * healMultValue * healOutputMult());
+        const before = state.hp;
+        state.hp = Math.min(state.maxHp, state.hp + amount);
+        return state.hp - before;
+      };
+      const selfGain = applyHeal();
+      const healed = [];
+      if (sk.party) forEachPartyMate(mate => { if (applyHeal() > 0) healed.push(mate); });
+      if (sk.effect === 'areaHeal') {
+        const healMultValue = Array.isArray(sk.healMult) ? sk.healMult[lv - 1] : (sk.healMult || 1);
+        const durationMs = 30000;
+        const applyHealBoost = () => {
+          state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+          state.buffs.push({ type:'healrecv', mult:healMultValue, msRemaining:durationMs, skillId:sk.id });
+        };
+        applyHealBoost();
+        if (sk.party) forEachPartyMate(() => applyHealBoost());
+        recomputeDerived(false);
+      }
+      logMsg(sk.effect === 'fullHeal'
+        ? `💚 「${sk.name}」完全恢復自身 HP${healed.length ? `，並治癒 ${partyMateNames(healed)}` : ''}。`
+        : `💚 「${sk.name}」恢復 ${selfGain} HP${healed.length ? `，並治癒 ${partyMateNames(healed)}` : ''}。`);
       break;
     }
     case 'heal': {
@@ -10596,7 +11091,7 @@ function castSkillInner(skillId, opts) {
       const elemMult = getElementMultiplierVsMonster(skElement, def, target);
       const mhEleDmgBonus = cardTargetDmgMult(def) - 1;
       // 第一段：單體傷害
-      const dmg1 = mitigateDamage(skillBaseDamage(useMag, def, elemMult) * mult * (1 + mhEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target)) + raceFlatBonus(def);
+      const dmg1 = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * mult * (1 + mhEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target)) + raceFlatBonus(def);
       target.hp -= dmg1;
       if (typeof showDamageFloatAt === 'function') showDamageFloatAt(target.id, '-' + dmg1, 'normal');
       logMsg(`⚡ 「${sk.name}」Lv${lv} 第一段對 ${def.name} 造成 ${dmg1} 點傷害！`);
@@ -10609,7 +11104,7 @@ function castSkillInner(skillId, opts) {
         const monDef = MONSTERS[mon.defId];
         const monElemMult = getElementMultiplierVsMonster(skElement, monDef, mon);
         const mon2EleDmgBonus = cardTargetDmgMult(monDef) - 1;
-        const dmg2 = mitigateDamage(skillBaseDamage(useMag, monDef, monElemMult) * mult2 * (1 + mon2EleDmgBonus) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
+        const dmg2 = mitigateDamage(skillBaseDamage(useMag, monDef, monElemMult, sk) * mult2 * (1 + mon2EleDmgBonus) * ailDmgTakenMult(mon), ...defOf(monDef, 1, false, mon)) + raceFlatBonus(monDef);
         mon.hp -= dmg2;
         pushCombatLog(`  → 對 ${monDef.name} 造成 ${dmg2} 點範圍傷害！`);
         if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg2, 'normal');
@@ -10633,7 +11128,7 @@ function castSkillInner(skillId, opts) {
       const hits = Array.isArray(sk.hits) ? sk.hits[lv - 1] : (sk.hits || 1);
       let totalDmg = 0;
       for (let i = 0; i < hits; i++) {
-        const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult) * mult * (1 + multiEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target)) + raceFlatBonus(def);
+        const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * mult * (1 + multiEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target)) + raceFlatBonus(def);
         totalDmg += dmg;
         target.hp -= dmg;
         if (target.hp <= 0) break;
@@ -10651,7 +11146,7 @@ function castSkillInner(skillId, opts) {
       if (skillHits(sk, lv, def, target)) {
         const elemMult = getElementMultiplierVsMonster(skElement, def, target);
         const scEleDmgBonus = cardTargetDmgMult(def) - 1;
-        const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult) * mult * (1 + scEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target));
+        const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * mult * (1 + scEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target));
         target.hp -= dmg;
         logMsg(`⚡ 「${sk.name}」Lv${lv} 造成 ${dmg} 點傷害！`);
         if (target.hp <= 0) killMonster(def, target);
@@ -10768,12 +11263,17 @@ function tryChainSpells(afterSkillId, afterLv) {
     if (Math.random() * 100 >= e.chance) continue;
     const sk = findSkillAnywhere(e.skill);
     if (!sk) continue;
+    // 被動技能不經過 castSkill(forceLv) 的等級限制，連鎖路徑也要自行夾限。
+    const lv = Math.max(1, Math.min(Number(sk.maxLv) || Number(e.lv) || 1, Number(e.lv) || 1));
     const ok = sk.type === 'passive'
-      ? applyPassiveSkillOnce(sk, e.lv || 1, 'chain', state.monsters && state.monsters[0])
-      : castSkill(e.skill, { free: true, forceLv: e.lv || 1 });
-    if (ok) logMsg(`🎴 元素連鎖！${sk.name} Lv${e.lv || 1} 發動！`);
-    // 連鎖成功就跳出：一環只接一發，下一環由那一發自己的 tryChainSpells 接手
-    break;
+      ? applyPassiveSkillOnce(sk, lv, 'chain', state.monsters && state.monsters[0])
+      : castSkill(e.skill, { free: true, forceLv: lv });
+    if (ok) {
+      logMsg(`🎴 元素連鎖！${sk.name} Lv${lv} 發動！`);
+      // 只有真正施放成功才結束本輪；失敗時繼續檢查同一 after 的下一條設定。
+      // 成功後下一環由該技能自己的 tryChainSpells 接手，避免同一環重複觸發。
+      break;
+    }
   }
 }
 
@@ -10896,7 +11396,7 @@ function tryAutoCastSupportSkills() {
       // 要有怪才放得出效果的（減益、場域、範圍傷害）：空場放出去只是白扣 SP 與鋅幣
       if (skillNeedsMonster(sk) && (!state.monsters || state.monsters.length === 0)) continue;
       // Heal 類：依技能自訂的HP%門檻觸發，並可設SP%下限保護
-      if (sk.type === 'heal') {
+      if (sk.type === 'heal' || sk.type === 'cardinal_heal') {
         const healCfg = (state.autoHealConfig && state.autoHealConfig[sk.id]) || { hpThreshold: 70, spThreshold: 0 };
         if (state.hp > state.maxHp * ((healCfg.hpThreshold ?? 70) / 100)) continue;
         if (healCfg.spThreshold > 0 && state.sp < state.maxSp * (healCfg.spThreshold / 100)) continue;
@@ -11516,6 +12016,23 @@ function addItem(itemId, qty) {
   if (row) row.qty += qty; else inv.inventory.push({ item: itemId, qty });
   withOwner(() => codexRecordItem(itemId, qty));
 }
+
+/* 寶箱／卡冊獲得通知：只記錄開啟容器產生的道具，不攔截一般掉落、交易或倉庫移動。 */
+function recordLootNotice(itemId, qty, source) {
+  if (!ITEMS[itemId] || !(qty > 0)) return;
+  const owner = allyOwnerState();
+  if (!Array.isArray(owner.lootNotices)) owner.lootNotices = [];
+  const now = Date.now();
+  const last = owner.lootNotices[owner.lootNotices.length - 1];
+  if (last && last.item === itemId && last.source === source && now - (last.time || 0) < 2500) {
+    last.qty = (last.qty || 0) + qty;
+    last.time = now;
+  } else {
+    owner.lootNotices.push({ item: itemId, qty, source, time: now });
+  }
+  if (owner.lootNotices.length > 30) owner.lootNotices.splice(0, owner.lootNotices.length - 30);
+  if (typeof renderLootNotices === 'function' && owner === state) renderLootNotices();
+}
 function removeItem(itemId, qty) {
   const owner = allyOwnerState();          // 換身中也扣玩家的（見 getItemQty）
   if (!Array.isArray(owner.inventory)) return false;
@@ -11602,6 +12119,9 @@ function openAllBoxes(itemId) {
   let worth = 0;
   Object.entries(got).forEach(([id, q]) => {
     addItem(id, q);
+    if (def.boxOpen === 'violet' || def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) {
+      recordLootNotice(id, q, def.boxOpen === 'violet' ? '紫箱' : '卡冊');
+    }
     if (def.boxOpen === 'any' || def.boxOpen === 'violet') codexRecordBox(id);
     if (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) codexRecordBoxCardIfAlbumOnly(id);
     worth += (ITEMS[id].sell || 0) * q;
@@ -11637,6 +12157,9 @@ function useItem(itemId) {
       if (!got) { logMsg(`⚠️ ${def.name} 打不開（道具池是空的）。`); return false; }
       removeItem(itemId, 1);
       addItem(got, 1);
+      if (def.boxOpen === 'violet' || def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) {
+        recordLootNotice(got, 1, def.boxOpen === 'violet' ? '紫箱' : '卡冊');
+      }
       if (def.boxOpen === 'any' || def.boxOpen === 'violet') codexRecordBox(got);
       if (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) codexRecordBoxCardIfAlbumOnly(got);
       const g = ITEMS[got];
@@ -11838,7 +12361,7 @@ function equipBlockReason(itemId) {
 function prepareEquipSlot(slot, itemId) {
   // 雙手武器：裝備時自動卸下左手欄位（盾牌或副手武器）
   if (slot === 'weapon' && isTwoHanded(itemId) && state.equip.shield) {
-    const offName = getItemDisplayName(getEquipBaseItemId('shield'));
+    const offName = window.getItemDisplayName(getEquipBaseItemId('shield'));
     returnEquipToInventory('shield');
     logMsg(`雙手武器無法搭配左手裝備，卸下了 ${offName}。`);
   }
@@ -12171,7 +12694,7 @@ function allEquippedCards() {
 // 個體裝備的顯示字串：「+7 短劍 [3]（🃏波利卡片、瘋兔卡片）」
 function describeInstance(inst) {
   if (!inst) return '';
-  const name = getItemDisplayName(inst.item);
+  const name = window.getItemDisplayName(inst.item);
   const ref = inst.refine > 0 ? `+${inst.refine} ` : '';
   const cards = (inst.cards && inst.cards.length)
     ? `（🃏${inst.cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}）` : '';
@@ -12192,13 +12715,28 @@ function getDrillChance(item) {
   if (value >= 2000 || level >= 50) return 65;
   return 80;
 }
-function drillEquipment(instanceId) {
-  const idx = state.inventory.findIndex(r => r.instanceId === instanceId);
+function drillEquipment(target) {
+  // 支援從背包堆疊裝備直接打洞：先拆出一件成為獨立個體，避免同堆其他裝備一起變更。
+  let idx = state.inventory.findIndex(r => r.instanceId === target);
+  if (idx < 0) idx = state.inventory.findIndex(r => r.item === target && !r.instanceId);
   if (idx < 0) { logMsg('⚠️ 找不到這件背包装備。'); return false; }
-  const row = state.inventory[idx];
+  let row = state.inventory[idx];
   const def = ITEMS[row.item];
+  if (!def || !['weapon','armor'].includes(def.type) || (def.slots || 0) > 0) {
+    logMsg('⚠️ 這件裝備不符合打洞條件，或已經有插槽。'); return false;
+  }
+  if (!row.instanceId) {
+    const newId = `drill_${row.item}_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+    row.qty -= 1;
+    if (row.qty <= 0) state.inventory.splice(idx, 1);
+    state.instances = state.instances || {};
+    state.instances[newId] = { item: row.item, refine: 0, cards: [], extraSlots: 0 };
+    state.inventory.push({ item: row.item, qty: 1, instanceId: newId });
+    target = newId;
+  }
+  const instanceId = target;
   const inst = state.instances && state.instances[instanceId];
-  if (!def || !inst || !['weapon','armor'].includes(def.type) || (def.slots || 0) > 0 || (inst.extraSlots || 0) >= 1) {
+  if (!inst || (inst.extraSlots || 0) >= 1) {
     logMsg('⚠️ 這件裝備不符合打洞條件，或已經打過洞。'); return false;
   }
   const scaleId = DRILL_MATERIALS.scale, coreId = DRILL_MATERIALS.core;
@@ -12347,7 +12885,7 @@ function skillSpCost(sk, lv) {
    注意 `hpItemEffectBonusPct` 是**道具**專用（禪心給的），跟治癒術是兩回事，不要混。 */
 function healOutputMult() {
   const passive = 1 + ((state.healBonusPct || 0) / 100);
-  return passive * buffMult('healrecv').mult;
+  return passive * buffMult('healrecv').mult * (1 + Math.max(0, state.hPlus || 0) / 100);
 }
 
 /* ---------------- 條件式裝備加成 ----------------
@@ -12380,7 +12918,7 @@ function buildLoadout() {
     const inst = getEquipInstance(slot);
     const refine = (inst && inst.refine) || 0;
     const list = (inst && inst.cards) ? inst.cards.filter(Boolean) : [];
-    slots[slot] = { itemId, refine, cards: list };
+    slots[slot] = { itemId, refine, grade: (inst && (inst.grade || inst.itemGrade)) || null, cards: list };
     items.add(itemId);
     list.forEach(cid => {
       cards.add(cid);
@@ -12400,6 +12938,14 @@ function condMet(when, host, lo) {
   if (!when) return true;
   if (when.refineMin != null && !(host && host.refine >= when.refineMin)) return false;
   if (when.refineMax != null && !(host && host.refine <= when.refineMax)) return false;
+  if (when.baseLevelMin != null && (state.baseLevel || 0) < when.baseLevelMin) return false;
+  if (when.baseLevelMax != null && (state.baseLevel || 0) > when.baseLevelMax) return false;
+  // 技能等級門檻：支援裝備「習得技能最高等級時」的條件效果。
+  if (when.skillMin) {
+    for (const [skillId, minLv] of Object.entries(when.skillMin)) {
+      if (skillLv(skillId) < minLv) return false;
+    }
+  }
   if (when.jobLine && !lo.jobLine.has(when.jobLine)) return false;
   /* `jobIs` 看的是**目前的職業本身**，不是血脈。官方有一批卡片寫「初學者或超級初學者
      裝備時」，用 jobLine 判斷會永遠成立——每個職業的血脈都從初學者開始。 */
@@ -12410,6 +12956,34 @@ function condMet(when, host, lo) {
   /* withAnyItem：陣列中**任一件**有裝就算成立（官方同一件裝備常有無孔/有孔兩個 id，
      「與XX一起裝備」應該兩種都算——沙漠雙劍那次踩過同一個坑）。 */
   if (when.withAnyItem && !when.withAnyItem.some(i => lo.items.has(i))) return false;
+  /* itemRefineMin：裝備描述中「搭配指定武器，該武器精煉+N以上」。
+     與 refineMin（卡片宿主自身精煉）分開，避免誤讀成吊墜/卡片本身精煉。 */
+  if (when.itemRefineMin != null) {
+    const targets = when.withAnyItem || when.withItems || [];
+    const hasRefinedTarget = targets.some(id =>
+      Object.values(lo.slots || {}).some(slot =>
+        slot && slot.itemId === id && (slot.refine || 0) >= when.itemRefineMin
+      )
+    );
+    if (!hasRefinedTarget) return false;
+  }
+  /* itemGradeMin：指定裝備達到某階級以上（例如 C 階級）。
+     階級儲存在裝備個體 inst.grade；支援 A/B/C/D 與數字階級，未設定時不觸發。 */
+  if (when.itemGradeMin != null) {
+    const gradeRank = value => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      const key = String(value || '').trim().toUpperCase();
+      return ({D:1,C:2,B:3,A:4,S:5}[key] || 0);
+    };
+    const required = gradeRank(when.itemGradeMin);
+    const targets = when.withAnyItem || when.withItems || [];
+    const hasGrade = targets.some(id =>
+      Object.values(lo.slots || {}).some(slot =>
+        slot && slot.itemId === id && gradeRank(slot.grade) >= required
+      )
+    );
+    if (!required || !hasGrade) return false;
+  }
   /* when.ammo：目前裝備的箭矢（陣列＝任一種都算）。箭矢不在裝備欄、
      buildLoadout() 特別帶了 `ammo` 欄位出來——大地之弓＋地靈箭矢那類配對用。 */
   if (when.ammo) {
@@ -12448,9 +13022,82 @@ function condMet(when, host, lo) {
   return true;
 }
 
+/* 統一裝備／卡片 bonus key。資料來源可能混用 patk/pAtk、smatk/sMatk，
+   JavaScript 屬性區分大小寫；若不正規化，說明有寫但消費端讀不到。 */
+/* 技能增傷鍵相容：舊裝備資料常用短技能代碼（例如 arrowstorm），
+   但 SKILLS 的實際 ID 可能帶職業前綴（ra_arrowstorm）。
+   優先使用完整 ID；沒有完整鍵時才回退短代碼，避免同一加成重複計算。 */
+function getSkillDamageBonus(sk) {
+  if (!sk || !sk.id || typeof getCardBonus !== 'function') return 0;
+  const exactKey = 'skillDmg_' + sk.id;
+  const exact = getCardBonus(exactKey);
+  if (exact) return exact;
+  const shortId = String(sk.id).replace(/^[a-z]{1,4}_/, '');
+  if (shortId !== sk.id) {
+    const shortValue = getCardBonus('skillDmg_' + shortId);
+    if (shortValue) return shortValue;
+  }
+  // 舊裝備資料使用的官方技能短名，對應本專案既有 SKILLS ID。
+  // 僅列出可由現有技能名稱／職業資料直接確認的對應，不猜測其他缺失技能。
+  const legacySkillAliases = {
+    tigercannon: 'v2_in_tiger_cannon', // 虎砲詞條對應本專案四轉審判者的猛虎砲
+    axe_tornado: 'me_tornado', // 龍捲風斧詞條對應本專案機匠既有的龍捲風斧技能
+    crimson_rock: 'v2_am_crimson_rock', // 碧血隕石詞條對應本專案大法師的緋紅岩爆
+    cannonattack: 'gn_cartcannon', // 手推車加農砲，對應基因學者技能本體
+    heavymetal: 'mi_soundblend', // 重金屬音浪，對應宮廷樂師技能本體
+    holyspear: 'v2_ca_holy_spear', // 聖光之槍，對應元素使武器詞條的既有技能本體
+    counterSlash: 'gx_counter', // 裝備說明明確寫「反擊斬」，對應十字斬首者技能
+    melodystrike: 'cg_arrowvulcan', // 套裝條件明確寫「奧義箭亂舞」，對應既有技能
+    holy_light: 'holylight', // 盧雅帽子詞條「神聖之光」，本作技能登錄 ID 為 holylight
+    me_axe_tornado: 'me_tornado',
+    heavyearthquake: 'heavensdrive', // 機匠「戰斧颶風」裝備舊鍵，對應既有龍捲風斧技能
+    hundredspear: 'rk_hundredspear', // 百矛穿刺，對應盧恩騎士技能資料
+    rollingcutter: 'gx_rollingcutter', // 迴旋刃，對應十字斬首者技能資料
+    windcutter: 'rk_windcutter', // 風刃，對應盧恩騎士技能資料
+  };
+  // 舊資料鍵指向目前技能 ID；必須讀取舊鍵本身，而不是錯讀成 skillDmg_<目標ID>。
+  // 同一技能可能有多個歷史短名（例如 axe_tornado、me_axe_tornado），全部加總。
+  // 目標技能不存在時不套用，避免舊鍵誤加到未建檔或不相干的技能。
+  const legacyKeys = Object.keys(legacySkillAliases).filter(key =>
+    legacySkillAliases[key] === sk.id && typeof SKILLS !== 'undefined' && SKILLS[sk.id]
+  );
+  return legacyKeys.reduce((sum, key) => sum + getCardBonus('skillDmg_' + key), 0);
+}
+
+function canonicalBonusKey(key) {
+  const aliases = { patk: 'pAtk', 'p.atk': 'pAtk', p_atk: 'pAtk',
+    smatk: 'sMatk', 's.matk': 'sMatk', s_matk: 'sMatk',
+    // 舊裝備資料「所有屬性承傷減少」統一接到現行承傷計算桶。
+    allelereduce: 'eleDmgReduce_all',
+    // 舊裝備資料 rangedDmg 與現行 rangedDmgPct 同義；統一接到遠距離增傷入口。
+    rangeddmg: 'rangedDmgPct',
+    // 變幻莫測魔術斗篷：無視一般／BOSS 階級魔防，沿用現有通用 MDEF 無視入口。
+    magicignoredef: 'mdefIgnorePct' };
+  const raw = String(key || '');
+  const lower = raw.toLowerCase();
+  if (aliases[lower]) return aliases[lower];
+  const prefixes = ['perBaseLv1_', 'perBaseLv5Cap100_', 'perBaseLv10Cap150_', 'perBaseLv10Cap160_', 'perBaseLv10Start20Cap120_', 'perBaseLv5_', 'perBaseLv10_', 'perBaseLv15_',
+    'perBaseLv210_', 'perBaseLv2_', 'perJobLv1_', 'perJobLv2_', 'perJobLv5_', 'perJobLv10_', 'perStat_', 'perSkill_'];
+  for (const prefix of prefixes) {
+    if (!raw.startsWith(prefix)) continue;
+    const suffix = raw.slice(prefix.length);
+    // 多段別名（p_atk／s_matk）必須先整段比對，不能只正規化最後一段。
+    if (aliases[suffix.toLowerCase()]) return prefix + aliases[suffix.toLowerCase()];
+    const bits = suffix.split('_');
+    if (bits.length) {
+      const last = bits[bits.length - 1];
+      bits[bits.length - 1] = aliases[last.toLowerCase()] || last;
+      return prefix + bits.join('_');
+    }
+  }
+  return raw;
+}
 function mergeBonus(target, bonus, scale) {
   if (!bonus) return;
-  for (const [k, v] of Object.entries(bonus)) target[k] = (target[k] || 0) + v * (scale == null ? 1 : scale);
+  for (const [rawKey, v] of Object.entries(bonus)) {
+    const k = canonicalBonusKey(rawKey);
+    target[k] = (target[k] || 0) + v * (scale == null ? 1 : scale);
+  }
 }
 
 /* 全身裝備提供的加成總表（卡片無條件 + 卡片條件式 + 依精煉倍增 + 套裝）。
@@ -12467,9 +13114,14 @@ function effectiveGearBonuses() {
      素質只有加點時會變（一次 recomputeDerived），不是每一擊都在動，成本可以忽略。 */
   const key = EQUIP_SLOTS_ALL.map(s => {
     const d = lo.slots[s];
-    return d ? `${d.itemId}+${d.refine}[${d.cards.join(',')}]` : '-';
+    return d ? `${d.itemId}+${d.refine}@${d.grade || '-'}[${d.cards.join(',')}]` : '-';
   }).join('|') + '#' + state.jobId
+    + '#skills:' + Object.entries(state.learnedSkills || {}).sort(([a],[b]) => a.localeCompare(b)).map(([id, lv]) => `${id}:${lv}`).join(',')
     + '#' + BASE_STAT_KEYS.map(k => (state.stats && state.stats[k]) || 0).join(',')
+    /* 等級與技能等級也會影響 perBaseLv / perJobLv / perSkill；必須進快取簽章，
+       否則升級後會沿用舊加成，直到換裝才更新。 */
+    + '#BL' + (state.baseLevel || 1) + '#JL' + (state.jobLevel || 1)
+    + '#SK' + Object.entries(state.learnedSkills || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}:${v}`).join(',')
     /* 箭矢也要進簽章：when.ammo 的配對加成（大地之弓＋地靈箭矢）換箭要重算 */
     + '#' + (lo.ammo || '-')
     /* 遺物也要進簽章，否則換遺物不會重算——條件式加成卡在舊值那個坑（見上面）
@@ -12493,13 +13145,27 @@ function effectiveGearBonuses() {
     if (!def) return;
     const host = { slot, refine: d.refine, itemId: d.itemId };
     mergeBonus(total, def.bonus);
+    /* skillLevelBonus：裝備明確描述「習得某技能每+1級，另一技能傷害+N%」。
+       只在指定精煉門檻及來源技能已習得時套用；可設定 capLevel，
+       並將結果併入既有加成總表；skillDmg_<技能ID> 會由直接傷害與被動觸發共用。 */
+    (def.skillLevelBonus || []).forEach(rule => {
+      if (!rule || d.refine < (rule.refineMin || 0) || !rule.bonusPerLevel) return;
+      const learnedLv = typeof skillLv === 'function'
+        ? skillLv(rule.sourceSkillId)
+        : ((state.learnedSkills && state.learnedSkills[rule.sourceSkillId]) || 0);
+      if (learnedLv <= 0) return;
+      const cappedLv = rule.capLevel != null ? Math.min(learnedLv, rule.capLevel) : learnedLv;
+      const step = Math.max(1, Number(rule.levelStep) || 1);
+      const effectiveLv = Math.floor(cappedLv / step);
+      if (effectiveLv > 0) mergeBonus(total, rule.bonusPerLevel, effectiveLv);
+    });
     /* 頂層 hpPct/spPct：官方「MHP+N%」過去被轉檔成平面 hp/sp（等於只加 N 點），
        修正資料後改用這兩個鍵，這裡併進總表讓百分比乘區吃到。 */
     if (def.hpPct != null || def.spPct != null) mergeBonus(total, { hpPct: def.hpPct || 0, spPct: def.spPct || 0 });
     /* 平鋪的特殊鍵（perBaseLv10_atk 等）也要進總表——getCardBonus() 會按前綴解析。
        只挑底線開頭的鍵，避免把 atk/def 那些平鋪數值重複算一次。 */
     for (const [k, v] of Object.entries(def)) {
-      if (/^per(BaseLv1|BaseLv10|BaseLv15|BaseLv210|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') total[k] = (total[k] || 0) + v;
+      if (/^per(BaseLv1|BaseLv2|BaseLv5Cap100|BaseLv10Cap150|BaseLv10Cap160|BaseLv10Start20Cap120|BaseLv5|BaseLv10|BaseLv15|BaseLv210|JobLv1|JobLv2|JobLv5|JobLv10|Stat|Skill)_/.test(k) && typeof v === 'number') { const nk = canonicalBonusKey(k); total[nk] = (total[nk] || 0) + v; }
       if (k.startsWith('spCost_') && typeof v === 'number') total[k] = (total[k] || 0) + v;
     }
     if (def.perRefine) {
@@ -12512,10 +13178,24 @@ function effectiveGearBonuses() {
       const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
       mergeBonus(total, def.perRefineSquare, r * r);
     }
+    /* per1Refine：官方「精煉每+1時 ○○增加」；明確獨立欄位，避免資料有填但計算端未讀取。 */
+    if (def.per1Refine) {
+      const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
+      // per1RefineStart：支援「精煉+N以上後，每提高+1」的裝備詞條。
+      // 預設起點為+1，維持既有 per1Refine 行為；例如起點10代表+10時開始計1次。
+      const start = Math.max(1, Number(def.per1RefineStart) || 1);
+      const count = Math.max(0, r - start + 1);
+      if (count > 0) mergeBonus(total, def.per1Refine, count);
+    }
     /* per2Refine：官方「精煉每+2時 ○○+1」（海鷹召喚者的攻速）＝floor(精煉/2)。 */
     if (def.per2Refine) {
       const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
-      mergeBonus(total, def.per2Refine, Math.floor(r / 2));
+      // per2RefineStart：支援「精煉+N後，每提高+2」；未設定時維持原本 floor(r/2)。
+      const start = Number(def.per2RefineStart);
+      const count = Number.isFinite(start) && start > 0
+        ? (r >= start ? Math.floor((r - start) / 2) + 1 : 0)
+        : Math.floor(r / 2);
+      if (count > 0) mergeBonus(total, def.per2Refine, count);
     }
     /* per2RefineExtra：同一件裝備第二組「每+2」效果（時光超越者斗篷的
        ATK%1/MATK%1/遠距1%/CRI3/暴傷1 與既有那組並存）。 */
@@ -12547,7 +13227,34 @@ function effectiveGearBonuses() {
       const r = def.perRefineCap != null ? Math.min(d.refine, def.perRefineCap) : d.refine;
       mergeBonus(total, def.perRefineSquareMatkHalf, r * r / 2);
     }
-    (def.condBonus || []).forEach(cb => { if (condMet(cb.when, host, lo)) mergeBonus(total, cb.bonus); });
+    (def.condBonus || []).forEach(cb => {
+      if (!condMet(cb.when, host, lo)) return;
+      /* 裝備條件式精煉詞條（perNRefine_<目標>）：
+         例如「精煉每+3時 DEX+1」或「精煉每+1時 DEF+5」。
+         卡片已有相同格式的處理；裝備本體也必須走相同規則，否則資料只會顯示不會生效。 */
+      const effBonus = {};
+      let hasPerRefine = false;
+      for (const [bk, bv] of Object.entries(cb.bonus || {})) {
+        const pm = /^per(\d+)Refine_(.+)$/.exec(bk);
+        if (pm) {
+          const tgt = {};
+          tgt[pm[2]] = bv * Math.floor((host.refine || 0) / Number(pm[1]));
+          mergeBonus(total, tgt);
+          hasPerRefine = true;
+        } else effBonus[bk] = bv;
+      }
+      if (Object.keys(effBonus).length || !hasPerRefine) mergeBonus(total, cb.bonus ? effBonus : cb.bonus);
+    });
+    /* condPerRefine：依職業／裝備條件啟動的精煉成長。
+       例如瓦爾基里的披風：服事／法師／弓手成長完全迴避，近戰系成長近距離物理反射；
+       每精煉+1增加指定值，並可用 cap 將計算封頂。 */
+    (def.condPerRefine || []).forEach(rule => {
+      if (!rule || !condMet(rule.when, host, lo) || !rule.bonus) return;
+      const r = rule.cap != null ? Math.min(d.refine, rule.cap) : d.refine;
+      const step = Math.max(1, Number(rule.every) || 1);
+      const count = Math.floor(r / step);
+      if (count > 0) mergeBonus(total, rule.bonus, count);
+    });
   });
   lo.cards.forEach(cardId => {
     const card = CARDS[cardId];
@@ -12614,10 +13321,16 @@ function effectiveGearBonuses() {
     sets.push({ id: 'relic_' + set.id + '_' + tier.need, name: `${set.name} ${tier.need} 件`, bonus: tier.bonus });
   });
 
+  /* 最後再正規化一次，涵蓋條件式、套裝、遺物及舊資料直接寫入的鍵。 */
+  const normalizedTotal = {};
+  for (const [k, v] of Object.entries(total)) {
+    const nk = canonicalBonusKey(k);
+    normalizedTotal[nk] = (normalizedTotal[nk] || 0) + v;
+  }
   _gearBonusKey = key;
   _activeSets = sets;
-  _gearBonusCache = total;
-  return total;
+  _gearBonusCache = normalizedTotal;
+  return normalizedTotal;
 }
 function activeEquipSets() { effectiveGearBonuses(); return _activeSets; }
 
@@ -12828,7 +13541,8 @@ function tryRelicSplashProc(dmg, mainTarget) {
    走快照迭代）自動沿用。差別只有：遺物是 30% 機率，這張卡是**每一擊都會**——
    官方的 9 格範圍不是機率性的。 */
 function tryCardSplashProc(dmg, mainTarget) {
-  if (!state.cardSplashAttack) return;
+  const timedSplash = (state.buffs || []).some(b => b.type === 'splashAttack' && b.msRemaining > 0);
+  if (!state.cardSplashAttack && !timedSplash) return;
   if (!state.monsters || state.monsters.length < 2) return;
   const n = applySplashDamage(dmg, mainTarget);
   if (n > 0) logMsg(`💥 攻擊範圍擴散！額外打中 ${n} 隻敵人，各 ${dmg} 點傷害。`);
@@ -12987,6 +13701,42 @@ function getCardBonus(stat) {
     if ((state.baseLevel || 0) < 70) continue;
     total += Math.floor((state.baseLevel - 70) / 10 + 1) * all[k];
   }
+  /* perBaseLv5_<目標>：BaseLv 每 5 級增加指定素質（雷神腰帶）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv5_')) continue;
+    const target = k.slice('perBaseLv5_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.baseLevel || 0) / 5) * all[k];
+  }
+  /* perBaseLv5Cap100_<目標>：BaseLv 每 5 級增加指定素質，最高只計至 BaseLv100（樂園團初級裝備）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv5Cap100_')) continue;
+    const target = k.slice('perBaseLv5Cap100_'.length);
+    if (target !== stat) continue;
+    total += Math.floor(Math.min(state.baseLevel || 0, 100) / 5) * all[k];
+  }
+  /* perBaseLv10Cap150_<目標>：BaseLv 每 10 級增加指定素質，最高只計至 BaseLv150（樂園團高級裝備）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv10Cap150_')) continue;
+    const target = k.slice('perBaseLv10Cap150_'.length);
+    if (target !== stat) continue;
+    total += Math.floor(Math.min(state.baseLevel || 0, 150) / 10) * all[k];
+  }
+  /* perBaseLv10Cap160_<目標>：BaseLv 每滿 10 級增加指定目標，最高計至 Lv160（時間守護者試用武器）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv10Cap160_')) continue;
+    const target = k.slice('perBaseLv10Cap160_'.length);
+    if (target !== stat) continue;
+    total += Math.floor(Math.min(state.baseLevel || 0, 160) / 10) * all[k];
+  }
+  /* perBaseLv10Start20Cap120_<目標>：BaseLv20 起算，每滿 10 級增加，最高計至 Lv120（超合金武器）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv10Start20Cap120_')) continue;
+    const target = k.slice('perBaseLv10Start20Cap120_'.length);
+    if (target !== stat) continue;
+    const lv = Math.min(state.baseLevel || 0, 120);
+    if (lv >= 20) total += (Math.floor((lv - 20) / 10) + 1) * all[k];
+  }
   /* perBaseLv15_<目標>（成長型武器系列）：官方「BaseLv 每+15時 MATK+3（上限為Lv195）」。
      desc 沒寫起算門檻，從 Lv1 起算、封頂 195（195/15＝13 層）。 */
   for (const k in all) {
@@ -13002,6 +13752,13 @@ function getCardBonus(stat) {
     if (target !== stat) continue;
     total += (state.baseLevel || 0) * all[k];
   }
+  /* perBaseLv2_<目標>：BaseLv每滿 2 級增加指定目標（時間守護者戒指等）。 */
+  for (const k in all) {
+    if (!k.startsWith('perBaseLv2_')) continue;
+    const target = k.slice('perBaseLv2_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.baseLevel || 0) / 2) * all[k];
+  }
   /* perBaseLv210_<目標>： BaseLv210以上時…（狸貓變身樹葉-LT） */
   for (const k in all) {
     if (!k.startsWith('perBaseLv210_')) continue;
@@ -13009,6 +13766,36 @@ function getCardBonus(stat) {
     if (target !== stat) continue;
     if ((state.baseLevel || 0) < 210) continue;
     total += all[k];
+  }
+  /* perJobLv1_<目標>：JobLv 每提升 1 級增加指定目標（艾格長靴、瓦爾基里長靴）。 */
+  for (const k in all) {
+    if (!k.startsWith('perJobLv1_')) continue;
+    const target = k.slice('perJobLv1_'.length);
+    if (target !== stat) continue;
+    total += (state.jobLevel || 0) * all[k];
+  }
+  /* perJobLv2_<目標>：JOB 每滿 2 級增加指定目標。 */
+  for (const k in all) {
+    if (!k.startsWith('perJobLv2_')) continue;
+    const target = k.slice('perJobLv2_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.jobLevel || 0) / 2) * all[k];
+  }
+  /* perJobLv5_<目標>：JobLv 每滿 5 級增減指定目標（沙漏項鍊四轉六素質衰減）。
+     bonus 可為負值；依完整 JobLv 級距計算，不做猜測性封頂。 */
+  for (const k in all) {
+    if (!k.startsWith('perJobLv5_')) continue;
+    const target = k.slice('perJobLv5_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.jobLevel || 0) / 5) * all[k];
+  }
+  /* perJobLv10_<目標>：JOB 每滿 10 級增加指定目標。支援任意 bonus key，
+     不限於舊版硬編碼的 ATK/HIT/CRI。 */
+  for (const k in all) {
+    if (!k.startsWith('perJobLv10_')) continue;
+    const target = k.slice('perJobLv10_'.length);
+    if (target !== stat) continue;
+    total += Math.floor((state.jobLevel || 0) / 10) * all[k];
   }
   /* perStat_<來源>_<每N點>_<目標>：官方「純粹XX每N時 ○○+M」。
       來源限六項素質（看**加點的基礎值**，不含裝備／卡片／技能——官方的「純粹」），
@@ -13052,10 +13839,10 @@ function toggleItemLock(itemId) {
   if (!state.lockedItems) state.lockedItems = {};
   if (state.lockedItems[itemId]) {
     delete state.lockedItems[itemId];
-    logMsg(`🔓 已解除 ${getItemDisplayName(itemId)} 的鎖定。`);
+    logMsg(`🔓 已解除 ${window.getItemDisplayName(itemId)} 的鎖定。`);
   } else {
     state.lockedItems[itemId] = 1;
-    logMsg(`🔒 已鎖定 ${getItemDisplayName(itemId)}，不會被賣出或自動販賣。`);
+    logMsg(`🔒 已鎖定 ${window.getItemDisplayName(itemId)}，不會被賣出或自動販賣。`);
     // 鎖定時順手從自動販賣清單移除，免得兩個設定互相矛盾
     if (state.autoSellConfig && state.autoSellConfig.items) {
       state.autoSellConfig.items = state.autoSellConfig.items.filter(id => id !== itemId);
@@ -13065,6 +13852,19 @@ function toggleItemLock(itemId) {
   return true;
 }
 
+// 貨幣與販售價格防呆：舊道具／新增裝備若缺少 sell 欄位，不可讓 NaN 污染整個存檔。
+function safeSellUnitPrice(def, multiplier) {
+  const base = def && def.sell;
+  const mult = Number(multiplier);
+  if (typeof base !== 'number' || !Number.isFinite(base) || base < 0) return null;
+  const safeMult = Number.isFinite(mult) && mult > 0 ? mult : 1;
+  const price = Math.round(base * safeMult);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+function ensureSafeGold() {
+  if (!Number.isFinite(Number(state.gold)) || Number(state.gold) < 0) state.gold = 0;
+  else state.gold = Math.floor(Number(state.gold));
+}
 function sellItem(itemId, qty) {
   const def = ITEMS[itemId];
   const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
@@ -13080,9 +13880,15 @@ function sellItem(itemId, qty) {
     logMsg(`🔒 ${def.name} 已鎖定，無法賣出。請先解除鎖定。`);
     return false;
   }
+  const unitPrice = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
+  if (unitPrice === null || !Number.isFinite(Number(qty)) || qty < 1) {
+    logMsg(`⚠️ ${def.name} 的販售價格資料異常，已取消出售，物品保留。`);
+    return false;
+  }
+  ensureSafeGold();
+  const total = unitPrice * Math.floor(Number(qty));
+  if (!Number.isFinite(total)) return false;
   removeItem(itemId, qty);
-  const unitPrice = Math.round(def.sell * (state.shopOverchargeMult || 1));
-  const total = unitPrice * qty;
   state.gold += total;
   logMsg(`賣出 ${def.name} x${qty}，獲得 ${total} 鋅幣。`);
   saveGame();
@@ -13105,9 +13911,14 @@ function sellItemInstance(instanceId) {
     return false;
   }
   const label = describeInstance(inst);
+  const price = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
+  if (price === null) {
+    logMsg(`⚠️ ${def.name} 的販售價格資料異常，已取消出售，裝備保留。`);
+    return false;
+  }
+  ensureSafeGold();
   state.inventory.splice(idx, 1);
   delete state.instances[instanceId];
-  const price = Math.round(def.sell * (state.shopOverchargeMult || 1));
   state.gold += price;
   logMsg(`賣出 ${label}，獲得 ${price} 鋅幣。`);
   saveGame();
@@ -13122,7 +13933,7 @@ function toggleAutoSellItem(itemId) {
   if (idx >= 0) state.autoSellConfig.items.splice(idx, 1);
   else {
     if (isItemLocked(itemId)) {
-      logMsg(`🔒 ${getItemDisplayName(itemId)} 已鎖定，無法加入自動販賣。`);
+      logMsg(`🔒 ${window.getItemDisplayName(itemId)} 已鎖定，無法加入自動販賣。`);
       return;
     }
     state.autoSellConfig.items.push(itemId);
@@ -13216,9 +14027,13 @@ function autoSellSelectedItems() {
     if (!def || !row || row.qty < 1) return;
     if (def.type === 'relic') return;   // 遺物賣不掉（見 sellItem）
     if (isItemLocked(itemId)) return;   // 鎖定的道具自動販賣一律跳過
-    const qty = row.qty;
+    const qty = Number(row.qty);
+    const unitPrice = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
+    if (unitPrice === null || !Number.isFinite(qty) || qty < 1) return;
+    const price = unitPrice * Math.floor(qty);
+    if (!Number.isFinite(price)) return;
+    ensureSafeGold();
     removeItem(itemId, qty);
-    const price = Math.round(def.sell * (state.shopOverchargeMult || 1)) * qty;
     state.gold += price;
     totalGold += price;
     soldAny = true;
@@ -13263,8 +14078,10 @@ function tryAutoVending() {
     if (!def || !row || row.qty < 1) return;
     if (def.type === 'relic') return;   // 遺物賣不掉（見 sellItem）
     if (isItemLocked(itemId)) return;   // 鎖定的道具露天商店也不賣
+    const price = safeSellUnitPrice(def, sellMult);
+    if (price === null) return;
+    ensureSafeGold();
     removeItem(itemId, 1);
-    const price = Math.round(def.sell * sellMult);
     state.gold += price;
     logMsg(`🏪 露天商店賣出了 ${def.name}，獲得 ${price} 鋅幣！`);
     soldAny = true;
@@ -13273,101 +14090,8 @@ function tryAutoVending() {
 }
 
 /* ---------------- 鐵匠鍛造系統 ---------------- */
-const CRAFT_SUBTYPE_MATERIALS = {
-  dagger:   { iron: 3, steel: 1 },
-  sword1h:  { iron: 5, steel: 2 },
-  sword2h:  { iron: 8, steel: 3 },
-  axe1h:    { iron: 5, steel: 2 },
-  axe2h:    { iron: 8, steel: 3 },
-  knuckle:  { iron: 4, steel: 1 },
-  mace:     { iron: 5, steel: 2 },
-  spear1h:  { iron: 6, steel: 2 },
-  spear2h:  { iron: 9, steel: 3 },
-};
-const CRAFT_SUBTYPE_CATEGORY = {
-  dagger: 'dagger', sword1h: 'sword', sword2h: 'sword', axe1h: 'axe', axe2h: 'axe',
-  knuckle: 'knuckle', mace: 'mace', spear1h: 'spear', spear2h: 'spear',
-};
+/* 武器屬性鍛造已移除；保留鐵、鋼與屬性原石等原料製作。 */
 const CRAFT_ELEMENT_STONE = { wind: 'gemstone_wind', water: 'gemstone_water', fire: 'gemstone_fire', earth: 'gemstone_earth' };
-const CRAFT_ZENY_COST = 10000;
-const CRAFT_CATEGORY_NAMES = { dagger: '短劍', sword: '劍', axe: '斧頭', knuckle: '拳套', mace: '鈍器', spear: '長矛' };
-const CRAFT_SUBTYPE_NAMES = { dagger: '短劍', sword1h: '單手劍', sword2h: '雙手劍', axe1h: '單手斧頭', axe2h: '雙手斧頭', knuckle: '拳套', mace: '鈍器', spear1h: '單手長矛', spear2h: '雙手長矛' };
-const CRAFT_ELEMENT_NAMES = { wind: '風', water: '水', fire: '火', earth: '地' };
-
-// 鍛造成功率：基礎15% + DEX(滿120給+20%) + LUK(滿120給+10%) + 神之金屬研究加成
-function getCraftingSuccessChance() {
-  const dexBonus = Math.min(20, (state.stats.dex || 0) / 120 * 20);
-  const lukBonus = Math.min(10, (state.stats.luk || 0) / 120 * 10);
-  return 15 + dexBonus + lukBonus + (state.craftBonusPct || 0);
-}
-
-/* 這個職業算不算鐵匠。**不能只認 `blacksmith`**——轉職到神匠（whitesmith）之後
-   jobId 就變了，同一個角色會突然不算鐵匠，鍛造出來的武器前綴掉回「鐵匠」。
-   走 parent 鏈（jobLineHas 在 data.js），之後再加鐵匠線的三轉也不必動這裡。 */
-function isBlacksmithLine(jobId) { return jobLineHas(jobId, 'blacksmith'); }
-
-// 掃描帳號內所有存檔欄位，找出鐵匠角色名字：剛好1位就用他的名字，2位以上顯示「某人」
-function getAccountBlacksmithName() {
-  const names = [];
-  for (let i = 0; i < MAX_SLOTS; i++) {
-    try {
-      const raw = localStorage.getItem(getSlotKey(i));
-      if (!raw) continue;
-      const s = JSON.parse(raw);
-      if (s && isBlacksmithLine(s.jobId) && s.name) names.push(s.name);
-    } catch (e) { /* 忽略壞檔 */ }
-  }
-  if (names.length === 0) return '鐵匠';
-  if (names.length === 1) return names[0];
-  return '某人';
-}
-
-// 取得道具顯示名稱：鐵匠鍛造武器會自動加上「XX製作的」前綴
-function getItemDisplayName(itemId) {
-  const def = ITEMS[itemId];
-  if (!def) return itemId;
-  if (typeof itemId !== 'string' || !itemId.startsWith('crafted_')) return def.name;
-  return getAccountBlacksmithName() + '製作的' + def.name;
-}
-
-function craftWeapon(subtype, element) {
-  const category = CRAFT_SUBTYPE_CATEGORY[subtype];
-  if (!category || !state.unlockedCraftCategories.includes(category)) {
-    logMsg('⚠️ 尚未學會這個鍛造技能！');
-    return false;
-  }
-  const stoneId = CRAFT_ELEMENT_STONE[element];
-  const mat = CRAFT_SUBTYPE_MATERIALS[subtype];
-  if (!stoneId || !mat) return false;
-
-  if (getItemQty('iron') < mat.iron || getItemQty('steel') < mat.steel || getItemQty(stoneId) < 1) {
-    logMsg('⚠️ 材料不足，無法鍛造！');
-    return false;
-  }
-  if (state.gold < CRAFT_ZENY_COST) {
-    logMsg('⚠️ 鋅幣不足，無法鍛造！');
-    return false;
-  }
-
-  // 消耗材料（不論成功與否）
-  removeItem('iron', mat.iron);
-  removeItem('steel', mat.steel);
-  removeItem(stoneId, 1);
-  state.gold -= CRAFT_ZENY_COST;
-
-  const chance = getCraftingSuccessChance();
-  const success = Math.random() * 100 < chance;
-  if (success) {
-    const itemId = 'crafted_' + subtype + '_' + element;
-    addItem(itemId, 1);
-    logMsg(`🔨 鍛造成功！獲得了 ${getItemDisplayName(itemId)}！`);
-  } else {
-    logMsg('🔨 鍛造失敗了……材料已經消耗。');
-  }
-  saveGame();
-  return success;
-}
-
 /* ---------------- 原料鍛造（鐵/鋼/屬性原石）---------------- */
 const MATERIAL_CRAFT_ZENY_COST = 500;
 const MATERIAL_CRAFT_SUCCESS_CHANCE = 50;
@@ -13526,6 +14250,32 @@ function loadGame() {
     const raw = localStorage.getItem(getSlotKey(currentSlot));
     if (!raw) return false;
     state = JSON.parse(raw);
+    // 修復舊版販售 NaN 被 JSON 序列化成 null 的鋅幣存檔。
+    if (!Number.isFinite(Number(state.gold)) || Number(state.gold) < 0) state.gold = 0;
+    else state.gold = Math.floor(Number(state.gold));
+    // V2.5.5.42：移除鐵匠製作的四屬性武器；舊存檔同步清理背包、裝備與圖鑑紀錄。
+    const isRemovedCraftWeapon = id => typeof id === 'string' && id.startsWith('crafted_');
+    // 移除的鐵匠武器製作技能退還技能點（歸還鐵匠職業點數池）。
+    const removedForgeSkills = ['oridecon','daggercraft','swordcraft','axecraft','knucklecraft','macecraft','spearcraft'];
+    let refundedForgeSkillPoints = 0;
+    removedForgeSkills.forEach(id => { refundedForgeSkillPoints += Math.max(0, Number(state.learnedSkills && state.learnedSkills[id]) || 0); if (state.learnedSkills) delete state.learnedSkills[id]; });
+    if (refundedForgeSkillPoints) {
+      if (!state.jobSkillPoints) state.jobSkillPoints = {};
+      state.jobSkillPoints.blacksmith = (state.jobSkillPoints.blacksmith || 0) + refundedForgeSkillPoints;
+      state.skillPoints = Object.values(state.jobSkillPoints).reduce((sum, n) => sum + (Number(n) || 0), 0);
+    }
+    const isRemovedHalfMegin = id => id === 'half_megin';
+    state.inventory = (state.inventory || []).filter(row => !isRemovedCraftWeapon(row && row.item) && !isRemovedHalfMegin(row && row.item));
+    Object.entries(state.instances || {}).forEach(([iid, inst]) => {
+      if (inst && (isRemovedCraftWeapon(inst.item) || isRemovedHalfMegin(inst.item))) delete state.instances[iid];
+    });
+    Object.entries(state.equip || {}).forEach(([slot, value]) => {
+      const inst = value && state.instances && state.instances[value];
+      if (isRemovedCraftWeapon(value) || isRemovedHalfMegin(value) || (inst && (isRemovedCraftWeapon(inst.item) || isRemovedHalfMegin(inst.item)))) state.equip[slot] = null;
+    });
+    if (state.codex && state.codex.item) Object.keys(state.codex.item).forEach(id => { if (isRemovedCraftWeapon(id) || isRemovedHalfMegin(id)) delete state.codex.item[id]; });
+    // 舊存檔若含已移除的被動觸發統計，讀檔時一併清除。
+    delete state.rangerProcStats;
     if (!state.lastActiveAt) state.lastActiveAt = Date.now();
     if (!state.autoPotion) state.autoPotion = { enabled: true, primary: '', fallback: 'red_potion', hpThreshold: 50 };
     if (typeof state.autoPotion.hpThreshold !== 'number') state.autoPotion.hpThreshold = 50;
@@ -14028,7 +14778,7 @@ function computeOfflineProgress(minMs) {
   const expMult = 1 + (buffMult('exp').flatBonus || 0) / 100;
   const raceExpOf = def => 1 + ((def && def.race && state.cardExpRace && state.cardExpRace[def.race]) || 0);
   const avgRaceExp = wAvg(m => raceExpOf(m));
-  const expFarm = farmMult('exp') * expMult * avgRaceExp;
+  const expFarm = farmMult('exp') * expMult * avgRaceExp * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100);
   const goldFarm = farmMult('gold');
   let expGained = Math.round(avgExp * totalKills * expFarm);
   let jobExpGained = Math.round(avgJobExp * totalKills * expFarm);

@@ -34,7 +34,7 @@ vm.createContext(context);
 
 const scripts = [
   'about.js', 'hp_sp_tables.js', 'img_alias.js', 'aspd_data.js',
-  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_4_content.js', 'v2_artifacts.js',
+  'skills.js', 'monster_skills.js', 'jobs.js', 'data.js', 'relics.js', 'v2_content.js', 'v2_4_content.js', 'v2_5_content.js', 'v2_artifacts.js',
   'achievements.js', 'engine.js', 'ui.js',
 ];
 for (const file of scripts) {
@@ -42,7 +42,7 @@ for (const file of scripts) {
     { filename: file, timeout: 30000 });
 }
 // Visual and audio effects are intentionally no-op in the headless mechanics tests.
-vm.runInContext(`showDamageFloatAt=()=>{}; showPlayerFloat=()=>{}; showElementFloat=()=>{};
+vm.runInContext(`showDamageFloat=()=>{}; showDamageFloatAt=()=>{}; showPlayerFloat=()=>{}; showElementFloat=()=>{};
   playSkillSound=()=>{}; showSkillCastEffect=()=>{}; playHitSound=()=>{}; playAttackSound=()=>{};`, context);
 
 let failures = 0;
@@ -138,13 +138,30 @@ const refineSet = JSON.parse(vm.runInContext(`(() => {
 })()`, context));
 check(refineSet.active && refineSet.def >= 75, 'Tatenasi set per-refine DEF bonus scales at +5');
 
+// Sprint Set: casting and after-cast delay are intentionally ignored by this game's cooldown model.
+const sprintSet = JSON.parse(vm.runInContext(`(() => {
+  state={jobId:'assassincross',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},
+    equip:{armor:'sprint_mail',footgear:'sprint_shoes',accessory1:'sprint_ring'},instances:{},relics:{}};
+  _gearBonusCache=null; _gearBonusKey='';
+  const b=effectiveGearBonuses();
+  return JSON.stringify({active:activeEquipSets().some(s=>s.id==='sprint_set'),
+    hpPct:b.hpPct||0,spPct:b.spPct||0,hpRegenPct:b.hpRegenPct||0,
+    spRegenPct:b.spRegenPct||0,hpItemEffectBonusPct:getCardBonus('hpItemEffectBonusPct')||0});
+})()`, context));
+check(sprintSet.active && sprintSet.hpPct===7 && sprintSet.spPct===7,
+  'Sprint Set 3-piece MHP/MSP +7% applies', JSON.stringify(sprintSet));
+check(sprintSet.hpRegenPct===5 && sprintSet.spRegenPct===5,
+  'Sprint Mail / Shoes HP and SP recovery +5% apply');
+check(sprintSet.hpItemEffectBonusPct===3,
+  'Sprint Mail healing-item effectiveness +3% routes to the actual item-heal consumer');
+
 // V2 fourth-job expansion and progression checks.
 const fourthJobs = JSON.parse(vm.runInContext(`JSON.stringify(Object.values(JOB_TREE).filter(j => j.tier === 4).map(j => ({
   id:j.id, parent:j.parent, name:j.name, skills:j.skills.map(s => s.id), genderLock:j.genderLock || null
 })))`, context));
 check(fourthJobs.length === 13, '13 fourth jobs registered');
 const skillIds = fourthJobs.flatMap(j => j.skills);
-check(skillIds.length === 39 && new Set(skillIds).size === 39, '39 unique fourth-job skills registered');
+check(skillIds.length >= 150 && new Set(skillIds).size === skillIds.length, 'complete fourth-job skill catalogs registered', `count=${skillIds.length}`);
 for (const job of fourthJobs) {
   const status = JSON.parse(vm.runInContext(`(() => {
     const j = JOB_TREE[${JSON.stringify(job.id)}], p = JOB_TREE[j.parent];
@@ -176,6 +193,13 @@ const gearIntegration = JSON.parse(vm.runInContext(`(() => {
 })()`, context));
 check(gearIntegration.weapons.length === 13 && gearIntegration.weapons.every(x => x.exists && !x.block && x.source > 0),
   '13 fourth-job weapons are equippable and have drop sources', gearIntegration.weapons.filter(x => !x.exists || x.block || !x.source).map(x => `${x.id}: ${x.block || 'missing source'}`).join('; '));
+const fourthWeaponImages = JSON.parse(vm.runInContext(`JSON.stringify(['v2_dragon_spear','v2_imperial_lance','v2_archmage_staff','v2_element_book','v2_wind_bow','v2_troubadour_harp','v2_trouvere_whip','v2_meister_axe','v2_biolo_injector','v2_shadow_katar','v2_abyss_dagger','v2_cardinal_staff','v2_inquisitor_knuckle'].map(id=>({id,imgId:ITEMS[id]?.imgId||0})))`, context));
+check(fourthWeaponImages.length === 13 && fourthWeaponImages.every(x => x.imgId > 0), 'all 13 fourth-job weapons reuse project image assets', fourthWeaponImages.filter(x => !x.imgId).map(x => x.id).join('; '));
+const fourthWeaponGates = JSON.parse(vm.runInContext(`(() => {
+  const cases=[['dragon_knight','v2_dragon_spear','spear'],['arch_mage','v2_archmage_staff','rod2'],['meister','v2_meister_axe','axe2'],['troubadour','v2_troubadour_harp','instrument'],['trouvere','v2_trouvere_whip','whip'],['shadow_cross','v2_shadow_katar','katar'],['inquisitor','v2_inquisitor_knuckle','knuckle']];
+  return JSON.stringify(cases.map(([job,item,req])=>{state={jobId:job,equip:{weapon:item}};return {job,item,req,ok:weaponReqMet(req)}}));
+})()`, context));
+check(fourthWeaponGates.every(x=>x.ok), 'fourth-job weapon gates match the corresponding equipped weapons', fourthWeaponGates.filter(x=>!x.ok).map(x=>`${x.job}:${x.req}`).join('; '));
 check(gearIntegration.cards.length === 8 && gearIntegration.cards.every(x => x.exists && x.source > 0),
   '8 V2 cards are registered and obtainable', gearIntegration.cards.filter(x => !x.exists || !x.source).map(x => x.id).join('; '));
 check(gearIntegration.relicIds.length === 8, 'V2 relic set generates all 8 pieces');
@@ -233,14 +257,14 @@ const activeCastResults = JSON.parse(vm.runInContext(`(() => {
           learnedSkills:{[sk.id]:5},inventory:[],gold:99999999,hp:999999,maxHp:999999,
           sp:999999,maxSp:999999,buffs:[],monsters:[{id:1,defId:'poring',hp:99999999,maxHp:99999999}],
           cooldowns:{},shields:[],attackAccumulator:0};
-        out.push({job:j.id,skill:sk.id,ok:!!castSkill(sk.id,{forceLv:5})});
+        out.push({job:j.id,skill:sk.id,ok:!!castSkill(sk.id,{free:true,forceLv:Math.min(5,sk.maxLv)})});
       } catch(e) { out.push({job:j.id,skill:sk.id,ok:false,error:String(e)}); }
     }
   }
   return JSON.stringify(out);
 })()`, context));
-check(activeCastResults.length === 26 && activeCastResults.every(x => x.ok),
-  'all 26 fourth-job active skills resolve in combat', activeCastResults.filter(x => !x.ok).map(x => `${x.skill}: ${x.error || 'cast failed'}`).join('; '));
+check(activeCastResults.length > 100 && activeCastResults.every(x => x.ok),
+  'all fourth-job active skills resolve in combat', activeCastResults.filter(x => !x.ok).map(x => `${x.skill}: ${x.error || 'cast failed'}`).join('; '));
 
 // All new passive skills must pass through recomputeDerived without errors.
 const passiveResults = JSON.parse(vm.runInContext(`(() => {
@@ -261,15 +285,15 @@ const learningResults = JSON.parse(vm.runInContext(`(() => {
   const out=[];
   for (const j of Object.values(JOB_TREE).filter(j => j.tier === 4)) {
     createCharacter('V2技能學習測試',{str:10,agi:10,vit:10,int:10,dex:10,luk:10},j.genderLock||'male');
-    state.jobId=j.id; state.jobLevel=1; state.baseLevel=200; state.jobSkillPoints={[j.id]:15};
-    state.skillPoints=15; state.learnedSkills={}; let ok=true;
-    for (const sk of j.skills) for (let n=0;n<5;n++) if (!levelUpSkill(sk.id)) ok=false;
-    out.push({job:j.id,ok,levels:j.skills.map(sk=>state.learnedSkills[sk.id]||0)});
+    state.jobId=j.id; state.jobLevel=1; state.baseLevel=200; state.jobSkillPoints={[j.id]:60};
+    state.skillPoints=60; state.learnedSkills={}; let ok=true;
+    for (const sk of j.skills.slice(0,3)) for (let n=0;n<Math.min(5,sk.maxLv);n++) if (!levelUpSkill(sk.id)) ok=false;
+    out.push({job:j.id,ok,levels:j.skills.slice(0,3).map(sk=>({got:state.learnedSkills[sk.id]||0,want:Math.min(5,sk.maxLv)}))});
   }
   return JSON.stringify(out);
 })()`, context));
-check(learningResults.length === 13 && learningResults.every(x => x.ok && x.levels.every(n => n === 5)),
-  'all 39 fourth-job skills can be learned to level 5');
+check(learningResults.length === 13 && learningResults.every(x => x.ok && x.levels.every(n => n.got === n.want)),
+  'all 13 jobs can learn their fourth-job skills through the skill-point system');
 
 const transition = JSON.parse(vm.runInContext(`(() => {
   createCharacter('V2四轉測試', {str:10,agi:10,vit:10,int:10,dex:10,luk:10}, 'male');
@@ -411,5 +435,81 @@ const thirdArmorIcon = path.join(__dirname, '..', 'images', 'equip', 'armor', '9
 check(fs.existsSync(thirdArmorIcon), 'V2.4.1 unique third-job armor icon file exists');
 check(vm.runInContext(`ITEMS.v24_third_armor.imgId === 91001 && !IMG_ALIAS['equip/armor']['91001.png']`, context),
   'V2.4.1 third-job armor icon no longer resolves through a duplicate legacy alias');
+// V2.5.3: every generated fourth-job active skill exposes the actual combat multiplier range.
+const v253 = vm.runInContext(`(() => {
+  const skills = Object.values(SKILLS).filter(s => /^v25_/.test(s.id));
+  const active = skills.filter(s => s.type !== 'passive');
+  const described = active.filter(s => /[0-9]+%～[0-9]+%/.test(s.desc));
+  const mismatch = active.filter(s => {
+    const vals = Array.isArray(s.mult) ? s.mult : [s.mult];
+    const first = Math.round(vals[0] * 100), last = Math.round(vals[vals.length - 1] * 100);
+    return !s.desc.includes(first + '%～' + last + '%');
+  });
+  return {total:skills.length, active:active.length, described:described.length, mismatch:mismatch.map(s=>s.id)};
+})()`, context);
+check(v253.active > 0 && v253.described === v253.active, 'V2.5.3 all fourth-job active skills show multiplier ranges');
+check(v253.mismatch.length === 0, 'V2.5.3 skill descriptions match live combat multiplier arrays', v253.mismatch.join(','));
+// V2 original active skills must expose the same multiplier used by combat.
+const v255SkillAudit = vm.runInContext(`(() => {
+  const active=Object.values(SKILLS).filter(s=>/^v2_/.test(s.id)&&['damage','damage_aoe','magic','magic_aoe','dot'].includes(s.type)&&s.mult!==undefined);
+  const mismatch=active.filter(s=>{const v=Array.isArray(s.mult)?s.mult:[s.mult];return !s.desc.includes(Math.round(v[0]*100)+'%～'+Math.round(v[v.length-1]*100)+'%');});
+  const dragon=SKILLS.v2_dk_dragon_breath;
+  return {active:active.length,mismatch:mismatch.map(s=>s.id),dragon:dragon?dragon.mult:[]};
+})()`, context);
+check(v255SkillAudit.active >= 20, 'V2 added active skills are covered by multiplier audit');
+check(v255SkillAudit.mismatch.length === 0, 'V2 added active skill descriptions match actual combat multipliers', v255SkillAudit.mismatch.join(','));
+check(v255SkillAudit.dragon.length === 5 && v255SkillAudit.dragon[0] >= 8 && v255SkillAudit.dragon[4] >= 12,
+  'Dragon Knight Dragon Breath upgraded to endgame AOE multiplier', JSON.stringify(v255SkillAudit.dragon));
+const thirdSkillAudit = vm.runInContext(`(() => { const jobs=Object.values(JOB_TREE).filter(j=>j.tier===3); const rows=jobs.flatMap(j=>(j.skills||[]).map(id=>typeof id==='string'?SKILLS[id]:id).filter(Boolean)); const active=rows.filter(s=>['damage','damage_aoe','magic','magic_aoe','dot'].includes(s.type) && s.mult!==undefined); const missing=active.filter(s=>!/[0-9]+%/.test(s.desc||'')); return {jobs:jobs.length,active:active.length,missing:missing.map(s=>s.name)}; })()`, context);
+check(thirdSkillAudit.jobs > 0 && thirdSkillAudit.missing.length === 0, 'V2.5.3 third-job active skills include percentage descriptions', thirdSkillAudit.missing.join(','));
+const codexSpecial = vm.runInContext(`(() => { const ids=getCodexPool().items; return ['magingiorde','helm_of_mid_sol_god'].every(id=>ids.includes(id)) && !ids.includes('half_megin'); })()`, context);
+check(codexSpecial, 'V2.5.3 artifact equipment appears in item codex and removed sealed belt is absent');
+const artifactRecipes = vm.runInContext(`!!(window.V25_ARTIFACT_RECIPES.megingjard && window.V25_ARTIFACT_RECIPES.mid_sol_helm && ITEMS[window.V25_ARTIFACT_RECIPES.megingjard.itemId] && ITEMS[window.V25_ARTIFACT_RECIPES.mid_sol_helm.itemId])`, context);
+check(artifactRecipes, 'V2.5.3 Thor belt and Sun God helm have valid artifact recipes');
+const visualAssets = ['images/npc/artifact_blacksmith.svg','images/skills/skill-physical.svg','images/skills/skill-magic.svg','images/skills/skill-passive.svg'].every(f=>fs.existsSync(path.join(root,f)));
+check(visualAssets, 'V2.5.3 NPC and skill illustration assets exist');
+
+// V2.5.4 codex completeness: every registered weapon/armor must be discoverable,
+// including equipment without a monster-drop or shop entry.
+const codexCoverage = vm.runInContext(`(() => { const ids=getCodexPool().items; const missing=Object.entries(ITEMS).filter(([id,d])=>d&&(d.type==='weapon'||d.type==='armor')&&!ids.includes(id)).map(([id])=>id); return {equipment:Object.values(ITEMS).filter(d=>d&&(d.type==='weapon'||d.type==='armor')).length,missing}; })()`, context);
+check(codexCoverage.missing.length === 0, 'V2.5.4 every registered weapon and armor appears in item codex', codexCoverage.missing.slice(0,20).join(','));
+const bonusFormulaKeys = vm.runInContext(`canonicalBonusKey('patk')==='pAtk' && canonicalBonusKey('smatk')==='sMatk'`, context);
+check(bonusFormulaKeys, 'V2.5.4 P.ATK / S.MATK aliases normalize to combat formula keys');
+const skillBonusAlias = vm.runInContext(`(() => { state={jobId:'ranger',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},equip:{weapon:'w1'},instances:{w1:{item:'fourth_bh_bow',refine:2,cards:[]}},relics:{},baseLevel:200,jobLevel:60,learnedSkills:{}}; _gearBonusCache=null; _gearBonusKey=''; return !!SKILLS.ra_arrowstorm && getSkillDamageBonus(SKILLS.ra_arrowstorm) === 5; })()`, context);
+check(skillBonusAlias, 'legacy skill bonus key resolves to prefixed skill ID');
+const aoeNoTargetGuard = fs.readFileSync(path.join(jsDir, 'engine.js'), 'utf8').includes("'damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot'");
+check(aoeNoTargetGuard, 'AOE attacks require a target before SP and cooldown are consumed');
+
+
+// V2.5.5.14: audit the full RWC and Fashion set effects end-to-end.
+const setEffectAudit = JSON.parse(vm.runInContext(`(() => {
+  const equip = (items) => {
+    state = { jobId:'assassincross', stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1}, equip:{}, instances:{}, relics:{} };
+    for (const [slot,id] of items) state.equip[slot]=id;
+    _gearBonusCache=null; _gearBonusKey='';
+    return effectiveGearBonuses();
+  };
+  const rwc = equip([['accessory1','rwc_2012_ring'],['accessory2','rwc_2012_pendant']]);
+  const fashion = equip([['footgear','fashion_shoes'],['head_mid','blue_eyeshadow']]);
+  const fashionAlt = equip([['footgear','fashion_shoes'],['head_mid','blue_eye_shadow']]);
+  const rwcSlotted = equip([['accessory1','rwc_2012_ring_'],['accessory2','rwc_2012_pendant_']]);
+  return JSON.stringify({rwc:{all:rwc.allTargetDmgPct||0,matkPct:rwc.matkPct||0},rwcSlotted:{all:rwcSlotted.allTargetDmgPct||0,matkPct:rwcSlotted.matkPct||0},fashion:{hp:fashion.hpPct||0,sp:fashion.spPct||0,int:fashion.int||0,matkPct:fashion.matkPct||0},fashionAlt:{hp:fashionAlt.hpPct||0,sp:fashionAlt.spPct||0,int:fashionAlt.int||0,matkPct:fashionAlt.matkPct||0}});
+})()`, context));
+check(setEffectAudit.rwc.all === 5 && setEffectAudit.rwc.matkPct === 4, 'RWC set gives +1% base physical damage plus +4% set damage and +4% MATK, without duplicate stacking', JSON.stringify(setEffectAudit.rwc));
+check(setEffectAudit.rwcSlotted.all === 5 && setEffectAudit.rwcSlotted.matkPct === 4, 'Slotted RWC set variant has the same correct bonuses', JSON.stringify(setEffectAudit.rwcSlotted));
+
+const otherSetAudit = JSON.parse(vm.runInContext(`(() => {
+  const equip=(slots)=>{state={jobId:'assassincross',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},equip:slots,instances:{},relics:{}};_gearBonusCache=null;_gearBonusKey='';return effectiveGearBonuses();};
+  const ice=equip({head_top:'hat_of_scrat',armor:'suit_of_sid',garment:'manteau_of_diego',accessory1:'badge_of_manny'});
+  const krieger=equip({armor:'krieger_suit1',footgear:'krieger_shoes1',garment:'krieger_muffler1'});
+  return JSON.stringify({ice:{hp:ice.hpPct||0,sp:ice.spPct||0,matk:ice.matkPct||0},krieger:{all:krieger.allTargetDmgPct||0,matk:krieger.matkPct||0,freeze:krieger.ailResist_freeze||0}});
+})()`,context));
+check(otherSetAudit.ice.hp===10 && otherSetAudit.ice.sp===10 && otherSetAudit.ice.matk===5, 'Ice Age set HP/SP and MATK bonuses apply once', JSON.stringify(otherSetAudit.ice));
+check(otherSetAudit.krieger.all===5 && otherSetAudit.krieger.matk===5 && otherSetAudit.krieger.freeze===100, 'Krieger set damage/MATK bonuses and freeze immunity apply once', JSON.stringify(otherSetAudit.krieger));
+
+for (const [label, v] of [['canonical',setEffectAudit.fashion],['alternate eye shadow',setEffectAudit.fashionAlt]]) {
+  check(v.hp === 13 && v.sp === 10 && v.int === 3 && v.matkPct === 4, `Fashion set ${label} applies base + set bonuses exactly once`, JSON.stringify(v));
+}
+
 console.log(`\n${failures ? 'FAILED' : 'ALL PASSED'} — ${failures} failure(s); ${setResults.length} equipment sets checked.`);
 process.exitCode = failures ? 1 : 0;

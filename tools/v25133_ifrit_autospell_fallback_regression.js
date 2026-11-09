@@ -1,0 +1,12 @@
+const fs = require('fs');
+const path = require('path');
+const data = fs.readFileSync(path.join(__dirname, '../js/data.js'), 'utf8');
+const skills = fs.readFileSync(path.join(__dirname, '../js/skills.js'), 'utf8');
+const m = data.match(/ifrit_card:\s*\{[^\n]+/);
+if (!m) throw new Error('Ifrit card record not found');
+const line = m[0];
+if (!/"skill":"earthspike"/.test(line)) throw new Error('Fallback must use earthspike when earthquake skill is absent');
+if (!/"lv":5/.test(line)) throw new Error('Earth Spike level must be clamped to database max level 5');
+if (!/"chance":0\.1/.test(line)) throw new Error('Official Ifrit proc chance should be 0.1%');
+if (/earthquake|地震連擊|地震連繫/.test(skills)) throw new Error('Earthquake/地震連擊 unexpectedly exists in current skill database; re-evaluate fallback');
+console.log('PASS: Ifrit uses Earth Spike Lv5 at 0.1% because Earthquake is absent from skill DB');

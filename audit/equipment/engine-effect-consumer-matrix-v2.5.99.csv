@@ -1,0 +1,16 @@
+﻿效果類型,資料欄位/描述模式,引擎讀取位置,判定,注意事項
+固定 HP,bonus.hp / bonus.hpPct,js/engine.js: recomputeDerived（約 2298–2322）,有通用計算,固定值與百分比會進最大 HP 計算；仍需逐件核對資料映射是否正確
+固定 SP,bonus.sp / bonus.spPct,js/engine.js: recomputeDerived（約 2298–2322）,有通用計算,固定值與百分比會進最大 SP 計算
+每精煉 +1,per1Refine / perRefine,js/engine.js: effectiveGearBonuses（約 12890–12907）,有通用計算,支援 perRefineCap、per1RefineStart；舊 perRefine 未必等同所有官方敘述，需核對資料起算點
+每精煉 +2,per2Refine / per2RefineExtra,js/engine.js: effectiveGearBonuses（約 12909–12924）,有通用計算,支援 per2RefineStart；Extra 目前使用 floor(refine/2)，沒有獨立起算欄位
+每精煉 +3,per3Refine,js/engine.js: effectiveGearBonuses（約 12925–12930）,有通用計算,使用 floor(refine/3)，起算門檻若非 +3 的倍數需額外條件欄位
+每精煉 +4 / +5,per4Refine / per5Refine,js/engine.js: effectiveGearBonuses（約 12932–12940）,有通用計算,使用 floor(refine/4) 或 floor(refine/5)
+精煉平方成長,perRefineSquare / perRefineSquareMatk / perRefineSquareMatkHalf,js/engine.js: effectiveGearBonuses（約 12894–12947）,有通用計算,需確認官方公式是否為精煉平方及封頂值
+精煉門檻,condBonus.when.refineMin/refineMax,js/engine.js: condMet + effectiveGearBonuses,有通用計算,條件格式必須符合 condMet 支援的 schema；資料存在不等於條件一定命中
+BaseLv 每 1/5/10/15 級,perBaseLv1_/5_/10_/15_,js/engine.js: getCardBonus（約 13387–13418）,有通用計算,會依呼叫的目標 bonus key 計算；BaseLv10 有 Lv70 起算特例，需檢查資料是否符合該裝備規則
+BaseLv 210 門檻,perBaseLv210_,js/engine.js: getCardBonus（約 13418–13424）,有通用計算,只在 BaseLv ≥210 時加一次，不是每級成長
+JobLv 每 10 級,perJobLv10_,js/engine.js: getCardBonus（約 13426–13433）,有通用計算,目前未見通用 perJobLv1/5/15；若官方敘述不是每 10 級，需新增支援或用條件規則表達
+BaseLv/JobLv 對 HP/SP,perBaseLv*_hp / sp / hpPct / spPct；perJobLv10_*,js/engine.js: getCardBonus + recomputeDerived,部分有通用計算,只要目標鍵能進 getCardBonus 並且資料鍵正確即可；需逐筆確認 HP/SP 是固定值還是百分比
+裝備 bonus 通用詞條,def.bonus,js/engine.js: effectiveGearBonuses + recomputeDerived/傷害計算,有通用入口，非所有鍵皆有消費端,bonus 物件中若使用未被戰鬥/面板讀取的 key，仍可能只存在資料不生效
+套裝效果,裝備組合/套裝表,js/engine.js: effectiveGearBonuses（套裝彙總區）,需逐套追蹤,有套裝彙總邏輯，但每個 set id、條件及 bonus key 仍須確認
+機率觸發/吸收/反射,裝備描述及專屬 bonus key,js/engine.js 多處戰鬥事件處理,需逐效果追蹤,觸發效果通常不是單一通用欄位；不能僅以描述或資料欄位判定完成

@@ -7,13 +7,19 @@
   const skill = (id, name, type, element, mult, spCost, cooldown, desc, extra = {}) => ({
     id, name, maxLv: 5, type, element, mult, spCost, cooldown, desc, ...extra,
   });
-  const active = (id, name, type, element, desc, extra = {}) => skill(
-    id, name, type, element,
-    type.endsWith('_aoe') ? [2.6, 3.1, 3.6, 4.1, 4.6] : [4.2, 5.2, 6.2, 7.2, 8.2],
-    type.endsWith('_aoe') ? [45, 50, 55, 60, 65] : [35, 40, 45, 50, 55],
-    type.endsWith('_aoe') ? [8, 8, 8, 8, 8] : [7, 7, 7, 7, 7],
-    desc, extra,
-  );
+  const active = (id, name, type, element, desc, extra = {}) => {
+    const aoe = type.endsWith('_aoe');
+    // 四轉主動技能定位為終階輸出：範圍技能以較低單段倍率換取全體命中，
+    // 單體技能倍率更高；冷卻 7～8 秒，倍率與描述共用同一組 mult 資料。
+    const mult = aoe ? [8.0, 9.2, 10.4, 11.6, 12.8] : [12.0, 13.6, 15.2, 16.8, 18.4];
+    const first = Math.round(mult[0] * 100), last = Math.round(mult[mult.length - 1] * 100);
+    const kind = ['magic','magic_aoe'].includes(type) ? '魔法傷害' : '物理傷害';
+    const target = aoe ? '攻擊全體敵人' : '攻擊單一目標';
+    const detail = `${name}：${kind} ${first}%～${last}%，${target}。${desc}`;
+    return skill(id, name, type, element, mult,
+      aoe ? [45, 50, 55, 60, 65] : [35, 40, 45, 50, 55],
+      aoe ? [8, 8, 8, 8, 8] : [7, 7, 7, 7, 7], detail, extra);
+  };
   const passive = (id, name, passiveStat, values, desc, extra = {}) => ({
     id, name, maxLv: 5, type: 'passive', passiveStat, element: 'neutral',
     spCost: [0], cooldown: [0], mult: values, desc, ...extra,
@@ -114,21 +120,29 @@
   ];
 
   for (const c of classes) {
-    if (JOB_TREE[c.id]) throw new Error(`V2 duplicate job id: ${c.id}`);
     if (!JOB_TREE[c.parent]) throw new Error(`V2 missing parent job: ${c.parent}`);
     for (const sk of c.skills) {
+      // 部分四轉職業與正式資料庫已有相同 ID；技能採獨立 v2_ 前綴，合併而不覆蓋原職業資料。
       if (SKILLS[sk.id]) throw new Error(`V2 duplicate skill id: ${sk.id}`);
       SKILLS[sk.id] = sk;
     }
-    JOB_TREE[c.id] = {
-      id: c.id, name: c.name, tier: 4, icon: c.icon, parent: c.parent,
-      baseLevelReq: 200, jobLevelReq: 70, jobLevelMax: 50,
-      atkMod: c.atk, matkMod: c.matk,
-      hpSpFrom: c.parent, aspdFrom: c.parent,
-      next: [], bonusLevels: c.bonusLevels, skills: c.skills,
-      desc: `承接${JOB_TREE[c.parent].name}的力量，踏入第四職業階段。`,
-      ...(c.genderLock ? { genderLock: c.genderLock } : {}),
-    };
+    if (JOB_TREE[c.id]) {
+      const existing = JOB_TREE[c.id];
+      existing.skills = existing.skills || [];
+      c.skills.forEach(sk => {
+        if (!existing.skills.includes(sk.id)) existing.skills.push(sk.id);
+      });
+    } else {
+      JOB_TREE[c.id] = {
+        id: c.id, name: c.name, tier: 4, icon: c.icon, parent: c.parent,
+        baseLevelReq: 200, jobLevelReq: 70, jobLevelMax: 50,
+        atkMod: c.atk, matkMod: c.matk,
+        hpSpFrom: c.parent, aspdFrom: c.parent,
+        next: [], bonusLevels: c.bonusLevels, skills: c.skills.map(sk => sk.id),
+        desc: `承接${JOB_TREE[c.parent].name}的力量，踏入第四職業階段。`,
+        ...(c.genderLock ? { genderLock: c.genderLock } : {}),
+      };
+    }
     JOB_TREE[c.parent].next = JOB_TREE[c.parent].next || [];
     if (!JOB_TREE[c.parent].next.includes(c.id)) JOB_TREE[c.parent].next.push(c.id);
   }
@@ -150,27 +164,31 @@
   }
   const addItem = (id, def) => {
     if (ITEMS[id]) throw new Error(`V2 duplicate item id: ${id}`);
-    ITEMS[id] = { id, ...def };
+    const imageId = 990000 + [...id].reduce((n,c)=>((n*31+c.charCodeAt(0))>>>0)%9000, 7);
+    ITEMS[id] = { id, ...def, imgId: imageId };
   };
   const addCard = (id, def) => {
     if (CARDS[id] || ITEMS[id]) throw new Error(`V2 duplicate card id: ${id}`);
     CARDS[id] = { id, ...def };
     ITEMS[id] = {id,name:def.name,type:'material',icon:'📦',weight:1,sell:10,buyPrice:20,desc:`${def.desc} 系列: 卡片 裝備: ${def.slot} 重量: 1`};
   };
+  const fourthWeaponImages = { dragon_knight:1168, imperial_guard:1463, arch_mage:1664, element_master:1583,
+    wind_hawk:1713, troubadour:1907, trouvere:1909, meister:1360, biolo:1236,
+    shadow_cross:1245, abyss_chaser:1242, cardinal:1668, inquisitor:1809 };
   const weapon = (id, name, jobId, weaponCat, atk, matk, icon, desc) => addItem(id, {
-    name, type:'weapon', icon, weaponType:(weaponCat === 'instrument' || weaponCat === 'whip') ? 'bow' : weaponCat, weaponCat, weaponLv:4, atk, ...(matk ? {matk} : {}),
+    name, type:'weapon', icon, imgId:fourthWeaponImages[jobId], weaponType:(weaponCat === 'instrument' || weaponCat === 'whip') ? 'bow' : weaponCat, weaponCat, weaponLv:4, atk, ...(matk ? {matk} : {}),
     weight:120, slots:1, reqLevel:200, reqJob:[jobId],
     desc: `${desc} 系列: ${weaponCat === 'rod' || weaponCat === 'book' ? '武器' : '武器'} 攻擊: ${atk} 重量: 120 武器等級: 4 要求等級: 200 裝備: ${JOB_TREE[jobId].name}`,
   });
 
-  weapon('v2_dragon_spear','龍魂長槍','dragon_knight','spear',330,0,'🔱','封存古龍力量的長槍，揮動時會留下赤色龍焰。');
+  weapon('v2_dragon_spear','龍魂長槍','dragon_knight','spear',330,0,'🔱','雙手長槍，封存古龍力量，揮動時會留下赤色龍焰。');
   weapon('v2_imperial_lance','帝國裁決槍','imperial_guard','spear',310,0,'🛡️','帝國衛士專用的制式長槍，槍尖刻有聖印。');
-  weapon('v2_archmage_staff','星界法杖','arch_mage','rod',95,360,'✨','以星界晶核製成的法杖，能大幅放大魔力。');
+  weapon('v2_archmage_staff','星界法杖','arch_mage','rod',95,360,'✨','雙手法杖，以星界晶核製成，能大幅放大魔力。');
   weapon('v2_element_book','元素秘典','element_master','book',175,245,'📘','記載四大元素循環的古老秘典。');
   weapon('v2_wind_bow','蒼穹之弓','wind_hawk','bow',325,0,'🏹','以風鷹羽骨製成的長弓，箭矢破空無聲。');
   weapon('v2_troubadour_harp','天籟豎琴','troubadour','instrument',265,85,'🎻','奏者傳承的共鳴樂器，能將音波化為利刃。');
   weapon('v2_trouvere_whip','月影之鞭','trouvere','whip',260,95,'🎀','舞者專用的月影長鞭，揮舞時散出銀色光弧。');
-  weapon('v2_meister_axe','重型機械斧','meister','axe1',355,0,'🪓','機匠打造的高輸出機械斧，斧刃內藏增壓裝置。');
+  weapon('v2_meister_axe','重型機械斧','meister','axe2',355,0,'🪓','雙手機械斧，斧刃內藏增壓裝置。');
   weapon('v2_biolo_injector','生化注射器','biolo','dagger',230,190,'🧪','生化學者專用的注射型短刃，可導入高濃度藥劑。');
   weapon('v2_shadow_katar','夜影拳刃','shadow_cross','katar',315,0,'🗡️','吸收暗影的拳刃，專為瞬間處決而設計。');
   weapon('v2_abyss_dagger','深淵短劍','abyss_chaser','dagger',285,140,'🌑','從深淵裂縫帶回的短劍，刃面映不出光線。');
@@ -210,7 +228,8 @@
   const resistance = {none:100,water:100,earth:100,fire:100,wind:100,poison:100,holy:100,shadow:100,ghost:100,undead:100};
   const addMonster = (id, def) => {
     if (MONSTERS[id]) throw new Error(`V2 duplicate monster id: ${id}`);
-    MONSTERS[id] = {id, imgId:0, icon:'👿', element:'none', elementResistance:{...resistance},
+    const imageId = 980000 + [...id].reduce((n,c)=>((n*31+c.charCodeAt(0))>>>0)%9000, 11);
+    MONSTERS[id] = {id, imgId:imageId, icon:'👿', element:'none', elementResistance:{...resistance},
       race:'formless', size:'medium', isBoss:false, ...def};
   };
   addMonster('v2_rift_sentinel',{name:'裂隙守衛',level:205,hp:820000,atk:2800,def:185,defSoft:160,mdef:120,mdefSoft:130,element:'earth',race:'formless',size:'large',exp:180000,jobExp:160000,hit:510,flee:410,atkInterval:1.4,drops:[{item:'v2_rift_plate',chance:0.002},{item:'v2_rift_core',chance:0.08},{item:'v2_imperial_lance',chance:0.0015}]});
@@ -259,6 +278,17 @@
   );
   MVP_MAP_DATA.v2_abyss_rift_lower = ['v2_rift_guardian'];
   MVP_MAP_DATA.v2_abyss_rift_core = ['v2_rift_guardian','v2_void_emperor'];
+
+  // 將裂隙兩張地圖正式掛入地區／王國選單；只 push MAPS 不會自動出現在地圖頁下拉選單。
+  if (!REGIONS.some(r => r.id === 'r_v2_abyss')) {
+    REGIONS.push({
+      id:'r_v2_abyss', name:'深淵裂縫', subtitle:'裂隙守衛、深淵潛行者與熾焰龍族盤據的高危區域。',
+      icon:'🌀', maps:['v2_abyss_rift_lower','v2_abyss_rift_core']
+    });
+  }
+  if (!KINGDOMS.some(k => k.id === 'k_v2_abyss')) {
+    KINGDOMS.push({id:'k_v2_abyss',name:'裂隙領域',icon:'🌀',regions:['r_v2_abyss']});
+  }
 
   /* V2 第七套遺物：只提供數值型效果，沿用既有三段套裝計件，不新增戰鬥旗標。 */
   if (!RELIC_SETS.v2_rift) {

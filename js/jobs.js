@@ -199,9 +199,7 @@ const JOB_TREE = {
     bonusLevels: { str:[3,8,16,23,31,44], agi:[29,38], vit:[7,13,20,32,37,49], int:[21,34], dex:[1,4,5,9,12,19,26,28,36,39,40,47], luk:[11,46] },
     skills: [
       'weaponrepair', 'ironworking', 'steelworking', 'elementalstone',
-      'oridecon', 'hiltbinding', 'findingore', 'daggercraft',
-      'swordcraft', 'axecraft', 'knucklecraft', 'macecraft',
-      'spearcraft', 'weaponresearch', 'hammerfall', 'adrenaline',
+      'hiltbinding', 'findingore', 'weaponresearch', 'hammerfall', 'adrenaline',
       'skintemper', 'cartrevo', 'overthrust', 'overthrustbuff',
       'maximize', 'weaponfusion', 'greed',
     ],
@@ -664,7 +662,7 @@ const JOB_TREE = {
     borrowSkillsFrom: ['lordknight'],
     next: [], nextLocked: [],
     bonusLevels: { str:[1,6,7,8,19,25,33,41,46,47,52,56,57,64,70], agi:[2,10,14,17,37,53,60,65], vit:[5,12,22,29,40,43,58,68], int:[13,67], dex:[4,11,16,28,31,36,44,49,62], luk:[3,27,38] },
-    skills: ['rk_sonicwave', 'rk_dragonbreath', 'rk_runeedge'],
+    skills: ['rk_sonicwave', 'rk_dragontraining', 'rk_dragonbreath', 'rk_runeedge'],
     desc: '龍與符文的繼承者。劍上刻著看不懂的字，但敵人看得懂。'
   },
   royalguard: {
@@ -794,10 +792,20 @@ const JOB_TREE = {
     hpSpFrom: 'highpriest', aspdFrom: 'highpriest',
     // 沒有自己的技能，母職那份整份借過來（見上面的區塊說明）
     borrowSkillsFrom: ['highpriest'],
-    next: [], nextLocked: [],
+    next: ['cardinal'], nextLocked: [],
     bonusLevels: { str:[5,12,21,31,38,45,60], agi:[3,8,19,29,42,55,65,68], vit:[4,22,30,50,51,58,67], int:[1,7,11,20,23,24,34,47,57,61,66,70], dex:[13,16,26,28,37,43,46,56,62], luk:[40,49] },
     skills: ['ab_judex', 'ab_adoremus', 'ab_adoramus'],
     desc: '神的話由他轉述，所以他說的就是。'
+  },
+  cardinal: {
+    id: 'cardinal', name: '樞機主教', tier: 4, icon: '✨', parent: 'archbishop',
+    baseLevelReq: 200, jobLevelReq: 70, jobLevelMax: 60,
+    atkMod: 0.8, matkMod: 1.6,
+    hpSpFrom: 'highpriest', aspdFrom: 'archbishop',
+    next: [], nextLocked: [],
+    bonusLevels: { str:[1,15,18,21,24,39], agi:[5,6,16,19,26,31,32], vit:[9,10,17,20,29,34,37], int:[1,3,8,11,12,18,20,22,28,30,33,36], dex:[4,13,16,19,23,27], luk:[7,17,34,41] },
+    skills: ['cd_argutus_vita','cd_argutus_telum','cd_mediale_votum','cd_petitio','cd_benedictum','cd_divinus_flos','cd_arbitrium','cd_competentia','cd_religio','cd_fidus_animus','cd_presens_acies','cd_reparatio','cd_framen','cd_pneumaticus_procella','cd_dilectio_heal','cd_effligo'],
+    desc: '承接大主教的聖職力量，以全隊祝福、治癒與聖光裁決守護戰場。'
   },
   sura: {
     id: 'sura', name: '修羅', tier: 3, icon: '👊', parent: 'champion',
