@@ -804,7 +804,7 @@ const JOB_TREE = {
     hpSpFrom: 'highpriest', aspdFrom: 'archbishop',
     next: [], nextLocked: [],
     bonusLevels: { str:[1,15,18,21,24,39], agi:[5,6,16,19,26,31,32], vit:[9,10,17,20,29,34,37], int:[1,3,8,11,12,18,20,22,28,30,33,36], dex:[4,13,16,19,23,27], luk:[7,17,34,41] },
-    skills: ['cd_mace_book_m','cd_argutus_vita','cd_argutus_telum','cd_mediale_votum','cd_petitio','cd_benedictum','cd_divinus_flos','cd_arbitrium','cd_competentia','cd_religio','cd_fidus_animus','cd_presens_acies','cd_reparatio','cd_framen','cd_pneumaticus_procella','cd_dilectio_heal','cd_effligo'],
+    skills: ['cd_argutus_vita','cd_argutus_telum','cd_mediale_votum','cd_petitio','cd_benedictum','cd_divinus_flos','cd_arbitrium','cd_competentia','cd_religio','cd_fidus_animus','cd_presens_acies','cd_reparatio','cd_framen','cd_pneumaticus_procella','cd_dilectio_heal','cd_effligo'],
     desc: '承接大主教的聖職力量，以全隊祝福、治癒與聖光裁決守護戰場。'
   },
   sura: {

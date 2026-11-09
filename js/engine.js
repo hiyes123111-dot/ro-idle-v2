@@ -3918,15 +3918,6 @@ function dkChargingWeaponMet(){const c=aspdCategoryOf(getEquipBaseItemId('weapon
 function dkChargingDamageMult(id){const c=state.dkChargingPierce;if(!c||c.expiresAt<=Date.now()||c.stacks<10||!DK_CHARGING_SKILLS.has(id))return 1;return id==='lk_spiralpierce'?1.5:2;}
 function dkRecordChargingSkill(id){const c=state.dkChargingPierce;if(!c||c.expiresAt<=Date.now()||!DK_CHARGING_SKILLS.has(id)||c.stacks>=10)return;c.stacks++;c.lastChargeAt=Date.now();logMsg(`⚡ 充能貫穿：${c.stacks}/10 層`);}
 function dkTickChargingPierce(now){const c=state.dkChargingPierce;if(c&&(c.expiresAt<=now||(c.stacks>0&&now-(c.lastChargeAt||0)>=5000))){state.dkChargingPierce=null;logMsg('⚡ 充能貫穿的蓄力已解除。');}}
-// 樞機主教：鈍器＆書籍精熟。只在裝備鈍器／書籍時，依目標體型增加物理傷害。
-function cardinalMaceBookMasteryPct(monDef) {
-  const lv = Math.max(0, Math.min(10, (state.learnedSkills && state.learnedSkills.cd_mace_book_m) || 0));
-  if (!lv || !weaponReqMet('mace_book')) return 0;
-  const row = SKILLS.cd_mace_book_m && SKILLS.cd_mace_book_m.maceBookMasteryBySize[lv - 1];
-  if (!row) return 0;
-  const size = String((monDef && monDef.size) || 'medium').toLowerCase();
-  return row[size === 'small' ? 0 : (size === 'large' ? 2 : 1)] || 0;
-}
 
 // 怪物普通攻擊的遠距離名單：僅列出資料中可確認使用弓、火槍或投射武器的怪物。
 // 不依種族或名稱關鍵字推測，避免把一般近戰怪物誤判成遠距離。
@@ -6307,25 +6298,9 @@ function tickCooldowns() {
   });
 }
 function tickCardinalHotForCurrentState(now) {
-  // 治癒誓言依目標「目前 HP」比例回復，不是最大 HP 比例。
-  // 此 helper 在玩家與每位隊友的 withAlly/withOwner 狀態下共用。
-  let totalHealed = 0;
   (state.buffs || []).forEach(b => {
-    if (b.type !== 'cardinal_mediale_hot') return;
-    if (!b.nextHealAt) b.nextHealAt = now + 2000;
-    if (now < b.nextHealAt) return;
-    const ticks = Math.max(1, Math.floor((now - b.nextHealAt) / 2000) + 1);
-    let healed = 0;
-    for (let i = 0; i < ticks; i++) {
-      const amount = Math.max(0, Math.round((state.hp || 0) * (b.healPct || 0) / 100));
-      const before = state.hp || 0;
-      state.hp = Math.min(state.maxHp || before, before + amount);
-      healed += state.hp - before;
-    }
-    totalHealed += healed;
-    b.nextHealAt += ticks * 2000;
   });
-  if (totalHealed > 0) logMsg(`💚「治癒誓言」持續恢復 ${totalHealed} HP。`);
+  tickCardinalHotForCurrentState(now);
 }
 function tickBuffs() {
   dkTickChargingPierce(Date.now());
@@ -6358,7 +6333,6 @@ function tickBuffs() {
       }
     }
   }
-  tickCardinalHotForCurrentState(now);
   (state.buffs || []).forEach(b => {
     if (b.skillId === 'so_striking' && b.spDrainPerSec > 0) {
       b.spDrainAccumulatorMs = (b.spDrainAccumulatorMs || 0) + TICK_MS;
@@ -6372,7 +6346,16 @@ function tickBuffs() {
         state.sp -= b.spDrainPerSec;
       }
     }
-    // Cardinal HOT 統一由 tickCardinalHotForCurrentState() 處理，避免玩家／隊友公式分歧。
+    if (b.type !== 'cardinal_mediale_hot') return;
+    if (!b.nextHealAt) b.nextHealAt = now + 2000;
+    if (now >= b.nextHealAt) {
+      const ticks = Math.max(1, Math.floor((now - b.nextHealAt) / 2000) + 1);
+      const amount = Math.round(state.maxHp * (b.healPct || 0) / 100) * ticks;
+      const before = state.hp;
+      state.hp = Math.min(state.maxHp, state.hp + amount);
+      b.nextHealAt += ticks * 2000;
+      if (state.hp > before) logMsg(`💚 「治癒誓言」持續恢復 ${state.hp - before} HP。`);
+    }
   });
   state.buffs = state.buffs.filter(b => {
     b.msRemaining -= TICK_MS;
@@ -6523,7 +6506,7 @@ function skillHits(sk, lv, monDef, inst) {
 // 攻擊力的臨時修正：詛咒（×0.75）與挑釁（±N%）
 function playerAtkMult() {
   // P.ATK 是最終物理傷害百分比，必須放在武器／素質／熟練度合併後的最終乘區。
-  const pAtkPct = (typeof getCardBonus === 'function' ? getCardBonus('pAtk') : 0) + (buffMult('pAtk').flatBonus || 0);
+  const pAtkPct = (typeof getCardBonus === 'function' ? getCardBonus('pAtk') : 0);
   return playerAilAtkMult() * (1 + pDebuff('atkPct') / 100) * (1 + pAtkPct / 100);
 }
 /* 自動防禦（#22）：這一擊有沒有被完全擋下。只擋物理，跟「完全迴避」是兩件事——
@@ -6846,8 +6829,7 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   // `sizeDmg_all` 是舊裝備資料使用的「對所有體型增傷」鍵，與新鍵 allSizeDmgPct 同義。
   const allSizeBonus = typeof getCardBonus === 'function'
     ? getCardBonus('allSizeDmgPct') + getCardBonus('sizeDmg_all') : 0;
-  const masteryPct = cardinalMaceBookMasteryPct(monDef);
-  const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus + masteryPct) / 100;
+  const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus) / 100;
   // 普通攻擊依武器判斷距離；物理技能依 SKILLS.rangeType 標籤判斷，
   // 避免龍騎士等職業的遠距離技能因手持非弓武器而錯吃近距離加成。
   const isRangedAttack = sk
@@ -6876,7 +6858,7 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
      魔法那半沒有現成的桶，掛在這裡——這是全專案唯一一個「知道自己在算魔法、
      手上又有 monDef」的地方，放別處都得再開一條平行的管線。 */
   if (useMag) {
-    const sMatkPct = (typeof getCardBonus === 'function' ? getCardBonus('sMatk') : 0) + (buffMult('sMatk').flatBonus || 0);
+    const sMatkPct = (typeof getCardBonus === 'function' ? getCardBonus('sMatk') : 0);
     const dragon = (state.dragonMatkPct && monDef && monDef.race === 'dragon') ? state.dragonMatkPct : 0;
     /* 魔法體型／種族增傷與物理分開計算：一般 sizeDmg_、raceDmg_ 是物理裝備詞條，
        不能直接挪用，否則同一張物理卡片會意外增加魔法傷害。世界之光與滅世魔靴
@@ -10471,10 +10453,10 @@ function castSkillInner(skillId, opts) {
         if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, aoeCrit ? 'crit' : 'normal', useMag ? skElement : null);
         if (mon.hp <= 0) killMonster(monDef, mon);
       }
-      // 充能貫穿：四種指定技能命中後，每次成功施放只累積一層，不按命中怪物數重複計算。
+      // 充能貫穿：範圍技能每次成功施放只累積一層，不按命中怪物數重複計算。
       const dkChargeBurst = dkChargingDamageMult(sk.id) > 1;
       if (dkChargeBurst && state.dkChargingPierce) { state.dkChargingPierce.stacks = 0; state.dkChargingPierce.lastChargeAt = 0; logMsg('⚡ 充能貫穿滿層爆發！蓄力已消耗。'); }
-      else dkRecordChargingSkill(sk.id);
+      else if (sk.id === 'rk_hundredspear') dkRecordChargingSkill(sk.id);
       // 光獵：額外附加HIT加成buff
       if (sk.bonusHitBuff) {
         const hitBonus = Array.isArray(sk.bonusHitBuff) ? sk.bonusHitBuff[lv - 1] : sk.bonusHitBuff;
@@ -11069,9 +11051,8 @@ function castSkillInner(skillId, opts) {
             const gain = recoverSelf();
             if (gain.hp || gain.sp) recovered.push({ mate, ...gain });
           });
-          // 官方效果是 P.ATK、S.MATK 固定增加，不是一般 ATK/MATK 百分比。
-          push('pAtk', 1, value);
-          push('sMatk', 1, value);
+          push('atk', 1 + value / 100);
+          push('matk', 1 + value / 100);
           const partyText = recovered.length
             ? `；隊友 ${recovered.map(x => `${x.mate === allyOwnerState() ? '你' : x.mate._allyName} HP+${x.hp}/SP+${x.sp}`).join('、')}`
             : '';
