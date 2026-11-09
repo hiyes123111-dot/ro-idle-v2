@@ -11,8 +11,8 @@ const checks = [
   ['Arrow Storm maps to current Ranger skill ID', /ra_arrowstorm\s*:\s*\{\s*id:\s*'ra_arrowstorm'/.test(skills) && /"vivatus_f_ballista"[^\n]*skillDmg_ra_arrowstorm/.test(data)],
   ['Aimed Bolt maps to current Ranger skill ID', /ra_aimedbolt\s*:\s*\{\s*id:\s*'ra_aimedbolt'/.test(skills) && /"vivatus_f_a_bow"[^\n]*skillDmg_ra_aimedbolt/.test(data)],
   ['Invalid legacy aliases removed from corrected weapons', !/"vivatus_f_(lapier|m_book|wand|dagger|ballista|a_bow)"[^\n]*skillDmg_(cartcannon|psychicwave|adoramus|fatalmenace|arrowstorm|aimedbolt)/.test(data)],
-  ['Version is 2.5.221', version === '2.5.221'],
-  ['All HTML cache refs use 2.5.221', (index.match(/\?v=2\.5\.221/g) || []).length === (index.match(/\?v=/g) || []).length]
+  ['Version is 2.5.221', version === '2.5.225'],
+  ['All HTML cache refs use 2.5.221', (index.match(/\?v=2\.5\.225/g) || []).length === (index.match(/\?v=/g) || []).length]
 ];
 let failed = 0;
 for (const [name, ok] of checks) { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}`); if (!ok) failed++; }

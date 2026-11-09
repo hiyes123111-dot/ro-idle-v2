@@ -23,7 +23,7 @@
     ],
     element_master: [
       ['魔法書精熟',10,'passive','matkFlat'],['咒力賦予',5,'passive','matkFlat'],['能量燃燼',5,'magic','fire'],['能量轉換',5,'passive','maxSpMult'],['灼熱岩漿',5,'magic_aoe','fire'],['雷霆陣地',5,'magic_aoe','wind'],['鑽石風暴',5,'magic_aoe','water'],['大地驅動',5,'magic_aoe','earth'],['毒液沼澤',5,'magic_aoe','poison'],['心靈波流',5,'magic_aoe','ghost'],['元素鬥志精熟',10,'passive','matkFlat'],
-      ['召喚元素:阿爾多雷',1,'passive','matkFlat'],['召喚元素:普羅賽拉',1,'passive','matkFlat'],['召喚元素:迪盧比奧',1,'passive','matkFlat'],['召喚元素:泰雷莫圖斯',1,'passive','matkFlat'],['召喚元素:塞爾彭斯',1,'passive','matkFlat'],['元素天幕',5,'passive','defFlat'],['元素破壞',10,'magic_aoe','neutral']
+      ['召喚元素：阿爾多雷',1,'elemental_summon','fire','em_summon_elemental_ardor'],['召喚元素：迪盧比奧',1,'elemental_summon','water','em_summon_elemental_diluvio'],['召喚元素：普羅賽拉',1,'elemental_summon','wind','em_summon_elemental_procella'],['召喚元素：泰雷莫圖斯',1,'elemental_summon','earth','em_summon_elemental_terremotus'],['召喚元素：塞爾彭斯',1,'elemental_summon','poison','em_summon_elemental_serpens'],['元素天幕',5,'passive','defFlat'],['元素破壞',10,'magic_aoe','neutral']
     ],
     wind_hawk: [
       // 依網站風鷹技能圖鑑更新；保留既有索引 7～10，讓陷阱引擎的 ID 不變。
@@ -50,7 +50,7 @@
       ['短劍&弓弩精熟',10,'passive','atkFlat'],['突擊滑行',5,'damage','neutral'],['追擊突斷',5,'damage','neutral'],['深淵匕首',5,'damage','shadow'],['不幸衝擊',5,'magic_aoe','shadow'],['靈巧刺擊',10,'damage','neutral'],['深淵殺手',10,'passive','atkFlat'],['魔劍精熟',10,'passive','matkFlat'],['萬丈深淵',5,'magic_aoe','shadow'],['深淵墳場',5,'magic_aoe','shadow'],['深淵之焰',5,'magic_aoe','fire'],['終結深淵攻擊',10,'magic','shadow'],['卸除影子',5,'passive','defFlat'],['追襲射擊',5,'damage','neutral'],['連鎖射擊',5,'damage_aoe','neutral'],['狂暴射擊',10,'damage_aoe','neutral']
     ],
     cardinal: [
-      ['博愛治癒',5,'passive','maxHpMult'],['治癒誓言',5,'passive','maxHpMult'],['聖光治癒',5,'magic','holy'],['神聖防護',5,'passive','defFlat'],['光耀天命',5,'passive','matkFlat'],['爆裂聖光',5,'magic_aoe','holy'],['神聖權能',5,'passive','matkFlat'],['全心奉獻',5,'passive','maxHpMult'],['祝福讚歌',5,'passive','atkFlat'],['靈魂忠誠',10,'passive','matkFlat'],['聖靈鎮魂',5,'magic_aoe','holy'],['制裁謳歌',10,'magic_aoe','holy'],['神聖花雨',5,'magic_aoe','holy'],['驅魔風暴',10,'magic_aoe','holy'],['鈍器&書籍精熟',10,'passive','matkFlat'],['聖光打擊',10,'magic','holy'],['破壞擊',10,'damage','holy']
+      ['博愛治癒',5,'cardinal_heal','heal','cd_dilectio_heal'],['治癒誓言',5,'cardinal_support','heal','cd_mediale_votum'],['聖光治癒',5,'cardinal_heal','heal','cd_reparatio'],['神聖防護',5,'cardinal_support','resIgnore','cd_argutus_telum'],['光耀天命',5,'cardinal_support','mresIgnore','cd_argutus_vita'],['爆裂聖光',5,'cardinal_support','presensAcies','cd_presens_acies'],['神聖權能',5,'cardinal_support','competentia','cd_competentia'],['全心奉獻',5,'cardinal_support','magicStats','cd_religio'],['祝福讚歌',5,'cardinal_support','physicalStats','cd_benedictum'],['靈魂忠誠',10,'passive','holy','cd_fidus_animus'],['聖靈鎮魂',5,'magic_aoe','holy','cd_framen'],['制裁謳歌',10,'magic_aoe','holy','cd_arbitrium'],['神聖花雨',5,'magic_aoe','holy','cd_divinus_flos'],['驅魔風暴',10,'magic_aoe','neutral','cd_pneumaticus_procella'],['鈍器&書籍精熟',10,'passive','matkFlat','cd_mace_book_m'],['聖光打擊',10,'damage_aoe','holy','cd_petitio'],['破壞擊',10,'damage_aoe','holy','cd_effligo']
     ],
     inquisitor: [
       ['信念意志',10,'passive','atkFlat'],['堅毅信念',5,'passive','defFlat'],['堅定信念',5,'passive','atkFlat'],['真誠信念',5,'passive','maxHpMult'],['聖油洗禮',5,'passive','atkFlat'],['爆破衝擊',5,'damage_aoe','fire'],['焰魔散彈',10,'damage_aoe','fire'],['烈焰爆彈',5,'damage','fire'],['第一擊:烙印',5,'damage','neutral'],['首章:信仰之力',5,'passive','atkFlat'],['第二擊:信念',5,'damage','neutral'],['第三擊:懲治',5,'damage','neutral'],['次章:審判者',5,'passive','atkFlat'],['第二擊:審判',5,'damage','holy'],['第三擊:淨化',5,'damage','holy'],['最終章:驅魔火焰',5,'damage_aoe','fire'],['第二擊:火焰滅絕',5,'damage','fire'],['第三擊:火焰彈',5,'damage_aoe','fire']
@@ -87,8 +87,18 @@
     const job = JOB_TREE[jobId];
     if (!job) throw new Error(`V2.5 missing fourth job ${jobId}`);
     const nextSkills = [];
-    rows.forEach(([name,maxLv,type,stat], index) => {
-      const id = `v25_${jobId}_${index+1}`;
+    rows.forEach(([name,maxLv,type,stat,customId], index) => {
+      const id = customId || `v25_${jobId}_${index+1}`;
+      // 樞機主教沿用已完整定義的實際技能 ID，避免四轉樹把輔助／治癒技能退化成舊版示範被動。
+      if (jobId === 'cardinal' && SKILLS[id]) {
+        const existing = SKILLS[id];
+        existing.name = name.replace('鈍器&書籍精熟','鈍器＆書籍精熟');
+        // 樞機主教四轉主動技能恢復原本 SP 消耗曲線；被動技能維持 0 SP。
+        existing.spCost = type === 'passive' ? [0] :
+          Array.from({length:maxLv}, (_,i)=>Math.round((isMagic.has(type) ? 32 : 25) + i*2));
+        nextSkills.push(existing);
+        return;
+      }
       const active = type !== 'passive';
       const elem = ['neutral','fire','water','earth','wind','poison','holy','shadow','ghost','undead'].includes(stat) ? stat : 'neutral';
       const sk = {
@@ -103,6 +113,34 @@
           ? `${name}：${isMagic.has(type) ? 'MATK' : 'ATK'} ${Math.round((type.endsWith('_aoe') ? 8.0 : 12.0) * 100)}%～${Math.round(((type.endsWith('_aoe') ? 8.0 : 12.0) + (maxLv - 1) * (type.endsWith('_aoe') ? 1.2 : 1.6)) * 100)}%${type.endsWith('_aoe') ? '範圍' : '單體'}傷害；${type.endsWith('_aoe') ? '攻擊全體敵人' : '攻擊單一目標'}，${elem === 'neutral' ? '無屬性' : ({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',undead:'不死'}[elem] || elem) + '屬性'}。SP 消耗 ${isMagic.has(type) ? 32 : 25}～${(isMagic.has(type) ? 32 : 25) + (maxLv - 1) * 2}；冷卻 ${type.endsWith('_aoe') ? 7 : 5} 秒。`
           : `${name}：被動技能，最高 Lv${maxLv}。本作實際效果：${({atkFlat:`每級 ATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,matkFlat:`每級 MATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,defFlat:`每級 DEF +5，Lv${maxLv} 時共 +${maxLv*5}。`,maxHpMult:`每級最大 HP +2%，Lv${maxLv} 時最大 HP +${maxLv*2}%。`,maxSpMult:`每級最大 SP +2%，Lv${maxLv} 時最大 SP +${maxLv*2}%。`,hitFlat:`每級 HIT +5，Lv${maxLv} 時共 +${maxLv*5} 命中。`,fleeFlat:`每級 FLEE +5，Lv${maxLv} 時共 +${maxLv*5} 迴避。`})[stat] || `被動效果：${stat}；目前需依戰鬥觸發條件判定。`}${(['召喚元素:阿爾多雷','召喚元素:普羅賽拉','召喚元素:迪盧比奧','召喚元素:泰雷莫圖斯','召喚元素:塞爾彭斯','召喚爬行者','召喚神木戰士','召喚神木妖精','召喚地獄樹'].includes(name) ? '（目前不會生成獨立召喚物；以此項常駐能力加成實裝。）' : '')}`
       };
+      if (jobId === 'element_master' && type === 'elemental_summon') {
+        const summonPrereq = {
+          em_summon_elemental_ardor: 'so_summon_agni',
+          em_summon_elemental_diluvio: 'so_summon_aqua',
+          em_summon_elemental_procella: 'so_summon_ventus',
+          em_summon_elemental_terremotus: 'so_summon_tera',
+          em_summon_elemental_serpens: 'so_summon_agni'
+        }[id];
+        sk.maxLv = 1; sk.spCost = 0; sk.cooldown = [60]; sk.duration = [1500];
+        sk.requires = [{skillId:'v25_element_master_11',level:1},{skillId:summonPrereq,level:3}];
+        if (id === 'em_summon_elemental_serpens') sk.requires.push(
+          {skillId:'so_summon_aqua',level:3},{skillId:'so_summon_ventus',level:3},{skillId:'so_summon_tera',level:3}
+        );
+        sk.highElementalSpirit = true;
+        // 上位精靈召喚材料：背包／跨角色倉庫有原石時優先消耗；缺料時改扣鋅幣。
+        // 毒屬性目前沒有對應的毒靈原石資料，故固定使用鋅幣替代。
+        const summonStone = {
+          em_summon_elemental_ardor: 'flame_heart',
+          em_summon_elemental_diluvio: 'mistic_frozen',
+          em_summon_elemental_procella: 'rough_wind',
+          em_summon_elemental_terremotus: 'great_nature',
+          em_summon_elemental_serpens: null
+        }[id];
+        sk.summonStoneItem = summonStone;
+        sk.summonStoneQty = 1;
+        sk.summonStoneGoldFallback = 3000;
+        sk.desc = `${name} Lv1：消耗 1 個${summonStone ? window.getItemDisplayName?.(summonStone) || ({flame_heart:'火靈原石',mistic_frozen:'水靈原石',rough_wind:'風靈原石',great_nature:'地靈原石'}[summonStone]) : '毒屬性元素石（本作以鋅幣替代）'}；若背包與倉庫都沒有材料，改扣 3,000 鋅幣；不消耗 SP，召喚大型上位精靈 25 分鐘；同時僅能維持一隻精靈。`;
+      }
       // 龍騎士四轉技能：以官方 2026 技能調整後的等級倍率取代通用四轉倍率。
       // 倍率係數以 1.0 = 100% 表示，沿用既有 damage / damage_aoe 傷害結算。
       if (jobId === 'dragon_knight') {
@@ -201,10 +239,21 @@
       if (jobId === 'dragon_knight' && name === '天龍氣息') sk.requiresSkill = 'rk_dragontraining';
       if (jobId === 'imperial_guard' && name === '盾牌投擲') sk.requiresEquip = 'shield';
       if (req) sk.desc += `（使用條件：${labels[req]}）`;
+      if (jobId === 'cardinal' && type === 'passive') {
+        sk.spCost = [0];
+      }
       if (SKILLS[id]) throw new Error(`V2.5 duplicate skill ${id}`);
       SKILLS[id] = sk;
       nextSkills.push(sk);
     });
+    if (jobId === 'cardinal') {
+      const canonical = {'聖靈鎮魂':'聖靈鎮魂','制裁謳歌':'制裁謳歌','聖光打擊':'聖光打擊','驅魔風暴':'驅魔風暴','神聖花雨':'神聖花雨','鈍器&書籍精熟':'鈍器＆書籍精熟'};
+      for (const skill of nextSkills) {
+        if (canonical[skill.name]) skill.name = canonical[skill.name];
+        // 保留主動技能 SP 消耗；被動技能不消耗 SP。
+        if (skill.type === 'passive') skill.spCost = [0];
+      }
+    }
     // 讓四轉技能樹以完整正式技能清單取代早期三招示範技能。
     job.skills = nextSkills;
     job.jobLevelMax = 60;
@@ -227,6 +276,20 @@
       const weapon = sk.requiresWeapon ? `；需裝備${({bow:'弓',spear:'長矛',sword2:'雙手劍',axe2:'雙手斧',katar:'拳刃',dagger:'短劍',instrument:'樂器',whip:'鞭子',knuckle:'拳套'})[sk.requiresWeapon] || sk.requiresWeapon}` : '';
       sk.desc = `${sk.name}：${kind}傷害 ${first}%～${last}%，${target}，${elementName}屬性；SP 消耗 ${lvSp}，冷卻 ${lvCd} 秒${weapon}。倍率依技能等級變化。`;
     }
+  }
+  // 樞機主教四轉顯示名稱統一以目前技能 ID 為準，避免舊版技能樹名稱殘留。
+  const cardinalCurrentNames = {
+    cd_dilectio_heal:'博愛治癒', cd_mediale_votum:'治癒誓言',
+    cd_reparatio:'聖光治癒', cd_argutus_telum:'神聖防護',
+    cd_argutus_vita:'光耀天命', cd_presens_acies:'爆裂聖光',
+    cd_competentia:'神聖權能', cd_religio:'全心奉獻',
+    cd_benedictum:'祝福讚歌', cd_fidus_animus:'靈魂忠誠',
+    cd_framen:'聖靈鎮魂', cd_arbitrium:'制裁謳歌',
+    cd_divinus_flos:'神聖花雨', cd_pneumaticus_procella:'驅魔風暴',
+    cd_mace_book_m:'鈍器＆書籍精熟', cd_petitio:'聖光打擊', cd_effligo:'破壞擊'
+  };
+  for (const [skillId, currentName] of Object.entries(cardinalCurrentNames)) {
+    if (SKILLS[skillId]) SKILLS[skillId].name = currentName;
   }
   window.V25_FOURTH_JOB_AUDIT = Object.fromEntries(Object.entries(catalogs).map(([id, rows]) => [id, rows.length]));
 })();

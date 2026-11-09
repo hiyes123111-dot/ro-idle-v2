@@ -10054,6 +10054,25 @@ function castSkillInner(skillId, opts) {
   const spCost = free ? 0 : skillSpCost(sk, lv);
   if (state.sp < spCost) return false;
 
+  // 元素支配者四轉上位精靈：材料優先（背包→跨角色倉庫），缺料時以鋅幣替代。
+  let summonStonePayment = null;
+  if (!free && sk.highElementalSpirit) {
+    const itemId = sk.summonStoneItem || null;
+    const qty = Math.max(1, sk.summonStoneQty || 1);
+    const fallback = Math.max(0, sk.summonStoneGoldFallback || 0);
+    const invQty = itemId ? getItemQty(itemId) : 0;
+    const whQty = itemId ? sageWarehouseQty(itemId) : 0;
+    if (itemId && (invQty >= qty || whQty >= qty)) {
+      summonStonePayment = { itemId, qty, source: invQty >= qty ? 'inventory' : 'warehouse' };
+    } else if (fallback > 0 && state.gold >= fallback) {
+      summonStonePayment = { gold: fallback };
+    } else {
+      const materialName = itemId ? window.getItemDisplayName(itemId) : '毒屬性元素石';
+      logMsg(`⚠️ 缺少${materialName}，且鋅幣不足 ${fallback.toLocaleString()}，無法召喚「${sk.name}」！`);
+      return false;
+    }
+  }
+
   // 金錢攻擊：消耗鋅幣才能施放
   let zenyCost = 0;
   if (sk.zenyCost && !free) {
@@ -10127,6 +10146,27 @@ function castSkillInner(skillId, opts) {
     return false;
   }
 
+  // 通過所有施放條件後才扣除上位精靈召喚材料／替代鋅幣，避免失敗施放仍扣資源。
+  if (summonStonePayment) {
+    if (summonStonePayment.gold) {
+      state.gold -= summonStonePayment.gold;
+      logMsg(`💰 沒有召喚材料，改消耗 ${summonStonePayment.gold.toLocaleString()} 鋅幣。`);
+    } else if (summonStonePayment.source === 'inventory') {
+      removeItem(summonStonePayment.itemId, summonStonePayment.qty);
+      logMsg(`🪨 消耗 ${window.getItemDisplayName(summonStonePayment.itemId)}×${summonStonePayment.qty}。`);
+    } else {
+      const wh = loadWarehouse();
+      const row = wh.items.find(r => r.item === summonStonePayment.itemId && !r.instanceId);
+      if (!row || row.qty < summonStonePayment.qty) {
+        logMsg('⚠️ 倉庫材料數量已變動，召喚取消，請再試一次。');
+        return false;
+      }
+      row.qty -= summonStonePayment.qty;
+      if (row.qty <= 0) wh.items = wh.items.filter(r => !(r.item === summonStonePayment.itemId && !r.instanceId));
+      saveWarehouse(wh);
+      logMsg(`🪨 消耗倉庫的 ${window.getItemDisplayName(summonStonePayment.itemId)}×${summonStonePayment.qty}。`);
+    }
+  }
   state.sp -= spCost;
   if (hpCost > 0) state.hp -= hpCost;
   if (sk.consumeAmmo && !free) for (let i = 0; i < sk.consumeAmmo; i++) consumeAmmo();
@@ -10203,11 +10243,13 @@ function castSkillInner(skillId, opts) {
     }
     case 'elemental_summon': {
       const duration = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
-      const spiritDrain = Array.isArray(sk.spDrainPer10Sec) ? sk.spDrainPer10Sec[lv - 1] : (sk.spDrainPer10Sec || 0);
+      const spiritDrain = sk.highElementalSpirit ? 0 : (Array.isArray(sk.spDrainPer10Sec) ? sk.spDrainPer10Sec[lv - 1] : (sk.spDrainPer10Sec || 0));
       state.elementalSpirit = { skillId: sk.id, element: sk.element || 'neutral', level: lv,
-        expiresAt: Date.now() + duration * 1000, readyAt: 0, mode: 'offensive',
+        highElementalSpirit: !!sk.highElementalSpirit, expiresAt: Date.now() + duration * 1000, readyAt: 0, mode: 'offensive',
         spDrainPer10Sec: spiritDrain, nextSpDrainAt: Date.now() + 10000 };
-      logMsg(`✨ ${sk.name} Lv${lv} 已召喚！精靈將在普通攻擊時協同出擊。`);
+      logMsg(sk.highElementalSpirit
+        ? `✨ ${sk.name} Lv${lv} 已召喚！上位精靈將持續 25 分鐘，並強化對應屬性魔法。`
+        : `✨ ${sk.name} Lv${lv} 已召喚！精靈將在普通攻擊時協同出擊。`);
       break;
     }
     case 'damage':
@@ -11059,10 +11101,9 @@ function castSkillInner(skillId, opts) {
         case 'competentia': {
           const hpPct = Array.isArray(sk.healPct) ? sk.healPct[lv - 1] : (sk.healPct || 0);
           const recoverSelf = () => {
-            const hpBefore = state.hp, spBefore = state.sp;
+            const hpBefore = state.hp;
             state.hp = Math.min(state.maxHp, state.hp + Math.round(state.maxHp * hpPct / 100));
-            state.sp = Math.min(state.maxSp, state.sp + Math.round(state.maxSp * hpPct / 100));
-            return { hp: state.hp - hpBefore, sp: state.sp - spBefore };
+            return { hp: state.hp - hpBefore };
           };
           const own = recoverSelf();
           const recovered = [];
@@ -11074,9 +11115,9 @@ function castSkillInner(skillId, opts) {
           push('pAtk', 1, value);
           push('sMatk', 1, value);
           const partyText = recovered.length
-            ? `；隊友 ${recovered.map(x => `${x.mate === allyOwnerState() ? '你' : x.mate._allyName} HP+${x.hp}/SP+${x.sp}`).join('、')}`
+            ? `；隊友 ${recovered.map(x => `${x.mate === allyOwnerState() ? '你' : x.mate._allyName} HP+${x.hp}`).join('、')}`
             : '';
-          logMsg(`✨ 「${sk.name}」恢復自身 HP ${own.hp}、SP ${own.sp}${partyText}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
+          logMsg(`✨ 「${sk.name}」恢復自身 HP ${own.hp}${partyText}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
           break;
         }
         case 'presensAcies': push('crit', 1, value); break;

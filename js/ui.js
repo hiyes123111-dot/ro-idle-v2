@@ -3941,7 +3941,7 @@ const WEAPON_TYPE_LABELS = {
   book: '書', gun: '槍'
 };
 const ARMOR_TYPE_LABELS = {
-  headgear: '頭飾', leather: '鎧甲', shield: '盾牌',
+  headgear: '頭飾', head_top: '頭飾（上）', head_mid: '頭飾（中）', head_bottom: '頭飾（下）', leather: '鎧甲', shield: '盾牌',
   garment: '披風', footgear: '鞋子', accessory: '飾品'
 };
 const ITEM_SUBTYPE_LABELS = { consumable: '消耗品', material: '素材', ammo: '箭矢', etc: '雜物' };
@@ -3965,7 +3965,18 @@ function invSubOf(itemId) {
   const cat = invCategoryOf(itemId);
   const d = ITEMS[itemId];
   if (cat === 'weapon') return d.weaponType || 'other';
-  if (cat === 'armor') return d.armorType || 'other';
+  if (cat === 'armor') {
+    if (d.armorType === 'headgear') {
+      // 與 resolveEquipSlotFor() 使用相同的位置判斷，避免把頭中／頭下裝備混入頭上。
+      // 多部位或缺少位置標記的頭飾，依引擎預設優先欄位歸類，確保每件裝備只出現一次。
+      const pos = d.desc || '';
+      if (pos.includes('頭上')) return 'head_top';
+      if (pos.includes('頭中')) return 'head_mid';
+      if (pos.includes('頭下')) return 'head_bottom';
+      return 'head_top';
+    }
+    return d.armorType || 'other';
+  }
   if (cat === 'card') return (CARDS[itemId].slot || 'any');
   if (cat === 'relic') return d.relicSet || 'other';   // 遺物照套裝分（#115）
   return d.type || 'etc';
