@@ -2349,6 +2349,9 @@ function renderAutoBattleTab() {
         ・ SP% ≥ <input type="number" min="0" max="100" value="${healCfg.spThreshold}" style="width:3.5em" onchange="setAutoHealSpThreshold('${sk.id}', this.value)">才施放
       </span>`;
     }
+    const spiritActive = sk.type === 'elemental_summon' && state.elementalSpirit && state.elementalSpirit.skillId === sk.id && state.elementalSpirit.expiresAt > Date.now();
+    const spiritModeName = ({ passive: '輔助', defensive: '防禦', offensive: '攻擊', standby: '待機' })[state.elementalSpirit?.mode] || '攻擊';
+    const spiritStatus = sk.type === 'elemental_summon' ? `<span class="support-skill-cost">${spiritActive ? `精靈召喚中・${spiritModeName}模式・剩餘 ${Math.max(0, Math.ceil((state.elementalSpirit.expiresAt - Date.now()) / 1000))} 秒` : '尚未召喚／等待自動召喚'}</span>` : '';
     return `<div class="support-skill-row ${enabled ? 'enabled' : ''}">
       <label class="support-skill-toggle">
         <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleAutoSupportSkill('${sk.id}', this.checked);">
@@ -2356,6 +2359,7 @@ function renderAutoBattleTab() {
           <span class="support-skill-name">${sk.name} Lv${sk.lv}</span>
           <span class="support-skill-desc">${sk.desc}</span>
           <span class="support-skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</span>
+          ${spiritStatus}
           ${healCfgHtml}
         </span>
       </label>
@@ -2567,6 +2571,15 @@ function setAutoSkillConfig(key, value) {
 function toggleAutoSupportSkill(skillId, enabled) {
   if (!state.autoSupportSkills) state.autoSupportSkills = {};
   state.autoSupportSkills[skillId] = enabled;
+  // 妖術師四種元素精靈同時只能召喚一隻；勾選新精靈時自動關閉其他召喚選項。
+  const elementalSummons = ['so_summon_agni', 'so_summon_aqua', 'so_summon_ventus', 'so_summon_tera'];
+  if (enabled && elementalSummons.includes(skillId)) {
+    elementalSummons.filter(id => id !== skillId).forEach(id => { state.autoSupportSkills[id] = false; });
+  }
+  // 取消目前精靈的勾選時立即收回，避免 UI 顯示已關閉但精靈仍在攻擊。
+  if (!enabled && elementalSummons.includes(skillId) && state.elementalSpirit && state.elementalSpirit.skillId === skillId) {
+    state.elementalSpirit = null;
+  }
   // 隱匿（盜賊）與偽裝（刺客）效果重疊，自動施放只能二選一
   const fleeExclusivePair = ['hiding', 'cloaking'];
   if (enabled && fleeExclusivePair.includes(skillId)) {
@@ -2758,7 +2771,7 @@ function renderSkillsTab() {
         html += `<div class="skill-row ${lv > 0 ? 'learned' : ''}">
           <div class="skill-info">
             <div class="skill-name"><img src="images/skills/${skillArt}" alt="" style="width:24px;height:24px;vertical-align:middle;margin-right:5px">${sk.name} ${statusTag} ${typeTag} ${elemTag}</div>
-            <div class="skill-desc">${sk.desc}</div>
+            <div class="skill-desc">${sk.rangeLabel ? `<span class="skill-range-tag">[${sk.rangeLabel}]</span> ` : ``}${sk.desc}</div>
             <div class="skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</div>
           </div>
           ${isQuest ? '' : `<div class="skill-actions">
@@ -2792,7 +2805,7 @@ function renderSkillsTab() {
       html += `<div class="skill-row learned">
         <div class="skill-info">
           <div class="skill-name">${sk.name} <span class="skill-tag">Lv${lv}</span> ${typeTag}</div>
-          <div class="skill-desc">${sk.desc}</div>
+          <div class="skill-desc">${sk.rangeLabel ? `<span class="skill-range-tag">[${sk.rangeLabel}]</span> ` : ``}${sk.desc}</div>
           <div class="skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</div>
         </div>
       </div>`;

@@ -698,7 +698,7 @@ const JOB_TREE = {
     borrowSkillsFrom: ['professor'],
     next: [], nextLocked: [],
     bonusLevels: { str:[5,18,27,36,45,56], agi:[3,12,23,32,43,50,54,60,69], vit:[7,24,39,63], int:[1,2,11,14,22,30,38,41,49,57,64,68,70], dex:[8,16,20,26,29,34,37,46,52,55,62], luk:[21,66] },
-    skills: ['so_psychicwave', 'so_vacuum', 'so_elementburst'],
+    skills: ['so_psychicwave', 'so_elementburst', 'so_diamonddust', 'so_killingcloud', 'so_poisonburst', 'so_spellfist', 'so_striking', 'so_warmer', 'so_extremevacuum', 'so_firewalk', 'so_electricwalk', 'so_el_cure', 'so_el_action', 'so_elemental_shield', 'so_summon_agni', 'so_summon_aqua', 'so_summon_ventus', 'so_summon_tera', 'so_earthgrave', 'so_fire_insignia', 'so_water_insignia', 'so_wind_insignia', 'so_earth_insignia', 'so_elementanalysis', 'so_elementcontrol', 'so_elementsympathy'],
     desc: '四大元素在他手上不是力量，是同事。'
   },
   ranger: {

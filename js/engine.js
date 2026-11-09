@@ -293,6 +293,8 @@ function createCharacter(name, statAlloc, gender) {
     rebirthCount: 0,     // 轉生次數。**上限 1，每隻角色只能轉生一次**（見 doRebirth）
     rebirthPath: null,   // 轉生前走過的職業鏈，例 ['swordsman','knight']。轉生後只能照這條路重走
     learnedSkills: {},   // {skillId: level}
+    elementalSpirit: null, // {skillId, element, level, mode, expiresAt, readyAt, SP upkeep}
+    spellFist: null, // {skillId, element, boltId, boltLevel, level, expiresAt, hitsRemaining}
     equip: { head_top: null, head_mid: null, head_bottom: null, weapon: null, armor: null, shield: null, garment: null, footgear: null, accessory1: null, accessory2: null, ammo: null },
     relics: emptyRelicSlots(),   // 遺物欄（#113）：8 格，跟一般裝備完全分開
     relicReviveUsed: 0,          // 牧師遺物用掉幾次復活（換圖回滿）
@@ -2449,7 +2451,9 @@ function recomputeDerived(fullHeal) {
   state.itemHealBonus = {};     // 指定道具的回復量加成（道具id → %）
   state.ailResist = {};         // 玩家的異常狀態抗性（狀態 → %，100 以上＝免疫）
   // 自動念咒與異常狀態：都依觸發時機分籃，戰鬥時直接取用不必再掃卡片
-  state.cardAutoSpells = { attack: [], hit: [], chain: [] };
+  state.cardAutoSpells = { attack: [], hit: [], chain: [], magic: [] };
+  state.cardAttackRecoveries = { attack: [], magic: [] };
+  state.activeItemRecoveryProcs = state.activeItemRecoveryProcs || [];
   state.cardAilments = { attack: [], hit: [], magic: [] };
   state.cardAttackBuffs = { attack: [], hit: [], magic: [] };
   state.cardKillDrops = [];
@@ -2490,6 +2494,21 @@ function recomputeDerived(fullHeal) {
       if (!def) return;
       const host = { slot, refine: d.refine, itemId: d.itemId };
       const pass = e => !e.when || condMet(e.when, host, lo);
+      // 塔諾斯 AD 武器：描述中的「每秒恢復」是攻擊觸發後連續 4 次，
+      // 依使用者指定先採暫定機率；找到台灣伺服器正式機率後再調整。
+      if (def.desc && /每秒HP恢復\s*\d+、SP恢復\s*\d+，總共各恢復4次/.test(def.desc)) {
+        const m = def.desc.match(/每秒HP恢復\s*(\d+)、SP恢復\s*(\d+)，總共各恢復4次/);
+        if (m) {
+          const magicTrigger = /魔法攻擊時/.test(def.desc);
+          const hpAmount = Number(m[1]), spAmount = Number(m[2]);
+          const chance = hpAmount === 1000 && spAmount === 100 ? 5
+            : (hpAmount === 2500 && spAmount === 50 ? 3 : 0);
+          const trigger = magicTrigger ? 'magic' : 'attack';
+          if (chance > 0) state.cardAttackRecoveries[trigger].push({
+            chance, hp: hpAmount, sp: spAmount, ticks: 4, sourceItemId: d.itemId
+          });
+        }
+      }
       (def.autoSpell || []).forEach(e => {
         if (!pass(e)) return;
         const bucket = state.cardAutoSpells[e.on];
@@ -2500,8 +2519,15 @@ function recomputeDerived(fullHeal) {
          只轉換已核對技能 ID 與等級的項目；未收錄技能不猜測替代。 */
       const conditionalAutoSpellMeta = {
         'smoky_transformhat_lt:autoSpell_chainLightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
+        'smoky_transformhat_lt:autoSpell_hellfire': { skill: 'hellinferno', lv: 3, melee: true, requiresSmokyTransform: true },
+        'smoky_transformhat_lt:autoSpell_cloudKill': { skill: 'cloudkill', lv: 3, melee: true, requiresSmokyTransform: true },
         // 同一件裝備在舊資料與新資料有兩種 itemId 寫法，兩者都必須接到同一個觸發效果。
         'smoky_transform_hat_lt:autoSpell_chainLightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
+        'smoky_transform_hat_lt:autoSpell_hellfire': { skill: 'hellinferno', lv: 3, melee: true, requiresSmokyTransform: true },
+        'smoky_transform_hat_lt:autoSpell_cloudKill': { skill: 'cloudkill', lv: 3, melee: true, requiresSmokyTransform: true },
+        // D階級精煉+11：魔法攻擊時 3% 火球術 Lv9。
+        'smoky_transformhat_lt:autoSpell_fireball': { skill: 'fireball', lv: 9, trigger: 'magic' },
+        'smoky_transform_hat_lt:autoSpell_fireball': { skill: 'fireball', lv: 9, trigger: 'magic' },
         'changeable_magic_cape:autoSpell_thunderstorm': { skill: 'thunderstorm', lv: 5, melee: true },
         'changeable_magic_cape:autoSpell_heavensdrive': { skill: 'heavensdrive', lv: 5, melee: true },
         'magic_sword_lt:autoSpell_meteorstorm': { skill: 'meteorstorm', lv: 7, melee: true },
@@ -2514,8 +2540,11 @@ function recomputeDerived(fullHeal) {
         Object.entries(cb.bonus).forEach(([key, chance]) => {
           const meta = conditionalAutoSpellMeta[`${d.itemId}:${key}`];
           if (!meta || !(Number(chance) > 0) || !findSkillAnywhere(meta.skill)) return;
-          state.cardAutoSpells.attack.push({ on: 'attack', skill: meta.skill, lv: meta.lv,
-            chance: Number(chance), melee: !!meta.melee, sourceItemId: d.itemId });
+          const trigger = meta.trigger || 'attack';
+          if (!state.cardAutoSpells[trigger]) state.cardAutoSpells[trigger] = [];
+          state.cardAutoSpells[trigger].push({ on: trigger, skill: meta.skill, lv: meta.lv,
+            chance: Number(chance), melee: !!meta.melee, requiresSmokyTransform: !!meta.requiresSmokyTransform,
+            sourceItemId: d.itemId });
         });
       });
       (def.ailment || []).forEach(e => {
@@ -3464,7 +3493,8 @@ Object.assign(BOX_POOLS, {
     build: () => Object.keys(ALBUM_ITEMS).filter(k => ITEMS[k]),
     weight: id => ALBUM_ITEMS[id],
   },
-  card: { build: cardDrawable, weight: cardWeight },
+  // 老舊收集冊：MVP 由 drawFromBox 的固定 0.01% 專屬區間抽取，主卡池排除 MVP，避免重複計算。
+  card: { build: () => cardDrawable().filter(k => bossCardKind(k) !== 'mvp'), weight: cardWeight },
   cardFlat: { build: cardDrawable },     // 完全平均
 });
 Object.entries(ALBUM_SLOT).forEach(([album, slot]) => {
@@ -3530,11 +3560,17 @@ const TOMB_MVP_ALBUM_CARDS = [
   'v_b_trentini_card',
 ];
 
-/* 三種指定卡冊：13 張戰死者之墓 MVP 卡各自獨立 0.01%。
-   13 個連續區間各寬 0.0001，因此每張卡的實際機率都是 0.01%，合計 0.13%。
-   艾勒梅斯卡片既有 0.01% 獎勵保留；無正式掉落來源裝備仍保留 1% 額外抽取。 */
+/* 老舊收集冊：全部 MVP 卡總機率固定為 0.01%（目前 30 張 MVP 卡均分，
+   每張約 0.00033333%）；一般卡池已排除 MVP，避免額外權重再次提高總機率。
+   其他卡冊沿用原本的稀有獎勵機制，不受本次調整影響。 */
 function drawFromBox(kind) {
-  if (kind === 'card' || kind === 'cardFlat' || kind === 'card_garment') {
+  if (kind === 'card') {
+    if (Math.random() < 0.0001) {
+      const eligible = cardDrawable().filter(card => bossCardKind(card) === 'mvp');
+      if (eligible.length) return eligible[Math.floor(Math.random() * eligible.length)];
+    }
+  }
+  if (kind === 'cardFlat' || kind === 'card_garment') {
     const r = Math.random();
     if (r < 0.0013) {
       const card = TOMB_MVP_ALBUM_CARDS[Math.floor(r / 0.0001)];
@@ -3868,6 +3904,20 @@ function takeReflectDamage(monDef, amount) {
    後面補齊其餘屬性：這份清單漏了哪個屬性，`armorEle_<那個屬性>` 就會**默默沒作用**——
    醬缸章魚卡片（水）就是這樣寫好了卻不生效（#126）。列全比列剛好安全。 */
 const ARMOR_ELEMENT_PRIORITY = ['shadow', 'holy', 'ghost', 'water', 'fire', 'wind', 'earth', 'poison', 'undead'];
+
+// Dragon Knight defensive passive and Charging Pierce runtime.
+const DK_TWOHANDDEF_BY_SIZE = [[0,0,0],[1,2,3],[2,3,5],[3,5,7],[4,6,9],[5,8,10],[6,9,12],[7,11,13],[8,12,15],[9,14,16],[10,15,18]];
+function dkHasTwoHandDefenseWeapon() { const c=aspdCategoryOf(getEquipBaseItemId('weapon')); return c === 'sword2' || c === 'spear2' || c === 'axe2'; }
+function applyDKTwoHandDefense(raw, monDef) {
+  const lv=(state.learnedSkills&&state.learnedSkills.dk_twohanddef)||0; if(!lv||!dkHasTwoHandDefenseWeapon()) return raw;
+  const size=String((monDef&&monDef.size)||'medium').toLowerCase(); const col=size==='small'?0:(size==='large'?2:1);
+  const pct=DK_TWOHANDDEF_BY_SIZE[Math.min(10,lv)][col]||0; return raw*(1-pct/100);
+}
+const DK_CHARGING_SKILLS=new Set(['pierce','lk_spiralpierce','rk_hundredspear','dk_madnesscrusher']);
+function dkChargingWeaponMet(){const c=aspdCategoryOf(getEquipBaseItemId('weapon'));return c==='spear1'||c==='spear2'||c==='sword2';}
+function dkChargingDamageMult(id){const c=state.dkChargingPierce;if(!c||c.expiresAt<=Date.now()||c.stacks<10||!DK_CHARGING_SKILLS.has(id))return 1;return id==='lk_spiralpierce'?1.5:2;}
+function dkRecordChargingSkill(id){const c=state.dkChargingPierce;if(!c||c.expiresAt<=Date.now()||!DK_CHARGING_SKILLS.has(id)||c.stacks>=10)return;c.stacks++;c.lastChargeAt=Date.now();logMsg(`⚡ 充能貫穿：${c.stacks}/10 層`);}
+function dkTickChargingPierce(now){const c=state.dkChargingPierce;if(c&&(c.expiresAt<=now||(c.stacks>0&&now-(c.lastChargeAt||0)>=5000))){state.dkChargingPierce=null;logMsg('⚡ 充能貫穿的蓄力已解除。');}}
 
 // 怪物普通攻擊的遠距離名單：僅列出資料中可確認使用弓、火槍或投射武器的怪物。
 // 不依種族或名稱關鍵字推測，避免把一般近戰怪物誤判成遠距離。
@@ -5706,6 +5756,7 @@ function gameTick() {
   normalizeMonsterVitals();
   tickCooldowns();
   tickBuffs();
+  tickItemRecoveryProcs();
   /* 隊友身上的全體輔助 buff 也要倒數（#95）。**跟 tickBuffs 同一拍**——
      擺到下面那個「借慢心跳」的區塊裡的話，每秒只會扣掉 100ms，
      30 秒的幸運之頌歌會撐成 5 分鐘。 */
@@ -6246,9 +6297,55 @@ function tickCooldowns() {
     if (state.cooldowns[k] <= 0) delete state.cooldowns[k];
   });
 }
-function tickBuffs() {
-  const now = Date.now();
+function tickCardinalHotForCurrentState(now) {
   (state.buffs || []).forEach(b => {
+  });
+  tickCardinalHotForCurrentState(now);
+}
+function tickBuffs() {
+  dkTickChargingPierce(Date.now());
+  const now = Date.now();
+  // 元素精靈維持費：每 10 秒依召喚等級扣除 5／8／11 SP。
+  const spirit = state.elementalSpirit;
+  if (spirit) {
+    if (spirit.expiresAt <= now) {
+      state.elementalSpirit = null;
+      logMsg(`🌫️ ${SKILLS[spirit.skillId]?.name || '元素精靈'}的召喚時間結束。`);
+    } else if (spirit.spDrainPer10Sec > 0 && now >= (spirit.nextSpDrainAt || 0)) {
+      spirit.nextSpDrainAt = now + 10000;
+      if (state.sp < spirit.spDrainPer10Sec) {
+        state.elementalSpirit = null;
+        logMsg('⚠️ SP 不足，元素精靈離開了。');
+      } else {
+        state.sp -= spirit.spDrainPer10Sec;
+        logMsg(`🔹 元素精靈維持消耗 ${spirit.spDrainPer10Sec} SP。`);
+      }
+    } else if (spirit.mode === 'passive' && now >= (spirit.nextSupportAt || 0)) {
+      // 輔助模式：每 5 秒少量回復 HP/SP；只在有缺損時顯示紀錄。
+      spirit.nextSupportAt = now + 5000;
+      const hpGain = Math.max(1, Math.round((state.maxHp || 1) * 0.01));
+      const spGain = Math.max(1, Math.round((state.maxSp || 1) * 0.01));
+      const oldHp = state.hp, oldSp = state.sp;
+      state.hp = Math.min(state.maxHp, state.hp + hpGain);
+      state.sp = Math.min(state.maxSp, state.sp + spGain);
+      if (state.hp > oldHp || state.sp > oldSp) {
+        logMsg(`💚 精靈輔助回復：HP +${state.hp - oldHp}、SP +${state.sp - oldSp}。`);
+      }
+    }
+  }
+  (state.buffs || []).forEach(b => {
+    if (b.skillId === 'so_striking' && b.spDrainPerSec > 0) {
+      b.spDrainAccumulatorMs = (b.spDrainAccumulatorMs || 0) + TICK_MS;
+      while (b.spDrainAccumulatorMs >= 1000 && state.buffs.includes(b)) {
+        b.spDrainAccumulatorMs -= 1000;
+        if (state.sp < b.spDrainPerSec) {
+          state.buffs = state.buffs.filter(x => x.skillId !== 'so_striking');
+          logMsg('⚠️ SP 不足，打擊強化效果解除。');
+          break;
+        }
+        state.sp -= b.spDrainPerSec;
+      }
+    }
     if (b.type !== 'cardinal_mediale_hot') return;
     if (!b.nextHealAt) b.nextHealAt = now + 2000;
     if (now >= b.nextHealAt) {
@@ -6704,7 +6801,8 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
      不是總 ATK。本作 #12 之後 ATK 早就拆成三桶，所以這個倍率天生對得上 `wpn`。
      乘在這裡而不是跟 `buffMult('atk')` 一起，差別很大：素質 ATK 與熟練度不跟著漲，
      刺客想吃滿這個技能就得去堆武器——官方的意圖正是如此。 */
-  wpn *= buffMult('weaponatk').mult;
+  const weaponAtkBuff = buffMult('weaponatk');
+  wpn = wpn * weaponAtkBuff.mult + weaponAtkBuff.flatBonus;
 
   const nonWpn = (state._atkStatus || 0) + (state._atkMastery || 0);
 
@@ -6732,12 +6830,13 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   const allSizeBonus = typeof getCardBonus === 'function'
     ? getCardBonus('allSizeDmgPct') + getCardBonus('sizeDmg_all') : 0;
   const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus) / 100;
-  // 物理攻擊依武器判斷距離：弓、樂器、鞭子的普攻與物理技能皆視為遠距離；
-  // 其他武器的普攻與物理技能皆視為近距離。物理增傷 physPct 不受距離分類影響，
-  // 因此遠距離物理攻擊會同時吃到物理增傷與遠距離增傷。
-  const rangedWeapon = !!(wId && isBowWeapon(wId));
-  const meleePct = !rangedWeapon && typeof getCardBonus === 'function' ? getCardBonus('meleeDmgPct') : 0;
-  const rangedPct = rangedWeapon && typeof getCardBonus === 'function' ? (getCardBonus('rangedDmgPct') + getCardBonus('rangedPhysDmgPct')) : 0;
+  // 普通攻擊依武器判斷距離；物理技能依 SKILLS.rangeType 標籤判斷，
+  // 避免龍騎士等職業的遠距離技能因手持非弓武器而錯吃近距離加成。
+  const isRangedAttack = sk
+    ? sk.rangeType === 'ranged'
+    : !!(wId && isBowWeapon(wId));
+  const meleePct = !isRangedAttack && typeof getCardBonus === 'function' ? getCardBonus('meleeDmgPct') : 0;
+  const rangedPct = isRangedAttack && typeof getCardBonus === 'function' ? (getCardBonus('rangedDmgPct') + getCardBonus('rangedPhysDmgPct')) : 0;
   // 詛咒 −25% 與挑釁 ±N%，整包 ATK 都吃
   return (wpn * variance * sizeMult * elemMult + nonWpn) * playerAtkMult() * buffMult('atk').mult * physPct * (1 + (meleePct + rangedPct) / 100);
 }
@@ -6972,6 +7071,7 @@ function playerAttackInner() {
   withLogLane('skill', () => {
     tryCardAilments('attack', target);
     tryAutoSpells('attack', target);
+    tryItemRecoveryProcs('attack');
     tryAttackBuffs('attack', target);
     tryOnAttackStrikes(target, monDef);  // 傷害增壓／巧打（#58）
     tryEdpProc(target);                  // 致命塗毒（#59）：目標中毒時才觸發
@@ -7148,7 +7248,57 @@ function playerAttackInner() {
       if (target.hp <= 0) killMonster(monDef, target);
     }
   }
+
+  // 妖術師精靈協同：精靈存在期間跟隨普通攻擊觸發元素追加傷害。
+  const spirit = state.elementalSpirit;
+  if (spirit) {
+    if (spirit.expiresAt <= Date.now()) {
+      logMsg(`🌫️ ${SKILLS[spirit.skillId]?.name || '元素精靈'}的召喚時間結束。`);
+      state.elementalSpirit = null;
+    } else if (spirit.mode === 'offensive' && state.monsters.includes(target) && Date.now() >= (spirit.readyAt || 0)) {
+      const spiritSkill = SKILLS[spirit.skillId];
+      const slv = spirit.level || 1;
+      const chance = Array.isArray(spiritSkill.procChance) ? spiritSkill.procChance[slv - 1] : (spiritSkill.procChance || 15);
+      if (spiritSkill && Math.random() * 100 < chance) {
+        const elem = spirit.element || spiritSkill.element || 'neutral';
+        const elemMult = getElementMultiplierVsMonster(elem, monDef, target);
+        const baseMult = Array.isArray(spiritSkill.mult) ? spiritSkill.mult[slv - 1] : spiritSkill.mult;
+        const sympathyLv = state.learnedSkills['so_elementsympathy'] || 0;
+        const sympathyPct = sympathyLv ? [25,50,75,100,125][sympathyLv - 1] : 0;
+        const insignia = (state.buffs || []).find(b => b.type === 'elementalInsignia' && b.element === elem);
+        const insigniaMult = insignia ? 1 + (insignia.spiritAtkPct || 0) / 100 : 1;
+        const spiritDmg = Math.max(1, Math.floor(mitigateDamage(skillBaseDamage(true, monDef, elemMult, spiritSkill) * baseMult * (1 + sympathyPct / 100) * insigniaMult, ...defOf(monDef, 1, true, target))));
+        target.hp -= spiritDmg;
+        spirit.readyAt = Date.now() + ((Array.isArray(spiritSkill.internalCooldown) ? spiritSkill.internalCooldown[slv - 1] : 4) * 1000);
+        logMsg(`✨ ${spiritSkill.name.replace('召喚','').split(' Summon')[0]}協同攻擊！造成 ${spiritDmg} 點${ELEMENT_NAMES[elem] || ''}屬性魔法傷害。`);
+        if (target.hp <= 0) killMonster(monDef, target);
+      }
+    }
+  }
 }
+
+// 魔力拳：啟動期間普攻追加已選箭術的屬性魔法傷害。
+  const fist = state.spellFist;
+  if (fist) {
+    if (fist.expiresAt <= Date.now() || fist.hitsRemaining <= 0 || state.sp <= 0) {
+      state.spellFist = null;
+      logMsg('🌫️ 魔力拳效果結束。');
+    } else if (state.monsters.includes(target) && state.sp >= 20) {
+      const boltSkill = SKILLS[fist.boltId];
+      const boltLevel = Math.max(1, Math.min(fist.boltLevel, boltSkill.maxLv || 10));
+      const elem = fist.element || boltSkill.element || 'neutral';
+      const elemMult = getElementMultiplierVsMonster(elem, monDef, target);
+      const boltMult = Array.isArray(boltSkill.mult) ? boltSkill.mult[boltLevel - 1] : (boltSkill.mult || 1);
+      const fistMult = Array.isArray(SKILLS[fist.skillId].mult) ? SKILLS[fist.skillId].mult[fist.level - 1] : fist.level;
+      const dmg = Math.max(1, Math.floor(mitigateDamage(skillBaseDamage(true, monDef, elemMult, boltSkill) * boltMult * fistMult, ...defOf(monDef, 1, true, target))));
+      state.sp -= 20;
+      fist.hitsRemaining -= 1;
+      target.hp -= dmg;
+      logMsg(`👊 魔力拳追加${ELEMENT_NAMES[elem] || ''}屬性魔法傷害 ${dmg}！（剩餘 ${fist.hitsRemaining} 次）`);
+      if (target.hp <= 0) killMonster(monDef, target);
+      if (fist.hitsRemaining <= 0 || state.sp <= 0) state.spellFist = null;
+    }
+  }
 
 /* 怪物施放技能。取代那一次普通攻擊，走跟普攻同一條減傷鏈，
    差別在：帶技能倍率、可能帶屬性、可能對玩家掛異常狀態。
@@ -7263,6 +7413,13 @@ function monsterCastSkillInner(mon, monDef, sk) {
 
 // 怪物技能距離分類依本作規則：魔法技能遠距離、物理技能近距離。
 
+  // 賢者「魔法懲罰」：只有真正會造成傷害的怪物技能才可觸發；
+  // 放在命中／迴避判定之後、傷害計算之前，成功時整次技能攻擊被吸收。
+  if (sk.mult > 0 && tryMagicRod()) {
+    if (typeof showPlayerFloat === 'function') showPlayerFloat('魔法懲罰', 'miss');
+    return;
+  }
+
   let dmg = 0;
   if (sk.mult > 0) {
     const el = sk.elem || monDef.element || 'none';
@@ -7283,7 +7440,7 @@ function monsterCastSkillInner(mon, monDef, sk) {
     let raw = monsterBaseAtk(monDef, undefined, mon) * sk.mult * (sk.magic ? 1.2 : 1);
     if (sk.magic) raw *= stripMult(mon, 'matk');   // 卸除頭盔（#69）
     raw *= ailAtkMult(mon);                                   // 詛咒讓怪物 ATK 下降
-    if (!sk.magic && state.physDmgTakenPct) raw *= Math.max(0, 1 - state.physDmgTakenPct / 100);
+    if (!sk.magic) { raw = applyDKTwoHandDefense(raw, monDef); if (state.physDmgTakenPct) raw *= Math.max(0, 1 - state.physDmgTakenPct / 100); }
     // 防守側的屬性是玩家的鎧甲屬性（#17）。沒有鎧甲屬性卡時就是 none，行為跟以前一樣
     raw *= getElementMultiplier(el, state.playerElement || 'none');
     // 裝備通用承傷詞條：無屬性耐性與 BOSS 傷害減免；魔法攻擊同樣適用。
@@ -7327,6 +7484,8 @@ function monsterCastSkillInner(mon, monDef, sk) {
     // 睡眠 ×1.5 與永恆之光 ×2：官方是**最後**的傷害倍率，要在防禦之後乘。
     // 乘在防禦之前的話，軟防那一段是固定減值，會讓實際倍率大於寫出來的數字
     dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), !!sk.magic);
+    // 精靈防禦模式：玩家承受怪物技能傷害降低 15%，再進入護盾／免傷結算。
+    if (state.elementalSpirit && state.elementalSpirit.mode === 'defensive') dmg = Math.max(1, Math.round(dmg * 0.85));
     dmg = rejectSwordAbsorb(dmg, mon, monDef);  // 霸王魂（#79）
     /* 遺物免傷（#113）也要擋技能。只擋普攻的話，會放技能的怪身上
        「20% 免疫」等於不存在——而高等圖幾乎每隻怪都會放技能。 */
@@ -7339,6 +7498,8 @@ function monsterCastSkillInner(mon, monDef, sk) {
         return;
       }
     }
+    // 怪物技能（包含魔法與物理技能）也必須經過護盾吸收，讓精靈結界的「抵擋 1 次攻擊」不只對普通攻擊生效。
+    dmg = absorbWithShields(state, dmg);
     state.hp -= dmg;
     logMsg(`✨ ${nameOf()} 造成了 ${dmg} 點傷害！`);
     if (typeof showPlayerFloat === 'function') showPlayerFloat('-' + dmg, 'normal');
@@ -7436,6 +7597,10 @@ const MOB_SKILL_NAMES = {
 // 單一怪物攻擊
 function monsterAttackSingle(mon) {
   const monDef = MONSTERS[mon.defId];
+  if (mon.vacuumUntil && Date.now() < mon.vacuumUntil) {
+    logMsg(`🌀 ${monDef.name} 被極限空間牽制，無法行動！`);
+    return;
+  }
 
   /* 隊友承傷（使用者 2026-08-15 指定）：怪 60% 打玩家、40% 平分給未倒地的隊友。
      倒地的不列入分配，那份會自動退回玩家——不然隊友一死怪的攻擊就憑空少掉，
@@ -7614,7 +7779,10 @@ function monsterAttackSingle(mon) {
      等於睡著的玩家被技能打會痛、被普攻打卻不會。
      位置在防禦之後：官方這類是最後的傷害倍率，乘在防禦之前的話軟防那段固定減值
      會讓實際倍率大於寫出來的數字（實測 ×2 會變成 ×2.5）。 */
+  raw = applyDKTwoHandDefense(raw, monDef);
   let dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), false);
+  // 精靈防禦模式同樣減免怪物普通攻擊，與技能傷害使用一致的 15% 比例。
+  if (state.elementalSpirit && state.elementalSpirit.mode === 'defensive') dmg = Math.max(1, Math.round(dmg * 0.85));
   dmg = rejectSwordAbsorb(dmg, mon, monDef);    // 霸王魂（#79）
   // 能量外套：啟動中減傷並消耗SP，SP%低於下限時暫停生效
   if (state.hasEnergyCoatUnlock && state.energyCoatEnabled) {
@@ -8740,12 +8908,16 @@ function absorbWithShields(holder, dmg, who, lane) {
 function tickAllyBuffs() {
   allyList().forEach(ally => {
     if (!ally || !Array.isArray(ally.buffs) || !ally.buffs.length) return;
-    const before = ally.buffs.length;
-    ally.buffs = ally.buffs.filter(b => {
-      b.msRemaining -= TICK_MS;
-      return b.msRemaining > 0;
+    withAlly(ally, () => {
+      // 持續治療是 buff 的實際效果，不只是倒數；每位隊友都要用自己的 MaxHP 結算。
+      tickCardinalHotForCurrentState(Date.now());
+      const before = state.buffs.length;
+      state.buffs = state.buffs.filter(b => {
+        b.msRemaining -= TICK_MS;
+        return b.msRemaining > 0;
+      });
+      if (state.buffs.length !== before) recomputeDerived(false);
     });
-    if (ally.buffs.length !== before) withAlly(ally, () => recomputeDerived(false));
   });
 }
 
@@ -9041,7 +9213,7 @@ function monsterAttackAlly(mon, monDef, ally) {
     if (typeof renderLog === 'function') renderLog();
     return;
   }
-  const raw = monsterBaseAtk(monDef, undefined, mon) * ailAtkMult(mon);
+  const raw = applyDKTwoHandDefense(monsterBaseAtk(monDef, undefined, mon) * ailAtkMult(mon), monDef);
   /* 「至少 1 點」要**卡在護盾之前**——跟玩家那條路徑同一個順序。
      擺在後面的話護盾擋光了還是會扣 1 點血，盾等於白擋（實測隊友擋掉全部傷害
      仍然每下掉 1 滴血）。 */
@@ -9557,7 +9729,13 @@ function skillCooldownItemBonus(skillId) {
   if (!skillId || typeof getCardBonus !== 'function') return 0;
   // 新資料直接使用技能 ID；舊裝備資料保留官方短名，僅對已存在的技能做明確映射。
   const legacyAliases = {
-    tigercannon: 'v2_in_tiger_cannon'
+    tigercannon: 'v2_in_tiger_cannon',
+    rainstorm: 'wa_rainstorm',
+    holyspear: 'v2_ca_holy_spear',
+    holy_spear: 'v2_ca_holy_spear',
+    axe_tornado: 'me_tornado',
+    diamond_dust: 'so_diamonddust',
+    napalmvulcan: 'hw_napalmvulcan'
   };
   const exact = getCardBonus('skillCd_' + skillId);
   if (exact) return exact;
@@ -9584,6 +9762,44 @@ function effectiveCooldownMs(skillId, baseCdSec) {
   // 布萊奇之詩（#68）：冷卻 −N%。乘在固定值增減之後，跟 #55 那批卡片同一條路
   const pct = Math.max(0, 1 - buffMult('skillcd').flatBonus / 100);
   return Math.max(MIN_COOLDOWN_MS, (base + delta) * pct);
+}
+
+/* 塔諾斯 AD 武器的連續 HP/SP 恢復。每次攻擊命中時擲一次機率，
+   成功後立即恢復第 1 次，並以 1 秒間隔完成剩餘 3 次；多次觸發各自排隊，
+   但同一件裝備的同一組恢復效果不因裝備多次重算而重複加入。 */
+function tryItemRecoveryProcs(trigger) {
+  const list = state.cardAttackRecoveries && state.cardAttackRecoveries[trigger];
+  if (!list || !list.length) return;
+  for (const e of list) {
+    if (Math.random() * 100 >= e.chance) continue;
+    const now = Date.now();
+    state.activeItemRecoveryProcs = state.activeItemRecoveryProcs || [];
+    state.activeItemRecoveryProcs.push({ ...e, remaining: Math.max(0, (e.ticks || 4) - 1), nextAt: now + 1000 });
+    applyItemRecoveryTick(e);
+    logMsg(`💚 ${ITEMS[e.sourceItemId]?.name || '塔諾斯武器'}恢復效果發動！`);
+  }
+}
+function applyItemRecoveryTick(e) {
+  if (!state || state.hp <= 0) return;
+  const beforeHp = state.hp, beforeSp = state.sp;
+  state.hp = Math.min(state.maxHp, state.hp + Math.max(0, Number(e.hp) || 0));
+  state.sp = Math.min(state.maxSp, state.sp + Math.max(0, Number(e.sp) || 0));
+  if (state.hp > beforeHp || state.sp > beforeSp) {
+    logMsg(`💚 恢復 HP ${state.hp - beforeHp}、SP ${state.sp - beforeSp}。`);
+  }
+}
+function tickItemRecoveryProcs() {
+  const list = state && state.activeItemRecoveryProcs;
+  if (!list || !list.length) return;
+  const now = Date.now();
+  state.activeItemRecoveryProcs = list.filter(e => {
+    if (now < e.nextAt) return true;
+    const ticks = Math.min(e.remaining, Math.floor((now - e.nextAt) / 1000) + 1);
+    for (let i = 0; i < ticks; i++) applyItemRecoveryTick(e);
+    e.remaining -= ticks;
+    e.nextAt += ticks * 1000;
+    return e.remaining > 0;
+  });
 }
 
 /* 攻擊時機率觸發臨時 buff（卡片與裝備共用）。
@@ -9650,6 +9866,7 @@ function tryAutoSpells(trigger, mon) {
     // hit 是玩家承受怪物攻擊，不能拿玩家手上的弓判斷怪物是否近戰；
     // 目前怪物資料沒有完整的攻擊距離欄位，因此受擊觸發不套用玩家武器限制，
     // 避免玩家拿弓時錯誤封鎖「受擊時」自動念咒。
+    if (e.requiresSmokyTransform && !(state.buffs || []).some(b => b.buffType === 'smokyTransform')) continue;
     if (e.melee && trigger !== 'hit' && !melee) continue;
     if (Math.random() * 100 >= e.chance) continue;
     const sk = findSkillAnywhere(e.skill);
@@ -9780,9 +9997,14 @@ function castSkillInner(skillId, opts) {
   else lv = skillLv(skillId);
   if (!lv) return false;
   if (!free && !skillReady(skillId)) return false;
+  if (!free && sk.requiresSpirit && (!state.elementalSpirit || state.elementalSpirit.expiresAt <= Date.now())) {
+    logMsg(`⚠️ 「${sk.name}」需要先召喚元素精靈！`);
+    return false;
+  }
 
   // 武器類型限定技能（雙手劍加速、音速投擲、長矛專用技…）：未裝備對應武器時無法施放
-  if (!free && !weaponReqMet(sk.requiresWeapon)) {
+  if (!free && sk.id === 'dk_chargingpierce' && !dkChargingWeaponMet()) { logMsg('⚠️ 充能貫穿需要裝備矛類武器或雙手劍！'); return false; }
+  if (!free && sk.id !== 'dk_chargingpierce' && !weaponReqMet(sk.requiresWeapon)) {
     logMsg(`⚠️ 「${sk.name}」需要裝備${weaponReqName(sk.requiresWeapon)}才能施放！`);
     return false;
   }
@@ -9859,7 +10081,9 @@ function castSkillInner(skillId, opts) {
      扣掉多少存進 hpPctCost，需要用到那個數字的 case 直接讀。 */
   let hpPctCost = 0;
   if (sk.hpCostPct && !free) {
-    hpPctCost = Math.floor(state.hp * sk.hpCostPct / 100);
+    // HP Conversion / Indulge 固定消耗最大 HP 的 10%；其他技能維持按當前 HP 計算。
+    const hpCostBase = sk.type === 'hp_convert' ? state.maxHp : state.hp;
+    hpPctCost = Math.floor(hpCostBase * sk.hpCostPct / 100);
     if (state.hp <= hpPctCost) {
       logMsg(`⚠️ HP不足，無法施放「${sk.name}」！`);
       return false;
@@ -9869,7 +10093,7 @@ function castSkillInner(skillId, opts) {
 
   const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time';
   const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
-  const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'special_charge', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
+  const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
   /* 易燃之網對 BOSS 無效（官方）。**要擋在扣 SP 之前**——寫在 case 裡用 break
      只是跳出 switch，SP 已經扣掉了而且函式還是回傳 true。 */
@@ -9908,7 +10132,7 @@ function castSkillInner(skillId, opts) {
   const useMag = sk.type === 'magic' || sk.type === 'magic_aoe';
 
   // 屬性相剋：技能屬性 vs 怪物屬性
-  const skElement = sk.element || 'none';
+  const skElement = (sk.requiresSpirit && state.elementalSpirit ? state.elementalSpirit.element : sk.element) || 'none';
   /* 魔法屬性增傷已集中在 skillBaseDamage()，讓主動、觸發及持續魔法共用，避免重複乘算。 */
   /* 聖十字攻擊：官方「裝備雙手矛時傷害會變成雙倍」（#66）。
      乘進 mult 而不是另外算一份傷害，理由跟 skillDmg_ 那條完全一樣——
@@ -9922,7 +10146,7 @@ function castSkillInner(skillId, opts) {
   const weaponSpecial = (sk.daggerMult && wCat === 'dagger') ? sk.daggerMult
     : (sk.bowMult && wCat === 'bow') ? sk.bowMult : 1;
   const mult = (Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult)
-    * (1 + skillDmgPct / 100) * twoHandSpear * weaponSpecial;
+    * (1 + skillDmgPct / 100) * twoHandSpear * weaponSpecial * dkChargingDamageMult(sk.id);
 
   // 各 case 推 buff 時常忘了標 skillId，導致「同 type 就算已生效」的判斷把不同來源
   // 混為一談（例：喝了集中藥水後，雙手劍加速因為都是 type:'aspd' 而永遠不再自動施放）。
@@ -9936,8 +10160,47 @@ function castSkillInner(skillId, opts) {
   const shieldsBefore = new Set(state.shields || []);
 
   switch (sk.type) {
+    case 'dk_charging_pierce': {
+      if (sk.id === 'dk_chargingpierce') {
+        const duration = Array.isArray(sk.duration) ? sk.duration[lv - 1] : (sk.duration || 90);
+        state.dkChargingPierce = { level: lv, stacks: 0, expiresAt: Date.now() + duration * 1000, lastChargeAt: 0 };
+        logMsg(`⚡ 充能貫穿 Lv${lv} 啟動，持續 ${duration} 秒；指定技能命中可累積最多10層。`);
+      }
+      break;
+    }
+    case 'elemental_control': {
+      if (!state.elementalSpirit || state.elementalSpirit.expiresAt <= Date.now()) {
+        logMsg('⚠️ 精靈控制需要先召喚元素精靈。');
+        break;
+      }
+      const modes = ['passive', 'defensive', 'offensive', 'standby'];
+      const modeNames = { passive: '輔助', defensive: '防禦', offensive: '攻擊', standby: '待機' };
+      const requested = modes[lv - 1] || 'standby';
+      const spirit = state.elementalSpirit;
+      spirit.mode = spirit.mode === requested ? 'standby' : requested;
+      spirit.readyAt = 0;
+      logMsg(`🧚 精靈模式切換為「${modeNames[spirit.mode]}」。${spirit.mode === 'standby' ? '精靈停止協同攻擊。' : ''}`);
+      break;
+    }
+    case 'elemental_summon': {
+      const duration = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
+      const spiritDrain = Array.isArray(sk.spDrainPer10Sec) ? sk.spDrainPer10Sec[lv - 1] : (sk.spDrainPer10Sec || 0);
+      state.elementalSpirit = { skillId: sk.id, element: sk.element || 'neutral', level: lv,
+        expiresAt: Date.now() + duration * 1000, readyAt: 0, mode: 'offensive',
+        spDrainPer10Sec: spiritDrain, nextSpDrainAt: Date.now() + 10000 };
+      logMsg(`✨ ${sk.name} Lv${lv} 已召喚！精靈將在普通攻擊時協同出擊。`);
+      break;
+    }
     case 'damage':
     case 'magic': {
+      if (sk.requiresSpirit && (!state.elementalSpirit || state.elementalSpirit.expiresAt <= Date.now())) {
+        logMsg(`「${sk.name}」需要先召喚元素精靈！`);
+        break;
+      }
+      if (sk.id === 'so_el_action' && state.elementalSpirit.mode !== 'offensive') {
+        logMsg('⚠️ 精靈激發需要精靈處於攻擊模式。');
+        break;
+      }
       if (!state.monsters || state.monsters.length === 0) break;
       const target = state.monsters[0];
       const def = MONSTERS[target.defId];
@@ -10030,7 +10293,11 @@ function castSkillInner(skillId, opts) {
         skillBaseDamage(useMag, def, elemMult, sk) * skillMult * (1 + skEleDmgBonus)
           * elementDmgMult(skElement) * critFactor * ailDmgTakenMult(target),
         ...defOf(def, 1, useMag, target)) + raceFlatBonus(def) + faExtraFlat;
+      const dkChargeBurst = dkChargingDamageMult(sk.id) > 1;
       target.hp -= dmg;
+      if (dkChargeBurst && state.dkChargingPierce) { state.dkChargingPierce.stacks = 0; state.dkChargingPierce.lastChargeAt = 0; logMsg('⚡ 充能貫穿滿層爆發！蓄力已消耗。'); }
+      else dkRecordChargingSkill(sk.id);
+      if (sk.requiresSpirit) logMsg(`✨ 精靈激發以${ELEMENT_NAMES[skElement] || ''}屬性發動！`);
       // 單體技能以前完全不飄字（logMsg 的飄字規則只認「你…造成N點傷害」那種普攻句型）
       if (typeof showDamageFloatAt === 'function') showDamageFloatAt(target.id, '-' + dmg, skCrit ? 'crit' : 'normal', useMag ? skElement : null);
       logMsg(`⚡ 「${sk.name}」Lv${lv} 造成 ${dmg} 點傷害！${skCrit ? '（暴擊！）' : ''}`);
@@ -10039,6 +10306,8 @@ function castSkillInner(skillId, opts) {
       ailBreakOnDamage(target, def);   // 睡眠被打就醒
       // 卡片的「魔法攻擊時對敵人施以XX」
       if (useMag) { tryCardAilments('magic', target); tryAttackBuffs('magic', target); }
+      if (useMag) { tryAutoSpells('magic', target); tryItemRecoveryProcs('magic'); }
+      else tryItemRecoveryProcs('attack');
       // 冰凍術/石化術：魔法傷害命中會提前喚醒被反制暈眩的目標
       if (sk.type === 'magic') wakeIfFrozen(target);
       // 雷鳴術：命中必定使目標暈眩
@@ -10157,6 +10426,7 @@ function castSkillInner(skillId, opts) {
         mon.hp -= dmg;
         ailBreakOnDamage(mon, monDef);   // 睡眠被打就醒
         if (useMag) { tryCardAilments('magic', mon); tryAttackBuffs('magic', mon); }
+      if (useMag) { tryAutoSpells('magic', mon); tryItemRecoveryProcs('magic'); }
         // 冰凍術/石化術：魔法傷害命中會提前喚醒被反制暈眩的目標
         if (sk.type === 'magic_aoe') wakeIfFrozen(mon);
         // 怒雷強擊：範圍技附加機率暈眩
@@ -10183,6 +10453,10 @@ function castSkillInner(skillId, opts) {
         if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, aoeCrit ? 'crit' : 'normal', useMag ? skElement : null);
         if (mon.hp <= 0) killMonster(monDef, mon);
       }
+      // 充能貫穿：範圍技能每次成功施放只累積一層，不按命中怪物數重複計算。
+      const dkChargeBurst = dkChargingDamageMult(sk.id) > 1;
+      if (dkChargeBurst && state.dkChargingPierce) { state.dkChargingPierce.stacks = 0; state.dkChargingPierce.lastChargeAt = 0; logMsg('⚡ 充能貫穿滿層爆發！蓄力已消耗。'); }
+      else if (sk.id === 'rk_hundredspear') dkRecordChargingSkill(sk.id);
       // 光獵：額外附加HIT加成buff
       if (sk.bonusHitBuff) {
         const hitBonus = Array.isArray(sk.bonusHitBuff) ? sk.bonusHitBuff[lv - 1] : sk.bonusHitBuff;
@@ -10354,6 +10628,24 @@ function castSkillInner(skillId, opts) {
          eleweapon        playerAttack 決定攻擊屬性時讀（跟聖屬武器同一個位置）
          eledmg_<屬性>    elementDmgMult() 讀，普攻與技能都吃得到
        同一時間只留一個屬性附加——官方就是換一個蓋掉前一個。 */
+    case 'buff_elemental_insignia': {
+      const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
+      const ele = sk.element || 'neutral';
+      // 四種紋章互斥，新的紋章會覆蓋舊紋章。
+      state.buffs = state.buffs.filter(b => !b.elementalInsigniaTag && !b.eleWeaponInsigniaTag);
+      const ms = dur * 1000;
+      if (lv >= 2) {
+        state.buffs.push({ type: 'eleweapon', element: ele, mult: 1, msRemaining: ms, skillId: sk.id, eleWeaponInsigniaTag: 1 });
+        state.buffs.push({ type: 'atk', mult: 1.10, msRemaining: ms, skillId: sk.id, elementalInsigniaTag: 1 });
+      }
+      const magicPct = Array.isArray(sk.magicPct) ? sk.magicPct[lv - 1] : (sk.magicPct || 0);
+      if (magicPct > 0) state.buffs.push({ type: 'eledmg_' + ele, mult: 1 + magicPct / 100, msRemaining: ms, skillId: sk.id, elementalInsigniaTag: 1 });
+      const spiritAtkPct = Array.isArray(sk.spiritAtkPct) ? sk.spiritAtkPct[lv - 1] : 0;
+      state.buffs.push({ type: 'elementalInsignia', element: ele, spiritAtkPct, msRemaining: ms, skillId: sk.id, elementalInsigniaTag: 1 });
+      logMsg(`🔰 「${sk.name}」Lv${lv} 發動！${ELEMENT_NAMES[ele]}屬性紋章持續 ${dur} 秒。`);
+      recomputeDerived(false);
+      break;
+    }
     case 'buff_elementweapon': {
       const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
       const pct = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
@@ -10504,8 +10796,13 @@ function castSkillInner(skillId, opts) {
       const fl = Array.isArray(sk.fleeFlat) ? sk.fleeFlat[lv - 1] : sk.fleeFlat;
       target.debuffFlee = fl;
       target.debuffFleeEnd = Date.now() + dur * 1000;
-      target.webUntil = Date.now() + dur * 1000;
-      logMsg(`🕸️ 「${sk.name}」纏住了 ${def.name}：迴避 −${fl}，${dur} 秒內受火屬性傷害加倍（消耗${paid ? paid.label : '—'}）。`);
+      if (sk.id === 'so_extremevacuum') {
+        target.vacuumUntil = Date.now() + dur * 1000;
+        logMsg(`🌀 「${sk.name}」將 ${def.name} 吸入極限空間，牽制 ${dur} 秒（範圍 ${Array.isArray(sk.area) ? sk.area[lv - 1] : 3}×${Array.isArray(sk.area) ? sk.area[lv - 1] : 3}）。`);
+      } else {
+        target.webUntil = Date.now() + dur * 1000;
+        logMsg(`🕸️ 「${sk.name}」纏住了 ${def.name}：迴避 −${fl}，${dur} 秒內受火屬性傷害加倍（消耗${paid ? paid.label : '—'}）。`);
+      }
       break;
     }
     /* 免傷一次型的 buff（#77）。走既有的 `block` 桶：機率固定 100、帶內部冷卻，
@@ -10606,13 +10903,24 @@ function castSkillInner(skillId, opts) {
       break;
     }
     case 'buff_shield': {
+      if (sk.consumeElementalSpirit && (!state.elementalSpirit || state.elementalSpirit.expiresAt <= Date.now())) {
+        logMsg(`「${sk.name}」需要先召喚元素精靈！`);
+        break;
+      }
       const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
       const capacityPct = Array.isArray(sk.shieldCapacityPct) ? sk.shieldCapacityPct[lv - 1] : sk.shieldCapacityPct;
       const capacityFlat = Array.isArray(sk.shieldCapacityFlat) ? sk.shieldCapacityFlat[lv - 1] : sk.shieldCapacityFlat;
       const capacity = capacityFlat != null ? capacityFlat : Math.round(state.maxHp * ((capacityPct || 0) / 100));
       const charges = Array.isArray(sk.shieldCharges) ? sk.shieldCharges[lv - 1] : sk.shieldCharges;
       if (!state.shields) state.shields = [];
+      // 同一種結界重新施放時更新舊盾，不讓玩家靠重複施放無限堆疊耐久／次數。
+      state.shields = state.shields.filter(sh => sh.id !== sk.id);
       state.shields.push({ id: sk.id, remainingHp: capacity, remainingCharges: charges, expiresAt: Date.now() + dur * 1000 });
+      if (sk.consumeElementalSpirit) {
+        const consumed = state.elementalSpirit;
+        state.elementalSpirit = null;
+        logMsg(`🌟 消耗${ELEMENT_NAMES[consumed.element] || ''}精靈力量形成結界。`);
+      }
       logMsg(`🛡️ 「${sk.name}」Lv${lv} 發動，護盾展開！（耐久${capacity}，可擋${charges}次）`);
       break;
     }
@@ -10731,13 +11039,24 @@ function castSkillInner(skillId, opts) {
           break;
         case 'competentia': {
           const hpPct = Array.isArray(sk.healPct) ? sk.healPct[lv - 1] : (sk.healPct || 0);
-          const hpGain = Math.round(state.maxHp * hpPct / 100);
-          const spGain = Math.round(state.maxSp * hpPct / 100);
-          state.hp = Math.min(state.maxHp, state.hp + hpGain);
-          state.sp = Math.min(state.maxSp, state.sp + spGain);
+          const recoverSelf = () => {
+            const hpBefore = state.hp, spBefore = state.sp;
+            state.hp = Math.min(state.maxHp, state.hp + Math.round(state.maxHp * hpPct / 100));
+            state.sp = Math.min(state.maxSp, state.sp + Math.round(state.maxSp * hpPct / 100));
+            return { hp: state.hp - hpBefore, sp: state.sp - spBefore };
+          };
+          const own = recoverSelf();
+          const recovered = [];
+          if (sk.party) forEachPartyMate(mate => {
+            const gain = recoverSelf();
+            if (gain.hp || gain.sp) recovered.push({ mate, ...gain });
+          });
           push('atk', 1 + value / 100);
           push('matk', 1 + value / 100);
-          logMsg(`✨ 「${sk.name}」恢復 HP ${hpGain}、SP ${spGain}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
+          const partyText = recovered.length
+            ? `；隊友 ${recovered.map(x => `${x.mate === allyOwnerState() ? '你' : x.mate._allyName} HP+${x.hp}/SP+${x.sp}`).join('、')}`
+            : '';
+          logMsg(`✨ 「${sk.name}」恢復自身 HP ${own.hp}、SP ${own.sp}${partyText}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
           break;
         }
         case 'presensAcies': push('crit', 1, value); break;
@@ -10796,11 +11115,43 @@ function castSkillInner(skillId, opts) {
       logMsg(`🛡️ 「${sk.name}」Lv${lv} 發動，防禦力上升！`);
       break;
     }
+    case 'buff_spellfist': {
+      const boltChoices = [
+        { id: 'firebolt', element: 'fire' },
+        { id: 'coldbolt', element: 'water' },
+        { id: 'lightningbolt', element: 'wind' }
+      ].map(x => ({ ...x, level: state.learnedSkills[x.id] || 0, skill: SKILLS[x.id] }))
+       .filter(x => x.level > 0 && x.skill);
+      if (!boltChoices.length) {
+        logMsg('⚠️ 魔力拳需要先學會火箭術、冰箭術或雷擊術。');
+        break;
+      }
+      boltChoices.sort((a,b) => b.level - a.level);
+      const bolt = boltChoices[0];
+      const duration = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
+      const hits = Array.isArray(sk.hitCount) ? sk.hitCount[lv - 1] : sk.hitCount;
+      state.spellFist = {
+        skillId: sk.id, element: bolt.element, boltId: bolt.id, boltLevel: bolt.level,
+        level: lv, expiresAt: Date.now() + duration * 1000, hitsRemaining: hits
+      };
+      logMsg(`✨ 魔力拳啟動！${bolt.skill.name} Lv${bolt.level} 注入普攻，最多追加 ${hits} 次魔法傷害，持續 ${duration} 秒。`);
+      break;
+    }
     case 'buff_atk': {
       let dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
       // 武器保有：凶砍持續時間+10%
       if (sk.id === 'overthrustbuff' && state.hiltBindingDurationBonus) dur *= (1 + state.hiltBindingDurationBonus);
-      state.buffs.push({ type: 'atk', mult, msRemaining: dur * 1000, skillId: sk.id });
+      if (sk.id === 'so_striking') state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+      const strikingDrain = sk.id === 'so_striking' ? (Array.isArray(sk.spDrainPerSec) ? sk.spDrainPerSec[lv - 1] : sk.spDrainPerSec) : 0;
+      state.buffs.push({ type: 'atk', mult, msRemaining: dur * 1000, skillId: sk.id, ...(strikingDrain > 0 ? { spDrainPerSec: strikingDrain, spDrainAccumulatorMs: 0 } : {}) });
+      if (sk.weaponAtkFlat) {
+        const flat = Array.isArray(sk.weaponAtkFlat) ? sk.weaponAtkFlat[lv - 1] : sk.weaponAtkFlat;
+        state.buffs.push({ type: 'weaponatk', mult: 1, flatBonus: flat, msRemaining: dur * 1000, skillId: sk.id });
+      }
+      if (sk.hitBonus) {
+        const hit = Array.isArray(sk.hitBonus) ? sk.hitBonus[lv - 1] : sk.hitBonus;
+        state.buffs.push({ type: 'hit', mult: 1, flatBonus: hit, msRemaining: dur * 1000, skillId: sk.id });
+      }
       /* `defMult`：官方有一批攻擊 buff 是「以防禦換攻擊」（集中攻擊 ATK+5~25%／DEF−5~25%）。
          代價跟效果推同一個持續時間，不然玩家可以只留好處。 */
       if (sk.defMult) {
@@ -11313,7 +11664,7 @@ const SKILL_NEEDS_MONSTER_TYPES = SKILL_ATTACK_TYPES.concat(['debuff_def', 'debu
   'debuff_web', 'debuff_aspd_aoe', 'debuff_def_aoe', 'ailment_aoe', 'dispel_aoe',
   'field_phys_aoe', 'field_aoe_magic', 'multi_dot_stun', 'stun_field']);
 function isAttackSkill(sk) { return !!sk && SKILL_ATTACK_TYPES.includes(sk.type); }
-function isAutoSupportSkill(sk) { return !!sk && sk.type !== 'passive' && !isAttackSkill(sk); }
+function isAutoSupportSkill(sk) { return !!sk && !sk.manualOnly && (sk.type === 'elemental_summon' || (sk.type !== 'passive' && !isAttackSkill(sk))); }
 function skillNeedsMonster(sk) { return !!sk && SKILL_NEEDS_MONSTER_TYPES.includes(sk.type); }
 
 function tryAutoCastSkill() {
@@ -11391,6 +11742,7 @@ function tryAutoCastSupportSkills() {
          比 type 會讓藥水一喝下去就把技能擋掉 30 分鐘。
          沒有留下任何痕跡的（治癒術、減益、範圍魔法）不受影響，照舊每次冷卻好就放。 */
       if (state.buffs.some(b => b.skillId === sk.id)) continue;
+      if (sk.type === 'elemental_summon' && state.elementalSpirit && state.elementalSpirit.expiresAt > Date.now()) continue;
       if (state.shields && state.shields.some(sh => sh.id === sk.id)) continue;
       if (state.activeFieldEffects && state.activeFieldEffects.some(f => f.skillId === sk.id)) continue;
       // 要有怪才放得出效果的（減益、場域、範圍傷害）：空場放出去只是白扣 SP 與鋅幣
@@ -11398,7 +11750,9 @@ function tryAutoCastSupportSkills() {
       // Heal 類：依技能自訂的HP%門檻觸發，並可設SP%下限保護
       if (sk.type === 'heal' || sk.type === 'cardinal_heal') {
         const healCfg = (state.autoHealConfig && state.autoHealConfig[sk.id]) || { hpThreshold: 70, spThreshold: 0 };
-        if (state.hp > state.maxHp * ((healCfg.hpThreshold ?? 70) / 100)) continue;
+        const threshold = (healCfg.hpThreshold ?? 70) / 100;
+        const partyNeedsHeal = sk.party && allyList().some(a => a && !a._downed && a.maxHp > 0 && a.hp <= a.maxHp * threshold);
+        if (state.hp > state.maxHp * threshold && !partyNeedsHeal) continue;
         if (healCfg.spThreshold > 0 && state.sp < state.maxSp * (healCfg.spThreshold / 100)) continue;
       }
 
@@ -13052,6 +13406,25 @@ function getSkillDamageBonus(sk) {
     me_axe_tornado: 'me_tornado',
     heavyearthquake: 'heavensdrive', // 機匠「戰斧颶風」裝備舊鍵，對應既有龍捲風斧技能
     hundredspear: 'rk_hundredspear', // 百矛穿刺，對應盧恩騎士技能資料
+    // 龍騎士裝備／影子裝備使用的官方技能短名，對應本作內部 dk_ ID。
+    servantweapon: 'dk_servantphantom', // 僕從武裝攻擊本體（幻影／破壞共用技能系）
+    servant_weapon: 'dk_servantphantom',
+    servant_weapon_phantom: 'dk_servantphantom',
+    servant_weapon_demolition: 'dk_servantdemolition',
+    servant_w_demol: 'dk_servantdemolition',
+    servant_w_phantom: 'dk_servantphantom',
+    servant_w_sign: 'dk_servantsign',
+    servant_w: 'dk_servantweapon',
+    storm_slash: 'dk_stormslash',
+    hack_and_slash: 'dk_hackandslasher',
+    hackandslash: 'dk_hackandslasher',
+    madness_crusher: 'dk_madnesscrusher',
+    dragonic_breath: 'dk_dragonicbreath',
+    dragonic_aura: 'dk_dragonicaura',
+    dragonic_pierce: 'dk_dragonicpierce',
+    charging_pierce: 'dk_chargingpierce',
+    twohanddef: 'dk_twohanddef',
+    two_handed_defense: 'dk_twohanddef',
     rollingcutter: 'gx_rollingcutter', // 迴旋刃，對應十字斬首者技能資料
     windcutter: 'rk_windcutter', // 風刃，對應盧恩騎士技能資料
   };
@@ -13061,7 +13434,11 @@ function getSkillDamageBonus(sk) {
   const legacyKeys = Object.keys(legacySkillAliases).filter(key =>
     legacySkillAliases[key] === sk.id && typeof SKILLS !== 'undefined' && SKILLS[sk.id]
   );
-  return legacyKeys.reduce((sum, key) => sum + getCardBonus('skillDmg_' + key), 0);
+  const legacyTotal = legacyKeys.reduce((sum, key) => sum + getCardBonus('skillDmg_' + key), 0);
+  // 「Servant Weapon」通用詞條同時強化幻影與破壞兩種攻擊分支。
+  const servantGeneric = (sk.id === 'dk_servantphantom' || sk.id === 'dk_servantdemolition')
+    ? getCardBonus('skillDmg_servantweapon') + getCardBonus('skillDmg_servant_weapon') : 0;
+  return legacyTotal + servantGeneric;
 }
 
 function canonicalBonusKey(key) {

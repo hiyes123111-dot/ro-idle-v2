@@ -2026,3 +2026,4 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .drill-source-empty{font-size:.85em;opacity:.7}
 
 
+.skill-range-tag { display:inline-block; margin-right:4px; font-weight:700; color:#d69b42; }

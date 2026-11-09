@@ -230,3 +230,14 @@
   }
   window.V25_FOURTH_JOB_AUDIT = Object.fromEntries(Object.entries(catalogs).map(([id, rows]) => [id, rows.length]));
 })();
+
+// 第四轉內容注入後再補一次距離標籤，確保動態建立的物理技能也有分類。
+for (const sk of Object.values(SKILLS)) {
+  if (!sk || !['damage','damage_aoe','damage_multi','damage_multihit','damage_multi_aoe'].includes(sk.type)) continue;
+  const desc = String(sk.desc || '');
+  const ranged = sk.rangeType === 'ranged' || /遠距離物理|遠距離單體|遠距離範圍|遠距離攻擊/.test(desc)
+    || ['bow','instrument','whip','gun','revolver','rifle','gatling','shotgun','grenade'].includes(sk.requiresWeapon)
+    || ['sn_sharpshooting','ba_musicalstrike','dc_throwarrow','rk_sonicwave','ra_arrowstorm','ra_aimedbolt','ra_clusterbomb','ra_wargstrike','mi_soundblend','mi_severe','wa_swing','wa_siren','gn_cartcannon'].includes(sk.id);
+  sk.rangeType = ranged ? 'ranged' : 'melee';
+  sk.rangeLabel = ranged ? '遠距離物理' : '近距離物理';
+}
