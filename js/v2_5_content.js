@@ -119,9 +119,9 @@
           em_summon_elemental_diluvio: 'so_summon_aqua',
           em_summon_elemental_procella: 'so_summon_ventus',
           em_summon_elemental_terremotus: 'so_summon_tera',
-          em_summon_elemental_serpens: 'so_summon_agni'
+          em_summon_elemental_serpens: 'so_summon_aqua'
         }[id];
-        sk.maxLv = 1; sk.spCost = 0; sk.cooldown = [60]; sk.duration = [1500];
+        sk.maxLv = 1; sk.spCost = [60]; sk.cooldown = [60]; sk.duration = [1500];
         sk.requires = [{skillId:'v25_element_master_11',level:1},{skillId:summonPrereq,level:3}];
         if (id === 'em_summon_elemental_serpens') sk.requires.push(
           {skillId:'so_summon_aqua',level:3},{skillId:'so_summon_ventus',level:3},{skillId:'so_summon_tera',level:3}
@@ -139,7 +139,7 @@
         sk.summonStoneItem = summonStone;
         sk.summonStoneQty = 1;
         sk.summonStoneGoldFallback = 3000;
-        sk.desc = `${name} Lv1：消耗 1 個${summonStone ? window.getItemDisplayName?.(summonStone) || ({flame_heart:'火靈原石',mistic_frozen:'水靈原石',rough_wind:'風靈原石',great_nature:'地靈原石'}[summonStone]) : '毒屬性元素石（本作以鋅幣替代）'}；若背包與倉庫都沒有材料，改扣 3,000 鋅幣；不消耗 SP，召喚大型上位精靈 25 分鐘；同時僅能維持一隻精靈。`;
+        sk.desc = `${name} Lv1：消耗 1 個${summonStone ? window.getItemDisplayName?.(summonStone) || ({flame_heart:'火靈原石',mistic_frozen:'水靈原石',rough_wind:'風靈原石',great_nature:'地靈原石'}[summonStone]) : '毒屬性元素石（本作以鋅幣替代）'}；若背包與倉庫都沒有材料，改扣 3,000 鋅幣；消耗 60 SP，召喚大型上位精靈 25 分鐘；同時僅能維持一隻精靈。`;
       }
       // 龍騎士四轉技能：以官方 2026 技能調整後的等級倍率取代通用四轉倍率。
       // 倍率係數以 1.0 = 100% 表示，沿用既有 damage / damage_aoe 傷害結算。

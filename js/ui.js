@@ -3269,7 +3269,7 @@ const CODEX_BONUS_LABELS = {
   spCostPct:'技能SP消耗%', hpRegenPct:'HP恢復力%', spRegenPct:'SP恢復力%', perfectDodge:'完全迴避',
   def:'DEF', mdef:'MDEF', atk:'ATK', matk:'MATK', str:'STR', agi:'AGI', vit:'VIT', int:'INT', dex:'DEX', luk:'LUK',
   hit:'命中', flee:'迴避', hp:'HP', sp:'SP', bossDmgPct:'對BOSS傷害%', sizeDmg_large:'對大型傷害%',
-  skillCdFlat:'技能冷卻', skillDmg_:'技能傷害',
+  skillCdFlat:'技能冷卻', skillAfterDelayPct:'技能後延遲', skillDmg_:'技能傷害',
 };
 function codexBonusText(bonus) {
   return Object.entries(bonus || {}).filter(([,v]) => typeof v === 'number' && v !== 0).map(([k,v]) => {
@@ -3747,7 +3747,7 @@ function cardArtSrc(cardId) {
 }
 /* 百分比型的加成鍵，顯示時要帶 % */
 const CARD_PCT_KEYS = [
-  'hpPct', 'spPct', 'hpRegenPct', 'spRegenPct', 'aspdPct', 'critDmgPct',
+  'hpPct', 'spPct', 'hpRegenPct', 'spRegenPct', 'aspdPct', 'skillAfterDelayPct', 'critDmgPct',
   'bossDmgPct', 'allTargetDmgPct', 'rangedDmgPct', 'rangedDmgTakenPct',
   'bossDmgTakenPct', 'normalDmgTakenPct', 'spCostPct', 'defPct', 'matkPct',
   'expAllPct', 'dropPct'
@@ -4169,6 +4169,12 @@ function buildEquipWinHtmlInner() {
       return;
     }
     const qtyTag = key === 'ammo' ? `<span class="equipwin-qty">${getItemQty(itemId)}</span>` : '';
+    const slotItem = ITEMS[itemId];
+    const gradeOptions = key !== 'ammo' && !shadow && itemHasGradeBonus(slotItem) ? getItemGradeOptions(slotItem) : [];
+    const gradeSelect = gradeOptions.length ? `<select class="equipwin-grade" aria-label="${p.name}裝備階級" onclick="event.stopPropagation()" onchange="event.stopPropagation();setEquipGrade('${srcSlot}',this.value)">
+      <option value="" ${!getEquipGradeValue(srcSlot) ? 'selected' : ''}>未設定</option>
+      ${gradeOptions.map(g => `<option value="${g}" ${getEquipGradeValue(srcSlot)===g?'selected':''}>${g}</option>`).join('')}
+    </select>` : '';
     html += `<div class="equipwin-slot${shadow ? ' two-hand-shadow' : ''}" style="${style}"
       title="${p.name}"
       onmouseenter="showEquipTooltip(event,'${srcSlot}')" onmouseleave="hideEquipTooltip()"
@@ -4177,6 +4183,7 @@ function buildEquipWinHtmlInner() {
       ${ref > 0 ? `<span class="equipwin-refine">+${ref}</span>` : ''}
       ${cards.length ? `<span class="equipwin-card">🃏</span>` : ''}
       ${qtyTag}
+      ${gradeSelect}
     </div>`;
   });
 
@@ -4211,12 +4218,12 @@ function showSlotActions(slotKey) {
   if (cards.length) {
     html += `<div class="equip-pick-cards">🃏 ${cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}</div>`;
   }
-  if (d.type === 'weapon' && Number(d.weaponLv || 0) >= 5) {
+  if (itemHasGradeBonus(d)) {
     html += `<div class="equip-pick-stats" style="margin:8px 0">
       武器階級（依實際裝備記錄）：
       <select onchange="setEquipGrade('${slotKey}',this.value)">
         <option value="" ${!currentGrade ? 'selected' : ''}>未設定</option>
-        ${['D','C','B','A','S'].map(g => `<option value="${g}" ${currentGrade===g?'selected':''}>${g} 階級</option>`).join('')}
+        ${getItemGradeOptions(d).map(g => `<option value="${g}" ${currentGrade===g?'selected':''}>${g} 階級</option>`).join('')}
       </select>
     </div>`;
   }
@@ -4231,11 +4238,16 @@ function showSlotActions(slotKey) {
 
 
 function setEquipGrade(slotKey, grade) {
+  const panel = document.getElementById('tab-equip');
+  const wasDetailView = !!(panel && panel.querySelector('.equip-pick-head'));
   const itemId = getEquipBaseItemId(slotKey);
   const def = itemId && ITEMS[itemId];
-  if (!def || def.type !== 'weapon' || Number(def.weaponLv || 0) < 5) return;
+  if (!def || !itemHasGradeBonus(def)) return;
   const value = String(grade || '').trim().toUpperCase();
-  if (value && !['D','C','B','A'].includes(value)) return;
+  if (value && !getItemGradeOptions(def).includes(value)) {
+    showToast('此裝備沒有該階級能力，無法選擇');
+    return;
+  }
   const ref = getOrCreateEquipInstance(slotKey);
   if (!ref) return;
   if (value) state.instances[ref].grade = value;
@@ -4243,9 +4255,41 @@ function setEquipGrade(slotKey, grade) {
   delete state.instances[ref].itemGrade;
   saveGame();
   if (typeof recomputeDerived === 'function') recomputeDerived();
-  showSlotActions(slotKey);
+  // 依原本所在畫面刷新：格狀／RO 原版維持裝備欄，不要選完階級就跳進裝備詳細頁。
+  if (wasDetailView) showSlotActions(slotKey);
+  else renderEquipTab();
   if (typeof renderTopBar === 'function') renderTopBar();
-  showToast(value ? `已記錄武器 ${value} 階級` : '已清除武器階級記錄');
+  showToast(value ? `已記錄裝備 ${value} 階級` : '已清除裝備階級記錄');
+}
+
+function getItemGradeOptions(item) {
+  if (!item) return [];
+  const desc = String(item.desc || '');
+  const found = new Set();
+  // 只提供該裝備實際列出的階級門檻，不讓沒有 S/A 能力的裝備出現 S/A 選項。
+  for (const match of desc.matchAll(/\[([DCSAB])階級\]/g)) found.add(match[1]);
+  // 部分資料以 condBonus.itemGradeMin 儲存，需一併讀取。
+  (Array.isArray(item.condBonus) ? item.condBonus : []).forEach(entry => {
+    const grade = String(entry && entry.when && entry.when.itemGradeMin || '').toUpperCase();
+    if (['D','C','B','A','S'].includes(grade)) found.add(grade);
+  });
+  if (item.gradeBonus && typeof item.gradeBonus === 'object') {
+    Object.keys(item.gradeBonus).forEach(key => {
+      const grade = String(key).toUpperCase().replace(/階級|GRADE/g, '');
+      if (['D','C','B','A','S'].includes(grade)) found.add(grade);
+    });
+  }
+  return ['D','C','B','A','S'].filter(grade => found.has(grade));
+}
+
+function itemHasGradeBonus(item) {
+  return getItemGradeOptions(item).length > 0;
+}
+
+function getEquipGradeValue(slotKey) {
+  const ref = state.equip && state.equip[slotKey];
+  const inst = ref && state.instances && state.instances[ref] ? state.instances[ref] : null;
+  return inst && (inst.grade || inst.itemGrade) ? String(inst.grade || inst.itemGrade).toUpperCase() : '';
 }
 
 function buildEquipGridHtml() {
@@ -4304,11 +4348,19 @@ function buildEquipGridHtml() {
         const pips = maxSlots > 0
           ? `<span class="slot-pips">${'●'.repeat(inserted.length)}${'○'.repeat(Math.max(0, maxSlots - inserted.length))}</span>`
           : '';
+        const gradeSelect = itemHasGradeBonus(item)
+          ? `<label class="slot-grade" onclick="event.stopPropagation()">階級
+              <select aria-label="${slot.name}裝備階級" onchange="event.stopPropagation();setEquipGrade('${slot.key}',this.value)">
+                <option value="" ${!getEquipGradeValue(slot.key) ? 'selected' : ''}>未設定</option>
+                ${getItemGradeOptions(item).map(g => `<option value="${g}" ${getEquipGradeValue(slot.key)===g?'selected':''}>${g}</option>`).join('')}
+              </select>
+            </label>` : '';
         cardHtml = `<div class="slot-cards" title="${maxSlots > 0 ? `卡片插槽 ${inserted.length}/${maxSlots}` : '無插槽'}">
           ${pips}
           ${inserted.length < maxSlots ? `<button class="btn-pip" onclick="event.stopPropagation();showCardSelect('${slot.key}')">插卡</button>` : ''}
           ${inserted.length ? `<button class="btn-pip danger" onclick="event.stopPropagation();doRemoveCard('${slot.key}')">取出</button>` : ''}
           <button class="btn-pip" onclick="event.stopPropagation();showRefinePanel('${slot.key}')">精煉</button>
+          ${gradeSelect}
         </div>`;
       }
 
