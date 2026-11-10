@@ -322,7 +322,6 @@ function createCharacter(name, statAlloc, gender) {
     lastSpawnTime: 0,     // 上次生怪時間
     hp: 1, sp: 1, maxHp: 1, maxSp: 1,
     cooldowns: {},         // {skillId: msRemaining}
-    skillAfterDelayRemainingMs: 0, // 技能後延遲共用動作鎖（不影響普通攻擊）
     buffs: [],             // [{type,mult,msRemaining}]
     spirits: 0,            // 武僧的氣球體（#70）：跨 tick 的資源，不歸 recomputeDerived 管
     sageAutoSpellId: null, // 賢者自動念咒挑的魔法（#71）
@@ -2493,7 +2492,7 @@ function recomputeDerived(fullHeal) {
       const d = lo.slots[slot];
       const def = d && ITEMS[d.itemId];
       if (!def) return;
-      const host = { slot, refine: d.refine, itemId: d.itemId, grade: d.grade || null };
+      const host = { slot, refine: d.refine, itemId: d.itemId };
       const pass = e => !e.when || condMet(e.when, host, lo);
       // 塔諾斯 AD 武器：描述中的「每秒恢復」是攻擊觸發後連續 4 次，
       // 依使用者指定先採暫定機率；找到台灣伺服器正式機率後再調整。
@@ -6302,10 +6301,6 @@ function setEnergyCoatEnabled(v) { state.energyCoatEnabled = !!v; saveGame(); }
 function setEnergyCoatSpFloor(v) { state.energyCoatSpFloorPct = Math.max(0, Math.min(100, parseInt(v) || 0)); saveGame(); }
 
 function tickCooldowns() {
-  // 技能後延遲與各技能獨立冷卻分開計時；只限制下一次主動技能，不限制普攻。
-  if (state.skillAfterDelayRemainingMs > 0) {
-    state.skillAfterDelayRemainingMs = Math.max(0, state.skillAfterDelayRemainingMs - TICK_MS);
-  }
   Object.keys(state.cooldowns).forEach(k => {
     state.cooldowns[k] -= TICK_MS;
     if (state.cooldowns[k] <= 0) delete state.cooldowns[k];
@@ -6481,13 +6476,7 @@ function computeAspd() {
      寫成「頂到 cap」而不是寫死 193——99 級以下上限是 190，
      寫死會讓那段時間的角色拿到官方拿不到的攻速。 */
   if (state.buffs.some(b => b.type === 'aspdmax')) state.aspd = cap;
-  // RO 官方攻速上限為 ASPD 193；換算後的普攻間隔不得短於 140ms。
-  // 「攻擊後延遲 -N%」縮短 ASPD 換算出的間隔，但不能突破官方最短間隔。
-  // 與 ASPD% 分開計算，避免把延遲減少錯當成面板 ASPD 增加。
-  const afterAttackDelayPct = Math.max(-300, Math.min(100, getCardBonus('afterAttackDelayPct') || 0));
-  state.afterAttackDelayPct = afterAttackDelayPct;
-  const reducedAttackInterval = getAttackInterval(state.aspd) * (1 - afterAttackDelayPct / 100);
-  state.attackInterval = Math.max(140, Math.round(reducedAttackInterval));
+  state.attackInterval = getAttackInterval(state.aspd);
 }
 function buffMult(type) {
   let mult = 1;
@@ -7286,13 +7275,9 @@ function playerAttackInner() {
       state.elementalSpirit = null;
     } else if (spirit.mode === 'offensive' && state.monsters.includes(target) && Date.now() >= (spirit.readyAt || 0)) {
       const spiritSkill = SKILLS[spirit.skillId];
-      const slv = Math.max(1, spirit.level || 1);
-      // 舊存檔可能保留已不存在的召喚技能 ID；清理失效召喚狀態，避免讀取 undefined.procChance。
-      if (!spiritSkill || spiritSkill.type !== 'elemental_summon') {
-        state.elementalSpirit = null;
-      } else {
-      const chance = Array.isArray(spiritSkill.procChance) ? (spiritSkill.procChance[slv - 1] ?? spiritSkill.procChance[0] ?? 15) : (spiritSkill.procChance || 15);
-      if (Math.random() * 100 < chance) {
+      const slv = spirit.level || 1;
+      const chance = Array.isArray(spiritSkill.procChance) ? spiritSkill.procChance[slv - 1] : (spiritSkill.procChance || 15);
+      if (spiritSkill && Math.random() * 100 < chance) {
         const elem = spirit.element || spiritSkill.element || 'neutral';
         const elemMult = getElementMultiplierVsMonster(elem, monDef, target);
         const baseMult = Array.isArray(spiritSkill.mult) ? spiritSkill.mult[slv - 1] : spiritSkill.mult;
@@ -7300,19 +7285,11 @@ function playerAttackInner() {
         const sympathyPct = sympathyLv ? [25,50,75,100,125][sympathyLv - 1] : 0;
         const insignia = (state.buffs || []).find(b => b.type === 'elementalInsignia' && b.element === elem);
         const insigniaMult = insignia ? 1 + (insignia.spiritAtkPct || 0) / 100 : 1;
-        // 高級精靈精熟的固定 MATK 屬於精靈本體，不增加玩家面板；協同攻擊時計入精靈自己的 MATK。
-        // 最終版召喚協同公式：以玩家當下 MATK 作為基礎，額外加上精熟給予的精靈專屬 MATK，再乘技能倍率；
-        // 精靈 ATK 不混入魔法攻擊，避免物魔數值重複計算。ATK 保留作為獨立精靈能力資料，不虛構物理攻擊觸發。
-        const playerMatkBase = Math.max(0, Number(skillBaseDamage(true, monDef, elemMult, spiritSkill)) || 0);
-        const spiritMatkBonus = spirit.highElementalSpirit
-          ? Math.max(0, Number(spirit.stats?.matk ?? spirit.matk) || 0) : 0;
-        const spiritBaseMatk = playerMatkBase + spiritMatkBonus;
-        const spiritDmg = Math.max(1, Math.floor(mitigateDamage(spiritBaseMatk * baseMult * (1 + sympathyPct / 100) * insigniaMult, ...defOf(monDef, 1, true, target))));
+        const spiritDmg = Math.max(1, Math.floor(mitigateDamage(skillBaseDamage(true, monDef, elemMult, spiritSkill) * baseMult * (1 + sympathyPct / 100) * insigniaMult, ...defOf(monDef, 1, true, target))));
         target.hp -= spiritDmg;
         spirit.readyAt = Date.now() + ((Array.isArray(spiritSkill.internalCooldown) ? spiritSkill.internalCooldown[slv - 1] : 4) * 1000);
         logMsg(`✨ ${spiritSkill.name.replace('召喚','').split(' Summon')[0]}協同攻擊！造成 ${spiritDmg} 點${ELEMENT_NAMES[elem] || ''}屬性魔法傷害。`);
         if (target.hp <= 0) killMonster(monDef, target);
-      }
       }
     }
   }
@@ -9882,7 +9859,7 @@ function tryAttackBuffs(trigger, mon) {
 }
 
 function skillReady(skillId) {
-  return !state.cooldowns[skillId] && !(state.skillAfterDelayRemainingMs > 0);
+  return !state.cooldowns[skillId];
 }
 
 /* ---------------- 自動念咒 ----------------
@@ -10267,24 +10244,9 @@ function castSkillInner(skillId, opts) {
     case 'elemental_summon': {
       const duration = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
       const spiritDrain = sk.highElementalSpirit ? 0 : (Array.isArray(sk.spDrainPer10Sec) ? sk.spDrainPer10Sec[lv - 1] : (sk.spDrainPer10Sec || 0));
-      const masteryLv = Math.max(0, Math.min(10, skillLv('v25_element_master_11') || 0));
-      const masterySkill = SKILLS.v25_element_master_11;
-      const masteryBonus = masteryLv > 0 && masterySkill && Array.isArray(masterySkill.elementalSpiritBonus)
-        ? (masterySkill.elementalSpiritBonus[masteryLv - 1] || null) : null;
-      const summonNow = Date.now();
       state.elementalSpirit = { skillId: sk.id, element: sk.element || 'neutral', level: lv,
-        highElementalSpirit: !!sk.highElementalSpirit, summonedAt: summonNow,
-        durationMs: Math.max(0, Number(duration) || 0) * 1000,
-        expiresAt: summonNow + Math.max(0, Number(duration) || 0) * 1000, readyAt: 0, mode: 'offensive',
-        masteryLv, masteryBonus: masteryBonus ? { ...masteryBonus } : null,
-        // 獨立保存精靈精熟能力值，避免與玩家角色面板共用或污染玩家素質。
-        stats: masteryBonus ? { ...masteryBonus } : { atk:0, matk:0, maxHp:0, maxSp:0, def:0, mdef:0, flee:0 },
-        atk: masteryBonus ? masteryBonus.atk : 0, matk: masteryBonus ? masteryBonus.matk : 0,
-        maxHp: masteryBonus ? masteryBonus.maxHp : 0, maxSp: masteryBonus ? masteryBonus.maxSp : 0,
-        def: masteryBonus ? masteryBonus.def : 0, mdef: masteryBonus ? masteryBonus.mdef : 0,
-        flee: masteryBonus ? masteryBonus.flee : 0,
-        // 高級精靈不另建 HP／死亡／復活流程；只依 expiresAt 到期自動消失。
-        spDrainPer10Sec: spiritDrain, nextSpDrainAt: summonNow + 10000 };
+        highElementalSpirit: !!sk.highElementalSpirit, expiresAt: Date.now() + duration * 1000, readyAt: 0, mode: 'offensive',
+        spDrainPer10Sec: spiritDrain, nextSpDrainAt: Date.now() + 10000 };
       logMsg(sk.highElementalSpirit
         ? `✨ ${sk.name} Lv${lv} 已召喚！上位精靈將持續 25 分鐘，並強化對應屬性魔法。`
         : `✨ ${sk.name} Lv${lv} 已召喚！精靈將在普通攻擊時協同出擊。`);
@@ -11113,17 +11075,11 @@ function castSkillInner(skillId, opts) {
     case 'cardinal_support': {
       const dur = (Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration || 120) * 1000;
       const value = Array.isArray(sk.value) ? sk.value[lv - 1] : (sk.value || 0);
-      // 同一技能再次施放時刷新該技能效果，不可把同一增益無限疊加。
-      const push = (type, multValue, flatBonus) => {
-        state.buffs = (state.buffs || []).filter(b => b.skillId !== sk.id || b.type !== type);
-        state.buffs.push({
-          type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
-          msRemaining: dur, skillId: sk.id
-        });
-        recomputeDerived(false);
-      };
+      const push = (type, multValue, flatBonus) => state.buffs.push({
+        type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
+        msRemaining: dur, skillId: sk.id
+      });
       // 樞機主教的全隊輔助：施術者先套用一次，再透過換身機制套用到每位存活隊友。
-      // 每位隊員各自刷新自己的同技能效果，避免重複施放造成倍率堆疊。
       const pushParty = (type, multValue, flatBonus) => {
         push(type, multValue, flatBonus);
         if (sk.party) forEachPartyMate(() => push(type, multValue, flatBonus));
@@ -11173,29 +11129,21 @@ function castSkillInner(skillId, opts) {
           logMsg(`✨ 「${sk.name}」恢復自身 HP ${own.hp}${partyText}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
           break;
         }
-        // 爆裂聖光提升的是暴擊傷害，不是暴擊率；critdmg 由 state.cardCritDmgPct／技能暴擊傷害公式讀取。
-        case 'presensAcies': pushParty('critdmg', 1, value); break;
+        case 'presensAcies': pushParty('crit', 1, value); break;
       }
       if (sk.effect !== 'competentia') logMsg(`✨ 「${sk.name}」Lv${lv} 發動，全隊效果生效 ${Math.round(dur/1000)} 秒。`);
       recomputeDerived(false);
       break;
     }
     case 'cardinal_heal': {
-      // 治療基礎量由施術者的 INT／BaseLv／治癒輸出加成決定；
-      // 換身替隊友結算時，只套用受術者自己的 healrecv，不可改用隊友的 INT 算治療量。
-      const healMultValue = Array.isArray(sk.healMult) ? sk.healMult[lv - 1] : (sk.healMult || 1);
-      const casterHealBase = sk.effect === 'fullHeal' ? 0 : Math.max(0, Math.round(
-        (state.stats.int + state.baseLevel) * healMultValue *
-        (1 + ((state.healBonusPct || 0) / 100)) *
-        (1 + Math.max(0, state.hPlus || 0) / 100)
-      ));
       const applyHeal = () => {
         if (sk.effect === 'fullHeal') {
           const amount = Math.max(0, state.maxHp - state.hp);
           state.hp = state.maxHp;
           return amount;
         }
-        const amount = Math.round(casterHealBase * buffMult('healrecv').mult);
+        const healMultValue = Array.isArray(sk.healMult) ? sk.healMult[lv - 1] : (sk.healMult || 1);
+        const amount = Math.round((state.stats.int + state.baseLevel) * healMultValue * healOutputMult());
         const before = state.hp;
         state.hp = Math.min(state.maxHp, state.hp + amount);
         return state.hp - before;
@@ -11716,12 +11664,6 @@ function castSkillInner(skillId, opts) {
   /* 元素之劍那類的「魔法連鎖」（on:'chain'）：這招施放成功後觸發下一招。
      放在 saveGame 前面，連鎖那一發自己也會存一次。 */
   tryChainSpells(sk.id, lv);
-  // 本作技能為瞬發，但仍有共用技能後延遲；裝備詞條按百分比縮短此間隔。
-  // 基礎值採 1 秒，最低保留 0.1 秒，避免堆疊後變成無限連發；免費自動念咒不佔用玩家動作鎖。
-  if (!free) {
-    const reductionPct = Math.max(-300, Math.min(90, getCardBonus('skillAfterDelayPct') || 0));
-    state.skillAfterDelayRemainingMs = Math.max(100, Math.round(1000 * (1 - reductionPct / 100)));
-  }
   saveGame();
   return true;
 }
@@ -12821,7 +12763,7 @@ function aspdPotionBlockReason(itemId){ return getAspdPotionBlockReason(itemId);
 function equipBlockReason(itemId) {
   const d = ITEMS[itemId];
   if (!d) return '道具不存在。';
-  const reqLv = d.reqLevel ? Number(d.reqLevel) : 0;
+  const reqLv = d.reqLevel ? Math.min(d.reqLevel, 200) : 0;
   if (reqLv && state.baseLevel < reqLv) {
     return `需要基本等級 ${reqLv}（目前 ${state.baseLevel}）。`;
   }
@@ -13459,13 +13401,11 @@ function condMet(when, host, lo) {
     };
     const required = gradeRank(when.itemGradeMin);
     const targets = when.withAnyItem || when.withItems || [];
-    // 若條件有指定目標裝備，檢查指定裝備；若未指定，則檢查目前條件宿主本身。
-    // 裝備本體的 D/C/B 階級詞條通常沒有 withItems，舊邏輯會因 targets 為空而永遠不生效。
-    const hasGrade = targets.length
-      ? targets.some(id => Object.values(lo.slots || {}).some(slot =>
-          slot && slot.itemId === id && gradeRank(slot.grade) >= required
-        ))
-      : !!(host && gradeRank(host.grade) >= required);
+    const hasGrade = targets.some(id =>
+      Object.values(lo.slots || {}).some(slot =>
+        slot && slot.itemId === id && gradeRank(slot.grade) >= required
+      )
+    );
     if (!required || !hasGrade) return false;
   }
   /* when.ammo：目前裝備的箭矢（陣列＝任一種都算）。箭矢不在裝備欄、
@@ -13578,11 +13518,6 @@ function canonicalBonusKey(key) {
     allelereduce: 'eleDmgReduce_all',
     // 舊裝備資料 rangedDmg 與現行 rangedDmgPct 同義；統一接到遠距離增傷入口。
     rangeddmg: 'rangedDmgPct',
-    // 攻擊後延遲與 ASPD 是不同數值：延遲 -N% 應直接縮短實際攻擊間隔，
-    // 不可當成 ASPD +N% 套進 195-ASPD 曲線，否則效果會被錯誤換算。
-    // 技能後延遲與攻擊後延遲分開：前者進共用技能動作鎖，後者進 ASPD。
-    aftercastdelaypct: 'skillAfterDelayPct',
-    aftercastpct: 'skillAfterDelayPct',
     // 變幻莫測魔術斗篷：無視一般／BOSS 階級魔防，沿用現有通用 MDEF 無視入口。
     magicignoredef: 'mdefIgnorePct' };
   const raw = String(key || '');
@@ -13608,9 +13543,7 @@ function mergeBonus(target, bonus, scale) {
   if (!bonus) return;
   for (const [rawKey, v] of Object.entries(bonus)) {
     const k = canonicalBonusKey(rawKey);
-    // 舊資料 afterCastPct 使用負值代表延遲減少；afterCastDelayPct 則用正值代表減少。
-    const normalizedValue = String(rawKey).toLowerCase() === 'aftercastpct' ? -v : v;
-    target[k] = (target[k] || 0) + normalizedValue * (scale == null ? 1 : scale);
+    target[k] = (target[k] || 0) + v * (scale == null ? 1 : scale);
   }
 }
 
@@ -13657,15 +13590,8 @@ function effectiveGearBonuses() {
     const d = lo.slots[slot];
     const def = d && ITEMS[d.itemId];
     if (!def) return;
-    const host = { slot, refine: d.refine, itemId: d.itemId, grade: d.grade || null };
+    const host = { slot, refine: d.refine, itemId: d.itemId };
     mergeBonus(total, def.bonus);
-    /* allStat：部分裝備把「全能力值 +N」直接寫在裝備頂層，
-       不是放在 bonus:{}。getCardBonus() 會將總表中的 allStat 分配到六項基本素質，
-       因此必須在這裡接入；否則裂隙核心戒指、三轉職業徽記、四轉星耀戰甲、
-       四轉核心徽章雖有資料，實際 STR/AGI/VIT/INT/DEX/LUK 卻不會增加。 */
-    if (typeof def.allStat === 'number' && def.allStat !== 0) {
-      mergeBonus(total, { allStat: def.allStat });
-    }
     /* skillLevelBonus：裝備明確描述「習得某技能每+1級，另一技能傷害+N%」。
        只在指定精煉門檻及來源技能已習得時套用；可設定 capLevel，
        並將結果併入既有加成總表；skillDmg_<技能ID> 會由直接傷害與被動觸發共用。 */
@@ -13680,39 +13606,8 @@ function effectiveGearBonuses() {
       const effectiveLv = Math.floor(cappedLv / step);
       if (effectiveLv > 0) mergeBonus(total, rule.bonusPerLevel, effectiveLv);
     });
-    /* 裝備本體的頂層特殊加成：資料表有一批舊裝備不是寫在 bonus:{}，
-       而是直接寫 atkPct / matkPct / aspdFlat / meleeDmgPct 等欄位。
-       這些欄位不屬於 equippedStatBonus() 的平面素質，若不併入總表，
-       裝備說明與資料有數值，但 getCardBonus() 的戰鬥消費端會讀到 0。
-       atk/matk/str/def/hp 等基礎欄位仍由既有流程處理，避免重複計算。 */
-    const directBonusKeys = [
-      'atkPct', 'matkPct', 'aspdFlat', 'meleeDmgPct', 'rangedDmgPct',
-      'rangedPhysDmgPct', 'allEleDmg', 'allTargetDmgPct', 'allClassDmg',
-      'allPropertyDmgPct', 'allRaceDmgPct', 'allSizeDmgPct',
-      'allSizeMagicDmgPct', 'bossDmgPct', 'magicDmgPct', 'magicAllDmgPct',
-      'critDmgPct', 'healPct', 'hpRegenPct',
-      'variableCastPct', 'fixedCast', 'afterCastPct', 'afterCastDelayPct', 'afterAttackDelayPct', 'skillAfterDelayPct',
-      'skillCdFlat', 'skillCdFlat_lordofvermillion', 'skillCdFlat_ra_arrowstorm',
-      'skillCdFlat_stormgust', 'skillCdFlat_wl_crimsonrock', 'skillCd_axe_tornado',
-      'skillCd_holyspear', 'skillCd_napalmvulcan', 'skillCd_rainstorm',
-      'skillCd_tigercannon', 'reflectPct', 'lifeStealChance', 'lifeStealPct',
-      'eleDmgReduce_all', 'neutralDmgResistPct', 'neutralResistPct',
-      'earthDmgResistPct', 'rangedDmgResist', 'raceDmgResist_all',
-      'sizeDmgResist_all', 'sizeResist_large', 'sizeDmg_small', 'sizeDmg_medium',
-      'sizeDmg_large', 'sizeDmgReduce_small', 'sizeDmgReduce_medium',
-      'sizeDmgReduce_large', 'mdefIgnorePct', 'magicIgnoreDef', 'spCostPct'
-    ];
-    for (const key of directBonusKeys) {
-      if (def[key] != null && typeof def[key] === 'number') mergeBonus(total, { [key]: def[key] });
-    }
-    // 種族減傷等採用動態尾碼的頂層欄位也必須進總表。
-    for (const [key, value] of Object.entries(def)) {
-      if (typeof value !== 'number') continue;
-      if (/^(raceDmgReduce_|raceDmgResist_|sizeDmgReduce_|eleDmgReduce_|eleReduce_)/.test(key)) {
-        mergeBonus(total, { [key]: value });
-      }
-    }
-    /* 頂層 hpPct/spPct：百分比生命／魔力加成併入總表。 */
+    /* 頂層 hpPct/spPct：官方「MHP+N%」過去被轉檔成平面 hp/sp（等於只加 N 點），
+       修正資料後改用這兩個鍵，這裡併進總表讓百分比乘區吃到。 */
     if (def.hpPct != null || def.spPct != null) mergeBonus(total, { hpPct: def.hpPct || 0, spPct: def.spPct || 0 });
     /* 平鋪的特殊鍵（perBaseLv10_atk 等）也要進總表——getCardBonus() 會按前綴解析。
        只挑底線開頭的鍵，避免把 atk/def 那些平鋪數值重複算一次。 */
