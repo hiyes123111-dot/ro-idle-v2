@@ -45,7 +45,7 @@
   };
   const thirdJobs = Object.values(JOB_TREE).filter(j => j.tier === 3);
   const thirdWeapons = [
-    ['runeknight','符文龍牙長劍','sword2',285,0,1168,'兼顧雙手劍連擊與符文爆發。'],
+    ['runeknight','符文龍牙長劍','tsword',285,0,1168,'兼顧雙手劍連擊與符文爆發。'],
     ['royalguard','聖裁騎槍','spear',275,0,1463,'皇家禁衛的長矛制式武器。'],
     ['warlock','紅蓮星界法杖','rod',75,285,1664,'強化火焰與星界魔法。'],
     ['sorcerer','元素共鳴之書','book',145,210,1583,'記錄四大元素的古代秘典。'],
@@ -62,7 +62,7 @@
   for (const [job,name,weaponCat,atk,matk,imgId,desc] of thirdWeapons) {
     const jobDef = JOB_TREE[job];
     add(`v24_${job}_weapon`, {
-      name, type:'weapon', weaponType:weaponCat, weaponCat, weaponLv:4,
+      name, type:'weapon', weaponType:weaponCat === 'tsword' ? 'sword' : weaponCat, weaponCat, weaponLv:4,
       atk, ...(matk ? {matk} : {}), imgId, weight:100, slots:1,
       reqLevel:150, reqJob:[job], sell:12000,
       desc:`${desc} 三轉專屬武器。系列: 武器 攻擊: ${atk} 重量: 100 武器等級: 4 要求等級: 150 裝備: ${jobDef.name}`,

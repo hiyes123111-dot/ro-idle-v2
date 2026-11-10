@@ -1,4 +1,4 @@
-/* Regression checks for v2.5.262 equipment delay mappings. Run: node tools/test_equipment_delay_v2.5.262.js */
+/* Regression checks for v2.5.265 equipment delay mappings. Run: node tools/test_equipment_delay_v2.5.265.js */
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
@@ -45,4 +45,4 @@ for (const [pct, expected] of [[0,1000],[10,900],[20,800],[25,750],[90,100]]) {
   const actual = Math.max(100, Math.round(1000 * Math.max(0.1, 1 - pct / 100)));
   assert(actual === expected, `delay formula mismatch at ${pct}%: ${actual}`);
 }
-console.log('v2.5.262 equipment delay regression checks passed.');
+console.log('v2.5.265 equipment delay regression checks passed.');
