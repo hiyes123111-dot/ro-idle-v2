@@ -8,12 +8,12 @@ for(const [id,img] of [['yorscalp_p_circlet',400723],['yorscalp_m_circlet',40072
  check(`${id} 是可裝備頭上防具`,line.includes('"type":"armor"')&&line.includes('"armorType":"headgear"')&&line.includes('"slots":1'));
  check(`${id} 官方道具編號與等級正確`,line.includes(`"imgId":${img}`)&&line.includes('"reqLevel":250')&&line.includes('"def":50'));
 }
-const physical=['ep21_tris_card','ep21_tan_borg_card','ep21_bihailin_card','ep21_evan_wigner_card','ep21_lalila_card','ep21_richard_card','ep21_mary_stella_card'];
-const magical=['ep21_reinhardt_card','ep21_lora_card','ep21_aurely_card','ep21_ylze_card'];
+const physical=['ep21_tris_card','ep21_tan_borg_card','ep21_bihailin_card','ep21_evan_wigner_card','ep21_lalila_card','ep21_richard_card','ep21_mary_stella_card','ep21_epesto_card'];
+const magical=['ep21_reinhardt_card','ep21_lora_card','ep21_aurely_card','ep21_ylze_card','ep21_lee_card'];
 for(const [ids,crown] of [[physical,'yorscalp_p_circlet'],[magical,'yorscalp_m_circlet']]) for(const id of ids){
  const i=d.indexOf(`'${id}': {id:'${id}'`,d.indexOf('const CARDS')); const line=i>=0?d.slice(i,d.indexOf('\n',i)):'';
  check(`${id} 指定正確頭冠、A階及+10門檻`,line.includes(`withItems:['${crown}']`)&&line.includes("itemGradeMin:'A'")&&line.includes('itemRefineMin:10')&&line.includes('perItem1Refine_skillDmg_'));
 }
 check('卡片引擎讀取指定裝備精煉倍率',/const itemPm = \/\^perItem\(\\d\+\)Refine_/.test(e)&&/targetRefine = targets\.reduce/.test(e));
 check('指定裝備精煉及階級條件均有判斷',/if \(when\.itemRefineMin != null\)/.test(e)&&/if \(when\.itemGradeMin != null\)/.test(e));
-console.log(`${17-bad}/17 passed`);process.exit(bad?1:0);
+console.log(`${2+physical.length+magical.length+2-bad}/${2+physical.length+magical.length+2} passed`);process.exit(bad?1:0);

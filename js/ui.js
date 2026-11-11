@@ -2134,6 +2134,10 @@ function renderMapTab() {
       }).join('　');
 
   el.innerHTML = `
+    <div class="map-select-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div><strong>⚔️ EP21 特殊副本</strong><div class="dim" style="font-size:12px">最終決戰－超困難試煉；不必回城即可進入</div></div>
+      <button class="btn-small" onclick="enterEp21FinalTrial()">直接進入副本</button>
+    </div>
     <h3 class="panel-title">選擇地區
       <button class="btn-small map-home-btn" onclick="goNearestSafeZone()"
         title="回到本區的安全區；這一區沒有的話回普隆德拉">🏠 回安全區</button>
@@ -2179,9 +2183,80 @@ function renderMapTab() {
           <div class="town-npc-name">神器鑄造師</div>
           <div class="town-npc-hint">查看神器配方・重鑄傳說神器</div>
         </div>
+        <div class="town-npc-card" onclick="enterEp21FinalTrial();">
+          <div class="town-npc-icon">⚔️</div>
+          <div class="town-npc-name">最終決戰－超困難試煉</div>
+          <div class="town-npc-hint">挑戰被侵蝕的坦・通關有機會取得卡片碎片</div>
+        </div>
+        <div class="town-npc-card" onclick="openEp21WignerExchange();">
+          <div class="town-npc-icon">🧩</div>
+          <div class="town-npc-name">魏格納商隊兌換員</div>
+          <div class="town-npc-hint">18 種 EP21 卡片碎片・30 個兌換 1 張</div>
+        </div>
       </div>
     </div>
     ` : ''}`;
+}
+
+
+const EP21_EXCHANGE_UI_ROWS = [
+  {card:'ep21_tris_card', fragment:'ep21_tris_card_fragment'},
+  {card:'ep21_tan_borg_card', fragment:'ep21_tan_borg_card_fragment'},
+  {card:'ep21_bihailin_card', fragment:'ep21_bihailin_card_fragment'},
+  {card:'ep21_reinhardt_card', fragment:'ep21_reinhardt_card_fragment'},
+  {card:'ep21_evan_wigner_card', fragment:'ep21_evan_wigner_card_fragment'},
+  {card:'ep21_lalila_card', fragment:'ep21_lalila_card_fragment'},
+  {card:'ep21_richard_card', fragment:'ep21_richard_card_fragment'},
+  {card:'ep21_lora_card', fragment:'ep21_lora_card_fragment'},
+  {card:'ep21_aurely_card', fragment:'ep21_aurely_card_fragment'},
+  {card:'ep21_ylze_card', fragment:'ep21_ylze_card_fragment'},
+  {card:'ep21_epesto_card', fragment:'ep21_epesto_card_fragment'},
+  {card:'ep21_mary_stella_card', fragment:'ep21_mary_stella_card_fragment'},
+  {card:'ep21_john_card', fragment:'ep21_john_card_fragment'},
+  {card:'ep21_kunt_card', fragment:'ep21_kunt_card_fragment'},
+  {card:'ep21_galacia_card', fragment:'ep21_galacia_card_fragment'},
+  {card:'ep21_iana_card', fragment:'ep21_iana_card_fragment'},
+  {card:'ep21_lee_card', fragment:'ep21_lee_card_fragment'},
+  {card:'ep21_nadoyou_card', fragment:'ep21_nadoyou_card_fragment'}
+];
+function enterEp21FinalTrial() {
+  if (!changeMap('ep21_final_trial_hell')) return;
+  const exchange = document.getElementById('ep21-wigner-exchange');
+  if (exchange) exchange.remove();
+  if (typeof renderMapBackground === 'function') renderMapBackground();
+  if (typeof playMapMusic === 'function') playMapMusic();
+  if (typeof renderMapTab === 'function') renderMapTab();
+  if (typeof logMsg === 'function') logMsg('⚔️ 進入最終決戰－超困難試煉！擊敗被侵蝕的坦完成本次挑戰。');
+}
+
+function openEp21WignerExchange() {
+  const old = document.getElementById('ep21-wigner-exchange');
+  if (old) old.remove();
+  const rows = EP21_EXCHANGE_UI_ROWS.map(r => {
+    const card = ITEMS[r.card], frag = ITEMS[r.fragment], qty = getItemQty(r.fragment);
+    const can = qty >= 30;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border,#444)">
+      <div style="min-width:0"><strong>${card ? card.name : r.card}</strong><div class="dim" style="font-size:12px">${frag ? frag.name : r.fragment}：${qty}/30</div></div>
+      <button class="btn-small ${can?'':'ghost'}" ${can?'':'disabled'} onclick="doEp21WignerExchange('${r.card}')">兌換</button></div>`;
+  }).join('');
+  const wrap = document.createElement('div');
+  wrap.id = 'ep21-wigner-exchange';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:14px';
+  wrap.innerHTML = `<div style="width:min(620px,100%);max-height:85vh;overflow:auto;background:var(--panel,#20242b);color:var(--text,#fff);border:1px solid var(--border,#555);border-radius:14px;padding:16px;box-shadow:0 12px 40px #0009">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><h3 style="margin:0">🧩 魏格納商隊兌換員</h3><button class="btn-small ghost" onclick="closeEp21WignerExchange()">關閉</button></div>
+    <p class="dim">使用地點：mbase_in（232,122）。每30個指定卡片碎片兌換1張對應卡片。18種碎片不可混用。</p>
+    <div>${rows}</div>
+    <p class="dim" style="font-size:12px;margin-bottom:0">碎片來源：最終決戰－超困難試煉首領（本遊戲平衡版 25% 隨機掉落一種碎片）。</p>
+  </div>`;
+  wrap.addEventListener('click', ev => { if (ev.target === wrap) closeEp21WignerExchange(); });
+  document.body.appendChild(wrap);
+}
+function closeEp21WignerExchange() { const el = document.getElementById('ep21-wigner-exchange'); if (el) el.remove(); }
+function doEp21WignerExchange(cardId) {
+  const result = exchangeEp21Card(cardId);
+  if (!result.ok) { if (typeof logMsg === 'function') logMsg(`⚠️ 兌換失敗：${result.reason}`); }
+  openEp21WignerExchange();
+  if (result.ok && typeof renderInventoryTab === 'function') renderInventoryTab();
 }
 
 function onKingdomSelectChange(kingdomId) {
@@ -3354,7 +3429,7 @@ function renderCodexTab() {
           regionName: region.name, regionIndex: ri, mapIndex: mi, kingdomIndex: kingdomOrder.has(region.id) ? kingdomOrder.get(region.id) : 999 });
       });
     }));
-    const monsterNameZh = { ill_kraken: '深淵海王', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+    const monsterNameZh = { ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
     rows = ids.map(id => {
       const d = MONSTERS[id] || {};
       const loc = monsterMap.get(id) || { mapId: '', mapName: '未配置地圖', regionId: '', regionName: '未分類／特殊怪物', regionIndex: 999, mapIndex: 999, kingdomIndex: 999 };
@@ -3619,7 +3694,7 @@ function renderCodexDetail(id) {
     if (!d) return '';
     const kills = book.mon[id] || 0;
     const maps = getMonsterMaps(id);
-    const monsterNameZh = { ill_kraken: '深淵海王', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+    const monsterNameZh = { ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
     const displayMonsterName = monsterNameZh[id] || d.name || id;
     const drops = (d.drops || []).slice().sort((a, b) => b.chance - a.chance);
     const cd = (typeof MONSTER_CARD_DROPS !== 'undefined') ? MONSTER_CARD_DROPS[id] : null;
@@ -3695,7 +3770,7 @@ function renderCodexDetail(id) {
     if (!m) return '';
     return `<div class="codex-spot ${s.mvp ? 'mvp' : ''}">
       <img class="codex-spot-icon" src="${monsterImgSrc(s.mon)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('monster')}'">
-      <span class="codex-spot-mon">${s.mvp ? '👑' : ''}${({ ill_kraken: '深淵海王', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' })[s.mon] || m.name}<span class="codex-src-lv">Lv.${m.level || '?'} </span></span>
+      <span class="codex-spot-mon">${s.mvp ? '👑' : ''}${({ ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' })[s.mon] || m.name}<span class="codex-src-lv">Lv.${m.level || '?'} </span></span>
       <span class="codex-drop-rate" title="掉落率">${(s.dropChance * 100).toFixed(2)}%</span>
       <span class="codex-spot-name">${s.mapName}</span>
       ${s.mvp ? '<span class="codex-spot-mvp" title="需在自動戰鬥頁面開啟 BOSS 模式">BOSS 模式</span>' : ''}
@@ -3703,8 +3778,10 @@ function renderCodexDetail(id) {
       <button class="codex-go" onclick="event.stopPropagation();codexGoToMap('${s.mapId}')">前往</button>
     </div>`;
   }).join('');
-  const albumSource = card && !spots.length && typeof getCardAcquisitionSource === 'function' ? getCardAcquisitionSource(id) : null;
-  const albumRows = albumSource && albumSource.type === 'album' ? `<div class="codex-spot box-source"><img class="codex-spot-icon" src="${itemImgSrc(albumSource.itemId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-spot-mon">📦 ${albumSource.name}</span><span class="codex-spot-name">卡冊收錄；官方未公開此卡於卡冊內的逐卡數值機率</span></div>` : '';
+  const cardSources = card && typeof getCardAcquisitionSource === 'function' ? getCardAcquisitionSource(id) : null;
+  const albumRows = cardSources && cardSources.albums.length ? cardSources.albums.map(a => `<div class="codex-spot box-source"><img class="codex-spot-icon" src="${itemImgSrc(a.itemId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-spot-mon">📦 ${a.name}</span><span class="codex-spot-name">目前實際卡冊抽選池包含此卡；官方未公開逐卡數值機率</span></div>`).join('') : '';
+  const craftSources = typeof getItemCraftSources === 'function' ? getItemCraftSources(id) : [];
+  const craftRows = craftSources.map(s => `<div class="codex-spot shop"><span class="codex-spot-mon">🛠️ 鍛造／合成</span><span class="codex-spot-name">配方：${s.key}</span></div>`).join('');
   const shopRows = Object.values(NPC_SHOPS)
     .filter(sh => (sh.items || []).includes(id))
     .map(sh => `<div class="codex-spot shop"><span class="codex-spot-mon">🏪 ${sh.name || '商店'}</span>
@@ -3758,7 +3835,7 @@ function renderCodexDetail(id) {
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
     ${unimpl}
     <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
-    <div class="codex-spots">${relicRows}${shopRows}${boxRows}${albumRows}${srcRows || (relicRows || shopRows || boxRows || albumRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
+    <div class="codex-spots">${relicRows}${shopRows}${craftRows}${boxRows}${albumRows}${srcRows || (relicRows || shopRows || craftRows || boxRows || albumRows ? '' : '<div class="dim">沒有可驗證的取得來源；此項目不應視為可取得</div>')}</div>
   </div>`;
 }
 

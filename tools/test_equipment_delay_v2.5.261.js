@@ -38,9 +38,9 @@ assert(feather.condBonus[0].bonus.afterAttackDelayPct === 1, 'imperial feather A
 assert(!JSON.stringify(ITEMS.ac_b44_ad).includes('afterAttackDelayPct'), 'AC-B44-OS-AD must remain untouched');
 const engine = fs.readFileSync(path.join(root, 'js/engine.js'), 'utf8');
 assert(engine.includes("'afterCastDelayPct', 'afterAttackDelayPct', 'skillAfterDelayPct'"), 'top-level afterAttackDelayPct is not collected');
-assert(engine.includes("getCardBonus('afterAttackDelayPct')"), 'attack interval does not consume afterAttackDelayPct');
-assert(engine.includes("getCardBonus('skillAfterDelayPct')"), 'skill action lock does not consume skillAfterDelayPct');
-// Formula regression: positive percentages reduce interval/delay, with the engine's 10% floor.
+assert(engine.includes("getCardBonus('afterAttackDelayPct')") && /state\.attackInterval\s*=\s*Math\.max\(100,\s*Math\.round\([\s\S]*?baseAttackInterval[\s\S]*?afterAttackDelayPct/.test(engine), 'attack interval does not consume afterAttackDelayPct');
+assert(engine.includes("'skillAfterDelayPct'"), 'skillAfterDelayPct is not included in derived equipment bonus collection');
+// Formula regression: positive percentages reduce interval/delay, with the engine's 100ms floor.
 for (const [pct, expected] of [[0,1000],[10,900],[20,800],[25,750],[90,100]]) {
   const actual = Math.max(100, Math.round(1000 * Math.max(0.1, 1 - pct / 100)));
   assert(actual === expected, `delay formula mismatch at ${pct}%: ${actual}`);

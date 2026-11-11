@@ -23,8 +23,8 @@ assert(engine.includes("def.exp * expMult * farmMult('exp') * mapExpMultiplier")
 assert(engine.includes('(Number(mapObj.expMultiplier) || 1)'), 'map yield forecast multiplier missing');
 assert(engine.includes('Number(map.expMultiplier) || 1'), 'offline progress multiplier missing');
 assert(engine.includes('mapJobExpMultiplier'), 'offline job exp multiplier missing');
-assert(engine.includes('new Set(Object.keys(MONSTERS))'), 'codex does not include every monster definition');
-assert(engine.includes('new Set(Object.keys(CARDS))'), 'codex does not include every card definition');
+assert(engine.includes('const monSet = new Set(Object.keys(MONSTERS).filter(id =>'), 'codex does not derive monsters from the current map availability rules');
+assert(engine.includes('const cardSet = new Set(Object.keys(CARDS).filter(id => ITEMS[id]'), 'codex does not include defined cards with item records');
 assert(engine.includes('Object.keys(ITEMS).forEach(id => {'), 'codex does not auto-include items');
 assert(Object.keys(CARDS).every(id => ITEMS[id]), 'card without item record would break codex display');
 console.log(`PASS: map, ${map.monsters.length} monsters, ${Object.keys(MONSTERS).length} monster defs, ${Object.keys(CARDS).length} cards, ${Object.keys(ITEMS).length} items`);

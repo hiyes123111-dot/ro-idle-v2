@@ -3479,7 +3479,9 @@ function bossCardKind(cardId) {
       沒有任何怪物會掉，也不該從卡冊開出來——用名稱結尾是不是「卡片」來擋
    2. 有 3 張卡片沒有對應的 ITEMS 條目，addItem 進不了背包
    剩下 445 張，其中 MVP 卡 30 張、迷你王卡 39 張。 */
-const cardDrawable = () => Object.keys(CARDS).filter(k => ITEMS[k] && /卡片$/.test(CARDS[k].name));
+// EP21 耶斯卡夫 18 張卡僅依官方最終決戰－超困難試煉 BOSS 卡片／碎片取得；不可混入任何一般卡冊。
+const EP21_BOSS_ONLY_CARD_IDS = new Set(ALBUM_MVP_CARD_IDS);
+const cardDrawable = () => Object.keys(CARDS).filter(k => ITEMS[k] && /卡片$/.test(CARDS[k].name) && !EP21_BOSS_ONLY_CARD_IDS.has(k));
 const cardWeight = id => CARD_ALBUM_WEIGHT[bossCardKind(id)];
 
 const ALBUM_ITEMS = {
@@ -6501,8 +6503,14 @@ function computeAspd() {
      寫成「頂到 cap」而不是寫死 193——99 級以下上限是 190，
      寫死會讓那段時間的角色拿到官方拿不到的攻速。 */
   if (state.buffs.some(b => b.type === 'aspdmax')) state.aspd = cap;
-  // 恢復 v1.17：普通攻擊間隔只依 ASPD 換算，不額外套用攻擊後延遲。
-  state.attackInterval = getAttackInterval(state.aspd);
+  // 攻擊後延遲減少（afterAttackDelayPct）會縮短普通攻擊間隔，
+  // 與 ASPD 的基礎換算分開計算；技能後延遲仍由技能動作鎖處理。
+  // 保留 100ms 最低間隔，避免裝備／套裝疊加後出現零間隔或無限攻擊。
+  const afterAttackDelayPct = Math.max(0, getCardBonus('afterAttackDelayPct'));
+  const baseAttackInterval = getAttackInterval(state.aspd);
+  state.attackInterval = Math.max(100, Math.round(
+    baseAttackInterval * Math.max(0.1, 1 - afterAttackDelayPct / 100)
+  ));
 }
 function buffMult(type) {
   let mult = 1;
@@ -6673,6 +6681,8 @@ function spawnDelayMs(empty) {
 
 function spawnMonster() {
   const map = currentMap();
+  // EP21 單次挑戰：首領擊敗後鎖定本次進場，避免自動無限重生。
+  if (map && map.id === 'ep21_final_trial_hell' && state.ep21TrialCleared) { state.monsters = []; state.monster = null; return; }
   if (!map.monsters.length && !activeBossLists(map.id).length) {
     state.monsters = [];
     return;
@@ -7948,7 +7958,7 @@ function getBoxCodexPool() {
 let _albumOnlyCards = null;
 function getAlbumOnlyCards() {
   if (_albumOnlyCards) return _albumOnlyCards;
-  const drawable = Object.keys(CARDS).filter(k => ITEMS[k] && /卡片$/.test(CARDS[k].name));
+  const drawable = Object.keys(CARDS).filter(k => ITEMS[k] && /卡片$/.test(CARDS[k].name) && !(typeof EP21_BOSS_ONLY_CARD_IDS !== 'undefined' && EP21_BOSS_ONLY_CARD_IDS.has(k)));
   const farmable = new Set();
   Object.entries(MONSTER_CARD_DROPS || {}).forEach(([mon, cd]) => {
     if (MONSTERS[mon] && ITEMS[cd.card]) farmable.add(cd.card);
@@ -7972,23 +7982,41 @@ function getCodexPool() {
   // V2／擴充內容會在主資料庫載入後追加地圖與怪物；舊版永久快取會漏掉新怪物及其掉落物。
   const poolSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${Object.keys(ITEMS).length}:${Object.keys(CARDS).length}:` +
     MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|') + ':' +
-    Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0);
+    Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0) + ':' +
+    (typeof MONSTER_CARD_DROPS !== 'undefined' ? Object.entries(MONSTER_CARD_DROPS).map(([k,v]) => `${k}:${v.card}:${v.chance}`).join('|') : '');
   if (_codexPoolCache && _codexPoolSignature === poolSignature) return _codexPoolCache;
   _codexPoolSignature = poolSignature;
   _codexPoolCache = null;
-  // 圖鑑以資料庫為唯一來源：新增任何怪物定義都自動列入，不必先掛到地圖。
-  // 測試怪物也會顯示，避免資料庫已新增的種類在圖鑑中消失。
-  const monSet = new Set(Object.keys(MONSTERS));
-  const itemSet = new Set();
+  // 圖鑑只列出「遊戲內真的有取得途徑」的內容，不能把匯入資料庫的
+  // NPC／展示用／測試用怪物當成可狩獵怪物。正式怪物來源以可農地圖
+  // （一般刷怪表 + MVP_MAP_DATA）為準；getMonsterMaps 也會排除測試地圖。
+  const monSet = new Set(Object.keys(MONSTERS).filter(id =>
+    typeof getMonsterMaps === 'function' && getMonsterMaps(id).length > 0
+  ));
 
-  // 全道具自動收錄：只要 ITEMS 有定義，就列入道具圖鑑；
-  // 卡片由 CARDS 分流到卡片分頁，避免同一張卡在兩個分頁重複。
-  Object.keys(ITEMS).forEach(id => {
-    if (!CARDS[id]) itemSet.add(id);
+  // 道具只收錄可驗證的取得來源：正式可農怪物掉落、卡片掉落表、
+  // 遊戲箱池、NPC 商店或本作實際鍛造配方。避免整包官方／外部資料
+  // 裡未翻譯、未實裝、無來源的道具全部灌進圖鑑。
+  const itemSet = new Set();
+  const sourceMonsterIds = [...monSet];
+  sourceMonsterIds.forEach(monId => {
+    (MONSTERS[monId].drops || []).forEach(d => { if (d && d.item && ITEMS[d.item] && !CARDS[d.item]) itemSet.add(d.item); });
+    const cd = (typeof MONSTER_CARD_DROPS !== 'undefined') ? MONSTER_CARD_DROPS[monId] : null;
+    if (cd && cd.card && ITEMS[cd.card] && !CARDS[cd.card]) itemSet.add(cd.card);
+  });
+  // 箱池本身就是實際可取得途徑；boxEligible 已排除韓文、日文假名、純英文、時裝與轉蛋。
+  Object.keys(ITEMS).forEach(id => { if (!CARDS[id] && typeof boxEligible === 'function' && boxEligible(id)) itemSet.add(id); });
+  if (typeof NPC_SHOPS !== 'undefined') Object.values(NPC_SHOPS).forEach(shop =>
+    (shop.items || []).forEach(id => { if (ITEMS[id] && !CARDS[id]) itemSet.add(id); })
+  );
+  if (typeof MATERIAL_CRAFT_RECIPES !== 'undefined') Object.values(MATERIAL_CRAFT_RECIPES).forEach(recipe => {
+    const id = recipe && recipe.result;
+    if (id && ITEMS[id] && !CARDS[id]) itemSet.add(id);
   });
 
-  // 所有卡片定義自動列入卡片圖鑑，不依賴是否已有怪物掉落來源。
-  const cardSet = new Set(Object.keys(CARDS));
+  // 卡片必須同時有 CARDS 效果定義與 ITEMS 道具本體；所有這類卡片都能
+  // 由怪物掉落或卡冊池取得，不能把只有殘缺效果資料的孤兒 ID 顯示出來。
+  const cardSet = new Set(Object.keys(CARDS).filter(id => ITEMS[id] && /卡片$/.test(CARDS[id].name || '')));
 
   _codexPoolCache = {
     monsters: [...monSet].sort((a, b) => (MONSTERS[a].level || 0) - (MONSTERS[b].level || 0)),
@@ -8003,15 +8031,30 @@ let _codexSourceCache = null;
 let _codexSourceSignature = '';
 function getCardAcquisitionSource(cardId) {
   const card = CARDS[cardId];
-  if (!card) return null;
+  if (!card || !ITEMS[cardId]) return { type: 'none', sources: [], albums: [] };
   const monsters = getItemSources(cardId);
-  if (monsters.length) return { type: 'monster', sources: monsters };
-  const album = card.albumSource || (bossCardKind(cardId) === 'mvp' ? 'magic_card_album' : 'old_card_album');
-  return { type: 'album', itemId: album, name: ITEMS[album]?.name || (album === 'magic_card_album' ? '具有魔力的卡片冊' : '老舊收集冊') };
+  // 只依照實際卡冊抽選池判斷，不可僅因卡片有 CARDS 資料就推定能從卡冊取得。
+  const albums = [];
+  const albumKinds = ['card', 'cardFlat', 'card_helm', 'card_armor', 'card_shield', 'card_garment', 'card_shoes', 'card_acc', 'card_weapon'];
+  albumKinds.forEach(kind => {
+    const pool = boxPool(kind);
+    if (pool && pool.ids.includes(cardId)) {
+      const itemId = kind === 'cardFlat' ? 'magic_card_album' : (kind === 'card' ? 'old_card_album' : ({card_helm:'old_c_album_helm',card_armor:'old_c_album_armor',card_shield:'old_c_album_shield',card_garment:'old_c_album_garment',card_shoes:'old_c_album_shoes',card_acc:'old_c_album_acc',card_weapon:'old_c_album_weapon'}[kind]));
+      if (itemId && ITEMS[itemId] && !albums.some(x => x.itemId === itemId)) albums.push({ itemId, name: ITEMS[itemId].name });
+    }
+  });
+  return { type: monsters.length || albums.length ? 'available' : 'none', sources: monsters, albums };
+}
+
+function getItemCraftSources(itemId) {
+  if (typeof MATERIAL_CRAFT_RECIPES === 'undefined') return [];
+  return Object.entries(MATERIAL_CRAFT_RECIPES).filter(([, recipe]) => recipe && recipe.result === itemId)
+    .map(([key, recipe]) => ({ key, recipe }));
 }
 
 function getItemSources(itemId) {
-  const sourceSignature = `${Object.keys(MONSTERS).length}:${MAPS.length}:${Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0)}`;
+  const sourceSignature = `${Object.keys(MONSTERS).length}:${MAPS.length}:${Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0)}:` +
+    (typeof MONSTER_CARD_DROPS !== 'undefined' ? Object.entries(MONSTER_CARD_DROPS).map(([k,v]) => `${k}:${v.card}:${v.chance}`).join('|') : '');
   if (!_codexSourceCache || _codexSourceSignature !== sourceSignature) {
     _codexSourceSignature = sourceSignature;
     _codexSourceCache = {};
@@ -8047,7 +8090,8 @@ function isCodexFarmable(mapObj) {
 let _codexMapCache = null;
 let _codexMapSignature = '';
 function getMonsterMaps(monId) {
-  const mapSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${typeof MVP_MAP_DATA !== 'undefined' ? Object.keys(MVP_MAP_DATA).length : 0}`;
+  const mapSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${typeof MVP_MAP_DATA !== 'undefined' ? Object.keys(MVP_MAP_DATA).length : 0}:` +
+    MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => typeof x === 'string' ? x : x.id).join(',')}`).join('|');
   if (!_codexMapCache || _codexMapSignature !== mapSignature) {
     _codexMapSignature = mapSignature;
     _codexMapCache = {};
@@ -8259,6 +8303,7 @@ function killMonster(def, monObj) {
   // 後綴（例如 poring 的 def.id 是 'poring_'），拿 def.id 去查 MONSTER_CARD_DROPS 會落空，
   // 波利/綠棉蟲/小惡魔/耳語的卡片因此一直掉不出來。所有呼叫端都有傳 monObj，用它的 defId 最準。
   const monKey = (monObj && monObj.defId) || def.id;
+  const isEp21TrialBoss = state.mapId === 'ep21_final_trial_hell' && monKey === 'ep21_corrupted_tan';
   // 卡片的種族經驗加成（狂暴野豬那一組：擊殺該族經驗+10%，代價是被該族打得更痛）
   // 經驗值倍增（#68）跟卡片的種族經驗加成相乘
   const expMult = (1 + ((def.race && state.cardExpRace && state.cardExpRace[def.race]) || 0))
@@ -8328,6 +8373,34 @@ function killMonster(def, monObj) {
   });
   rollEtherDrop(def);
   rollRelicDrop(def);                    // 遺物（#113）：只有打寶模式會掉
+  // EP21 試煉通關獎勵：每次擊敗首領有 25% 機率取得一種指定卡片碎片。
+  // 此機率為本遊戲平衡設定，並非官方公告掉率。
+  if (isEp21TrialBoss && Math.random() < 0.25) {
+    const pool = ['ep21_tris_card_fragment','ep21_tan_borg_card_fragment','ep21_bihailin_card_fragment','ep21_reinhardt_card_fragment','ep21_evan_wigner_card_fragment','ep21_lalila_card_fragment','ep21_richard_card_fragment','ep21_lora_card_fragment','ep21_aurely_card_fragment','ep21_ylze_card_fragment','ep21_epesto_card_fragment','ep21_mary_stella_card_fragment','ep21_john_card_fragment','ep21_kunt_card_fragment','ep21_galacia_card_fragment','ep21_iana_card_fragment','ep21_lee_card_fragment','ep21_nadoyou_card_fragment'];
+    const fragment = pool[Math.floor(Math.random() * pool.length)];
+    addItem(fragment, 1);
+    logMsg(`🧩 試煉獎勵：獲得 ${ITEMS[fragment] ? ITEMS[fragment].name : fragment}！`);
+  }
+  // EP21 耶斯卡夫頭冠：僅由超困難試煉首領直接掉落。
+  // 兩頂各自獨立判定 1%；此為本作平衡掉率，並非官方公布機率。
+  if (isEp21TrialBoss) {
+    const headgearDrops = [
+      { item: 'yorscalp_p_circlet', chance: 0.01 },
+      { item: 'yorscalp_m_circlet', chance: 0.01 }
+    ];
+    headgearDrops.forEach(d => {
+      if (Math.random() < d.chance * dropMult) {
+        addItem(d.item, 1);
+        logMsg(`👑 試煉首領掉落：${ITEMS[d.item] ? ITEMS[d.item].name : d.item}！`);
+      }
+    });
+  }
+  if (isEp21TrialBoss) {
+    state.ep21TrialCleared = true;
+    state.monsters = (state.monsters || []).filter(m => m !== monObj);
+    state.monster = state.monsters[0] || null;
+    logMsg('🏆 最終決戰－超困難試煉首領已擊敗！本次挑戰完成，重新進場可再次挑戰。');
+  }
   // 偷竊被動：擊敗怪物時機率額外掉落一份道具（照掉落率加權，見 pickWeightedDrop）
   if (state.stealChance && def.drops && def.drops.length > 0 && Math.random() * 100 < state.stealChance) {
     const stolen = pickWeightedDrop(def.drops);
@@ -8374,6 +8447,12 @@ function killMonster(def, monObj) {
     field.monsters.shift();
   }
   field.monster = field.monsters && field.monsters.length > 0 ? field.monsters[0] : null;
+  // 漸進射擊的層數只屬於當前戰鬥；場上最後一隻怪物被擊敗後必須清空，
+  // 避免下一批怪物沿用上一場累積的 2～3 層倍率。此處使用 allyOwnerState()
+  // 回寫，確保隊員代打時重置的是實際出手角色，而不是隊長的狀態。
+  if (!field.monsters || field.monsters.length === 0) {
+    field.windhawkProgressiveStacks = 0;
+  }
   // 換身中：把新的陣列同步回隊友，不然牠這一輪剩下的揮擊還是打舊陣列
   if (_allyActing) { _allyActing.monsters = field.monsters; _allyActing.monster = field.monster; }
 }
@@ -8424,6 +8503,7 @@ function onPlayerDown() {
   logMsg(`⚠️ 你被擊倒了！正在返回安全地帶療傷……`);
   state.monster = null;
   state.monsters = [];
+  state.windhawkProgressiveStacks = 0;
   // 找到該地區的安全區，沒有就去普隆德拉
   const curRegion = regionOf(state.mapId);
   let safeMap = null;
@@ -9788,6 +9868,8 @@ function skillCooldownItemBonus(skillId) {
   return 0;
 }
 function effectiveCooldownMs(skillId, baseCdSec) {
+  // 元素支配者「魔力拳」指定固定 5 秒，不受卡片固定減秒或百分比冷卻縮減影響。
+  if (skillId === 'so_spellfist') return 5000;
   const base = (baseCdSec || 0) * 1000;
   if (base <= 0) return base;                       // 本來就沒有冷卻的技能不給它加上冷卻
   const delta = (
@@ -10315,6 +10397,13 @@ function castSkillInner(skillId, opts) {
       // 卡片屬性傷害加成
       const skEleDmgBonus = cardTargetDmgMult(def) - 1;
       let skillMult = mult;
+      // 漸進射擊：每次成功施放累積 1 層，最多 3 層；層數直接作為技能倍率層數。
+      // 未設定額外持續時間，故依使用者規格保留至戰鬥結束／切換角色狀態重置。
+      if (sk.progressiveShotMaxStacks) {
+        state.windhawkProgressiveStacks = Math.min(sk.progressiveShotMaxStacks, (state.windhawkProgressiveStacks || 0) + 1);
+        skillMult *= state.windhawkProgressiveStacks;
+        logMsg(`🏹 漸進射擊累積 ${state.windhawkProgressiveStacks}/${sk.progressiveShotMaxStacks} 層。`);
+      }
       let faExtraFlat = 0;   // 獵鷹突擊：鋼製喙那份固定傷害，加在防禦之後
       // 超音速投擲被動：音速投擲傷害+90%
       if (sk.id === 'sonicblow' && state.hasSonicblowBoost) {
@@ -10323,10 +10412,11 @@ function castSkillInner(skillId, opts) {
       /* 依基本等級／INT 遞增的技能（轉生術、心靈震波）。
          以前是寫死 `sk.id === 'turnundead'`，改成看欄位在不在——
          心靈震波官方也是「傷害隨基本等級與 INT 增加」，同一組欄位就夠用。 */
-      if (sk.levelScaleMax || sk.intScaleMax) {
+      if (sk.levelScaleMax || sk.intScaleMax || sk.conScaleMax) {
         const lvlBonusPct = (state.baseLevel / 99) * (sk.levelScaleMax || 0);
         const intBonusPct = (state.stats.int / 99) * (sk.intScaleMax || 0);
-        skillMult *= (1 + lvlBonusPct / 100 + intBonusPct / 100);
+        const conBonusPct = (state.stats.con / 99) * (sk.conScaleMax || 0);
+        skillMult *= (1 + lvlBonusPct / 100 + intBonusPct / 100 + conBonusPct / 100);
       }
       /* 強酸火煙瓶投擲（#78）：官方「傷害隨目標的 VIT 增加」。
          本作怪物沒有 vit 欄位，用 defSoft 代替——軟防就是從 VIT 推導出來的。 */
@@ -12498,6 +12588,48 @@ function removeItem(itemId, qty) {
   row.qty -= qty;
   if (row.qty <= 0) owner.inventory = owner.inventory.filter(r => !(r.item === itemId && !r.instanceId));
   return true;
+}
+
+
+/* EP21 魏格納商隊兌換員：每種對應碎片 30 個兌換該張卡片。
+   先驗證持有量，再扣料與發卡；以鎖避免連點重複兌換。 */
+const EP21_CARD_EXCHANGE_RECIPES = [
+  {card:'ep21_tris_card', fragment:'ep21_tris_card_fragment'},
+  {card:'ep21_tan_borg_card', fragment:'ep21_tan_borg_card_fragment'},
+  {card:'ep21_bihailin_card', fragment:'ep21_bihailin_card_fragment'},
+  {card:'ep21_reinhardt_card', fragment:'ep21_reinhardt_card_fragment'},
+  {card:'ep21_evan_wigner_card', fragment:'ep21_evan_wigner_card_fragment'},
+  {card:'ep21_lalila_card', fragment:'ep21_lalila_card_fragment'},
+  {card:'ep21_richard_card', fragment:'ep21_richard_card_fragment'},
+  {card:'ep21_lora_card', fragment:'ep21_lora_card_fragment'},
+  {card:'ep21_aurely_card', fragment:'ep21_aurely_card_fragment'},
+  {card:'ep21_ylze_card', fragment:'ep21_ylze_card_fragment'},
+  {card:'ep21_epesto_card', fragment:'ep21_epesto_card_fragment'},
+  {card:'ep21_mary_stella_card', fragment:'ep21_mary_stella_card_fragment'},
+  {card:'ep21_john_card', fragment:'ep21_john_card_fragment'},
+  {card:'ep21_kunt_card', fragment:'ep21_kunt_card_fragment'},
+  {card:'ep21_galacia_card', fragment:'ep21_galacia_card_fragment'},
+  {card:'ep21_iana_card', fragment:'ep21_iana_card_fragment'},
+  {card:'ep21_lee_card', fragment:'ep21_lee_card_fragment'},
+  {card:'ep21_nadoyou_card', fragment:'ep21_nadoyou_card_fragment'}
+];
+let ep21ExchangeBusy = false;
+function exchangeEp21Card(cardId) {
+  if (ep21ExchangeBusy) return {ok:false, reason:'兌換處理中，請稍候'};
+  const recipe = EP21_CARD_EXCHANGE_RECIPES.find(r => r.card === cardId);
+  if (!recipe || !ITEMS[recipe.card] || !ITEMS[recipe.fragment]) return {ok:false, reason:'兌換配方不存在'};
+  const owner = allyOwnerState();
+  if (!Array.isArray(owner.inventory)) return {ok:false, reason:'背包資料異常'};
+  const fragmentRow = owner.inventory.find(r => r.item === recipe.fragment && !r.instanceId);
+  if (!fragmentRow || fragmentRow.qty < 30) return {ok:false, reason:`碎片不足，需要30個，目前${fragmentRow ? fragmentRow.qty : 0}個`};
+  ep21ExchangeBusy = true;
+  try {
+    if (!removeItem(recipe.fragment, 30)) return {ok:false, reason:'碎片扣除失敗，未發放卡片'};
+    addItem(recipe.card, 1);
+    if (typeof logMsg === 'function') logMsg(`🎴 魏格納商隊兌換成功：${ITEMS[recipe.card].name} ×1`);
+    if (typeof saveGame === 'function') saveGame();
+    return {ok:true, card:recipe.card, fragment:recipe.fragment, consumed:30};
+  } finally { ep21ExchangeBusy = false; }
 }
 /* 一次開完手上所有同款箱子（#143）。
 
@@ -14723,6 +14855,7 @@ function changeMap(mapId) {
   const map = MAPS.find(m => m.id === mapId);
   if (!map) return false;
   state.mapId = mapId;
+  if (mapId === 'ep21_final_trial_hell') state.ep21TrialCleared = false;
   // 回安全區全隊免費滿血復活（#83）——不然倒地的隊友只能靠天地樹葉子
   if ((map.monsters || []).length === 0) reviveAlliesInTown();
   ensureCodex().maps[mapId] = 1; // 探索成就用

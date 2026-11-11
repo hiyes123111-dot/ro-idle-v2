@@ -19,7 +19,7 @@
     arch_mage: [
       ['焰火之徑',5,'magic_aoe','fire'],['豔紅魔矢',5,'magic','fire'],['萬紫千紅',5,'magic_aoe','fire'],['龍捲風暴',5,'magic_aoe','wind'],['暴風加農砲',5,'magic_aoe','wind'],['毀滅颶風',5,'magic_aoe','wind'],
       ['冰晶飛瀑',5,'magic_aoe','water'],['冰刃斬擊',5,'magic','water'],['水晶波爆',5,'magic_aoe','water'],['地層震動',5,'magic_aoe','earth'],['巨石降臨',5,'magic_aoe','earth'],['震裂術',5,'magic','earth'],
-      ['雙手杖使用熟練度',10,'passive','matkFlat'],['魔力巔峰',5,'passive','matkFlat'],['靈魂連擊',5,'magic','ghost'],['神秘幻滅',5,'magic_aoe','ghost'],['致命放射',5,'magic','neutral'],['星際突襲',10,'magic_aoe','neutral'],['能量轉化',5,'passive','maxSpMult']
+      ['雙手杖使用熟練度',10,'passive','matkFlat'],['魔力巔峰',5,'passive','matkFlat'],['靈魂連擊',5,'magic','ghost'],['神秘幻滅',5,'magic_aoe','ghost'],['致命放射',5,'magic','neutral'],['星際突襲',10,'magic_aoe','neutral'],['能量轉化',5,'passive','maxSpMult'],['雷鳴術風暴',5,'magic_aoe','wind'],['新霜凍術',5,'magic_aoe','water']
     ],
     element_master: [
       ['魔法書精熟',10,'passive','matkFlat'],['咒力賦予',5,'passive','matkFlat'],['能量燃燼',5,'magic','fire'],['能量轉換',5,'passive','maxSpMult'],['灼熱岩漿',5,'magic_aoe','fire'],['雷霆陣地',5,'magic_aoe','wind'],['鑽石風暴',5,'magic_aoe','water'],['大地驅動',5,'magic_aoe','earth'],['毒液沼澤',5,'magic_aoe','poison'],['心靈波流',5,'magic_aoe','ghost'],['元素鬥志精熟',10,'passive','matkFlat'],
@@ -29,7 +29,7 @@
       // 依網站風鷹技能圖鑑更新；保留既有索引 7～10，讓陷阱引擎的 ID 不變。
       ['自然親和',5,'buff_flee','neutral'],['風之印記',5,'passive','atkFlat'],['增幅箭',10,'damage','wind'],['疾風暴',10,'damage_aoe','wind'],['災厄疾風',5,'buff_atk','neutral'],['進階陷阱研究',5,'passive','atkFlat'],
       ['堅固陷阱',5,'passive','rangerTrapProc'],['烈焰陷阱',5,'passive','rangerTrapProc'],['深盲陷阱',5,'passive','rangerTrapProc'],['迅捷陷阱',5,'passive','rangerTrapProc'],
-      ['鷹之熟練',1,'passive','hitFlat'],['鷹之迴旋',5,'damage','neutral'],['鷹擊',5,'damage','neutral'],['野性步伐',5,'passive','fleeFlat']
+      ['鷹之熟練',1,'passive','hitFlat'],['鷹之迴旋',5,'damage','neutral'],['鷹擊',5,'damage','neutral'],['野性步伐',5,'passive','fleeFlat'],['漸進射擊',5,'damage','neutral','v25_windhawk_progressive_shot'],['銳利射擊',5,'damage_aoe','neutral','sn_sharpshooting']
     ],
     troubadour: [
       ['舞台禮儀',5,'passive','atkFlat'],['美聲回顧',1,'passive','matkFlat'],['葛帔尼亞夜曲',5,'magic_aoe','wind'],['暮色小夜曲',5,'passive','matkFlat'],['洛基奏鳴曲',5,'magic_aoe','neutral'],['礦工狂想曲',5,'passive','defFlat'],['音樂劇插曲',5,'magic','neutral'],['普隆德拉進行曲',5,'passive','atkFlat'],['亡靈鎮魂歌',5,'magic_aoe','holy'],['克瓦希爾奏鳴曲',1,'passive','maxHpMult'],['混聲烙印',5,'damage','neutral'],['金屬狂怒',5,'damage_aoe','neutral'],['節奏戰波',5,'damage_aoe','wind'],['節奏射擊',5,'damage','wind'],['玫瑰箭矢',5,'damage','neutral'],['神秘交響曲',1,'passive','matkFlat']
@@ -61,7 +61,7 @@
     dragon_knight: {'橫揮斬':'sword2','風暴斬擊':'sword2','神龍貫刺':'spear','蓄力刺擊':'spear','狂暴粉碎':'spear'},
     imperial_guard: {'盾牌投擲':'shield','回彈神盾':'shield','守護神盾':'shield','光輝刺擊':'spear','帝國十字斬':'spear'},
     arch_mage: {'雙手杖使用熟練度':'rod2'},
-    wind_hawk: {'增幅箭':'bow','疾風暴':'bow','鷹擊':'bow'},
+    wind_hawk: {'增幅箭':'bow','疾風暴':'bow','鷹擊':'bow','漸進射擊':'bow','銳利射擊':'bow'},
     troubadour: {'節奏射擊':'instrument'}, trouvere: {'節奏射擊':'whip'},
     meister: {'雙手斧防禦':'axe2','戰斧踏滅':'axe2','強力粉碎':'axe2','衝鋒斬擊':'axe2','爆發橫掃':'axe2'},
     shadow_cross: {'影刃旋舞':'katar','十字斬擊':'katar','永恆斬擊':'katar','暗影刺擊':'dagger'},
@@ -90,6 +90,12 @@
     rows.forEach(([name,maxLv,type,stat,customId], index) => {
       const id = customId || `v25_${jobId}_${index+1}`;
       // 樞機主教沿用已完整定義的實際技能 ID，避免四轉樹把輔助／治癒技能退化成舊版示範被動。
+      if (jobId === 'wind_hawk' && id === 'sn_sharpshooting' && SKILLS[id]) {
+        SKILLS[id].rangeType = 'ranged';
+        SKILLS[id].name = '銳利射擊';
+        nextSkills.push(SKILLS[id]);
+        return;
+      }
       if (jobId === 'cardinal' && SKILLS[id]) {
         const existing = SKILLS[id];
         existing.name = name.replace('鈍器&書籍精熟','鈍器＆書籍精熟');
@@ -141,6 +147,15 @@
         sk.summonStoneGoldFallback = 3000;
         sk.desc = `${name} Lv1：消耗 1 個${summonStone ? window.getItemDisplayName?.(summonStone) || ({flame_heart:'火靈原石',mistic_frozen:'水靈原石',rough_wind:'風靈原石',great_nature:'地靈原石'}[summonStone]) : '毒屬性元素石（本作以鋅幣替代）'}；若背包與倉庫都沒有材料，改扣 3,000 鋅幣；消耗 60 SP，召喚大型上位精靈 25 分鐘；同時僅能維持一隻精靈。`;
       }
+      if (jobId === 'arch_mage' && (name === '雷鳴術風暴' || name === '新霜凍術')) {
+        // 沿用本版本四轉範圍魔法平衡倍率：Lv1 800% 至 Lv5 1280%。
+        sk.type = 'magic_aoe';
+        sk.element = name === '雷鳴術風暴' ? 'wind' : 'water';
+        sk.mult = [8,9.2,10.4,11.6,12.8];
+        sk.spCost = [32,34,36,38,40];
+        sk.cooldown = [7,7,7,7,7];
+        sk.desc = `${name}：大法師四轉範圍魔法，MATK 800%～1280%，${name === '雷鳴術風暴' ? '風' : '水'}屬性；SP 消耗 32～40，冷卻 7 秒。倍率依本版本四轉範圍魔法平衡設定。`;
+      }
       // 龍騎士四轉技能：以官方 2026 技能調整後的等級倍率取代通用四轉倍率。
       // 倍率係數以 1.0 = 100% 表示，沿用既有 damage / damage_aoe 傷害結算。
       if (jobId === 'dragon_knight') {
@@ -165,6 +180,17 @@
       }
       // 風鷹四轉：主動攻擊與增益依技能圖鑑數值；圖鑑標示「效果待實作」者保留本作原效果，只更新技能等級容量。
       if (jobId === 'wind_hawk') {
+        if (name === '漸進射擊') {
+          sk.type = 'damage'; sk.element = 'neutral'; sk.requiresWeapon = 'bow';
+          sk.spCost = [30,35,40,45,50];
+          // 依本版本四轉平衡區間設定：Lv1 600%，Lv5 4200%。
+          sk.mult = [6,15,24,33,42];
+          sk.cooldown = [5,5,5,5,5]; // 與銳利射擊相同
+          sk.levelScaleMax = 50; sk.conScaleMax = 50; sk.rangeType = 'ranged';
+          sk.critRateMult = 1; sk.critDmgMult = 0.5;
+          sk.progressiveShotMaxStacks = 3;
+          sk.desc = '風鷹專用單體遠距離物理攻擊，ATK 600%～4200%；依基本等級與 CON 提升傷害，可依自身暴擊率暴擊，但暴擊傷害加成只有一半。最多累積 3 層；冷卻 5 秒，與銳利射擊相同。需裝備弓。';
+        }
         const sourceValues = {
           '自然親和': {
             type:'buff_flee', element:'neutral', spCost:Array(5).fill(30), cooldown:Array(5).fill(35),
@@ -304,3 +330,47 @@ for (const sk of Object.values(SKILLS)) {
   sk.rangeType = ranged ? 'ranged' : 'melee';
   sk.rangeLabel = ranged ? '遠距離物理' : '近距離物理';
 }
+
+
+/* EP21 卡片技能接線完整性檢查（v2.5.294）
+   只驗證本版本已加入四轉職業的 13 張卡；其餘 5 張明確保留未實裝，
+   避免未來技能清單調整時卡片仍顯示有加成、實際卻找不到技能。 */
+(() => {
+  const supported = [
+    'ep21_tris_card','ep21_tan_borg_card','ep21_bihailin_card','ep21_reinhardt_card',
+    'ep21_evan_wigner_card','ep21_lalila_card','ep21_richard_card','ep21_lora_card',
+    'ep21_aurely_card','ep21_ylze_card','ep21_epesto_card','ep21_mary_stella_card','ep21_lee_card'
+  ];
+  const deferred = [
+    'ep21_john_card','ep21_kunt_card','ep21_galacia_card','ep21_iana_card','ep21_nadoyou_card'
+  ];
+  const errors = [];
+  const checked = {};
+  for (const cardId of supported) {
+    const card = CARDS[cardId];
+    if (!card) { errors.push(`${cardId}: 卡片資料不存在`); continue; }
+    const keys = Object.keys(card.perRefine || {}).filter(k => k.startsWith('skillDmg_'));
+    const condKeys = (card.condBonus || []).flatMap(rule => Object.keys(rule.bonus || {}).filter(k => k.startsWith('perItem1Refine_skillDmg_')));
+    const skillIds = [...new Set([...keys.map(k => k.slice(9)), ...condKeys.map(k => k.slice('perItem1Refine_skillDmg_'.length))])];
+    if (skillIds.length < 2) errors.push(`${cardId}: 未設定至少兩個技能增傷鍵`);
+    for (const skillId of skillIds) {
+      if (!SKILLS[skillId]) errors.push(`${cardId}: 找不到技能 ${skillId}`);
+      if (!Object.prototype.hasOwnProperty.call(card.perRefine || {}, `skillDmg_${skillId}`)) errors.push(`${cardId}: 缺少武器精煉增傷 skillDmg_${skillId}`);
+      if (!condKeys.includes(`perItem1Refine_skillDmg_${skillId}`)) errors.push(`${cardId}: 缺少頭冠精煉增傷 perItem1Refine_skillDmg_${skillId}`);
+    }
+    const rule = (card.condBonus || []).find(r => Object.keys(r.bonus || {}).some(k => k.startsWith('perItem1Refine_skillDmg_')));
+    if (!rule || !(rule.when && rule.when.itemGradeMin === 'A' && rule.when.itemRefineMin === 10 && (rule.when.withItems || []).some(id => id === 'yorscalp_p_circlet' || id === 'yorscalp_m_circlet'))) {
+      errors.push(`${cardId}: 頭冠 A 階級／精煉+10 條件不完整`);
+    }
+    checked[cardId] = skillIds;
+  }
+  for (const cardId of deferred) {
+    const card = CARDS[cardId];
+    if (!card) { errors.push(`${cardId}: 卡片資料不存在`); continue; }
+    const hasSkillBonus = Object.keys(card.perRefine || {}).some(k => k.startsWith('skillDmg_'))
+      || (card.condBonus || []).some(r => Object.keys(r.bonus || {}).some(k => /skillDmg_/.test(k)));
+    if (hasSkillBonus) errors.push(`${cardId}: 尚未加入的擴充職業卡片不應套用技能加成`);
+  }
+  if (errors.length) throw new Error('EP21 卡片接線檢查失敗：' + errors.join('；'));
+  window.EP21_CARD_SKILL_AUDIT = { implemented: supported.length, deferred: deferred.length, checked };
+})();
