@@ -1,0 +1,13 @@
+v2.5.269 隊友輔助比對紀錄
+
+與 ro-idle_v1.17 比對後，以下函式內容完全相同：
+- alliesTick()
+- withAlly()
+- buildAllySnapshot()
+- shareBuffsWithAllies()
+
+tryAutoCastSupportSkills() 有新版差異：新增 cardinal_heal 隊伍血量門檻判斷，以及 elemental_summon 存在精靈時的跳過條件。
+
+本版修正 elemental_summon 跳過條件：允許現有一般精靈升級召喚四轉上位精靈；若已存在上位精靈則避免重複召喚。
+
+隊友祭司完全不施放輔助技能的問題尚未定位到唯一根因，因此未擅自更換 v1.17 已相同的隊友主迴圈，也未宣稱已修好。下一步需對照隊友技能清單中的 autoSupportSkills 勾選值、技能資料 party 屬性、requires/weapon gate、SP 與冷卻，以及實際 castSkill 回傳狀態。
