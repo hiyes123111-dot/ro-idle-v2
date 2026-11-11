@@ -3082,8 +3082,8 @@ function estimateMapYield(mapObj) {
     const critPer = Math.max(1, Math.round(critRaw)) + raceFlatBonus(mon);
     dmg += (normalPer * (1 - critRate) * hitPct + critPer * critRate) * share;
     hp += (mon.hp || 1) * share;
-    exp += (mon.exp || 0) * share;
-    jobExp += (mon.jobExp || 0) * share;
+    exp += (mon.exp || 0) * (Number(mapObj.expMultiplier) || 1) * share;
+    jobExp += (mon.jobExp || 0) * (Number(mapObj.jobExpMultiplier) || Number(mapObj.expMultiplier) || 1) * share;
     gold += Math.round(3 + (mon.level || 1) * 1.4) * share;
   });
 
@@ -7943,61 +7943,26 @@ let _codexPoolCache = null;
 let _codexPoolSignature = '';
 function getCodexPool() {
   // V2／擴充內容會在主資料庫載入後追加地圖與怪物；舊版永久快取會漏掉新怪物及其掉落物。
-  const poolSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${Object.keys(ITEMS).length}:` +
+  const poolSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${Object.keys(ITEMS).length}:${Object.keys(CARDS).length}:` +
     MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|') + ':' +
     Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0);
   if (_codexPoolCache && _codexPoolSignature === poolSignature) return _codexPoolCache;
   _codexPoolSignature = poolSignature;
   _codexPoolCache = null;
-  const monSet = new Set();
-  /* 不給經驗的怪是調校用的假人（目前只有測試波利），不進圖鑑。
-     牠身上掛的掉落物也會跟著不進池——不然圖鑑會出現一件「查得到、但查不到去哪打」的死條目
-     （短剑 [4] 就是唯一一件只有測試波利會掉的裝備）。 */
-  MAPS.forEach(m => (m.monsters || []).forEach(e => {
-    if (MONSTERS[e.id] && (MONSTERS[e.id].exp || 0) > 0) monSet.add(e.id);
-  }));
-  if (typeof MVP_MAP_DATA !== 'undefined') {
-    Object.values(MVP_MAP_DATA).forEach(list => (list || []).forEach(id => { if (MONSTERS[id]) monSet.add(id); }));
-  }
+  // 圖鑑以資料庫為唯一來源：新增任何怪物定義都自動列入，不必先掛到地圖。
+  // 測試怪物也會顯示，避免資料庫已新增的種類在圖鑑中消失。
+  const monSet = new Set(Object.keys(MONSTERS));
   const itemSet = new Set();
-  monSet.forEach(id => {
-    (MONSTERS[id].drops || []).forEach(d => { if (ITEMS[d.item]) itemSet.add(d.item); });
-  });
-  if (typeof MONSTER_CARD_DROPS !== 'undefined') {
-    Object.entries(MONSTER_CARD_DROPS).forEach(([monId, cd]) => {
-      if (monSet.has(monId) && cd && ITEMS[cd.card]) itemSet.add(cd.card);
-    });
-  }
-  Object.values(NPC_SHOPS).forEach(shop => (shop.items || []).forEach(id => { if (ITEMS[id]) itemSet.add(id); }));
-  POTION_TIERS.forEach(id => { if (ITEMS[id]) itemSet.add(id); });
-  /* 遺物也是收藏品（#138）。它們不從掉落表來（頭目掉遺物券、券再去換），
-     所以上面那幾圈一個都掃不到——圖鑑的「遺物」分類會是空的。
-     取得方式在明細裡另外寫（見 ui.js 的 relicSourceHtml）。 */
-  if (typeof RELIC_ITEMS !== 'undefined') {
-    Object.keys(RELIC_ITEMS).forEach(id => { if (ITEMS[id]) itemSet.add(id); });
-  }
-  if (typeof RELIC_TICKET_ID !== 'undefined' && ITEMS[RELIC_TICKET_ID]) itemSet.add(RELIC_TICKET_ID);
-  // V2 職業裝備／四轉裝備即使尚未掛到地圖掉落表，也必須可在圖鑑查詢。
+
+  // 全道具自動收錄：只要 ITEMS 有定義，就列入道具圖鑑；
+  // 卡片由 CARDS 分流到卡片分頁，避免同一張卡在兩個分頁重複。
   Object.keys(ITEMS).forEach(id => {
-    if (/^v2[45]_/.test(id) || /^v24_/.test(id)) itemSet.add(id);
+    if (!CARDS[id]) itemSet.add(id);
   });
-  // 全道具圖鑑自動收錄：只要新道具登錄在 ITEMS，且屬於玩家可取得的
-  // 武器／防具／消耗品／素材／雜物，就自動進入圖鑑，不必再手動維護白名單。
-  // 卡片仍由 CARDS 分流到卡片分頁；crafted_ 是合成內部項目，不列為獨立收藏。
-  // 取得來源由 getItemSources()、商店、箱子與 relicSourceHtml() 動態呈現。
-  Object.entries(ITEMS).forEach(([id, def]) => {
-    if (id.startsWith('crafted_')) return;
-    if (def && ['weapon', 'armor', 'consumable', 'material', 'etc'].includes(def.type)) {
-      itemSet.add(id);
-    }
-  });
-  // 所有已登錄卡片自動進入卡片分頁，即使尚未設定怪物掉落來源也能查到。
-  Object.keys(CARDS).forEach(id => { if (ITEMS[id]) itemSet.add(id); });
-  // 神器、套裝裝備也明確保留（包含未設定標準 type 的舊資料相容）。
-  ['magingiorde','helm_of_mid_sol_god'].forEach(id => {
-    if (ITEMS[id]) itemSet.add(id);
-  });
-  const cardSet = new Set([...itemSet].filter(id => CARDS[id]));
+
+  // 所有卡片定義自動列入卡片圖鑑，不依賴是否已有怪物掉落來源。
+  const cardSet = new Set(Object.keys(CARDS));
+
   _codexPoolCache = {
     monsters: [...monSet].sort((a, b) => (MONSTERS[a].level || 0) - (MONSTERS[b].level || 0)),
     items: [...itemSet].filter(id => !CARDS[id]),
@@ -8264,8 +8229,11 @@ function killMonster(def, monObj) {
     * (1 + buffMult('exp').flatBonus / 100)
     /* 裝備的經驗值加成（快樂氣球 EXP+5%、艾咪斯可魯背包每+2 +1%）。過去只進表沒人讀。 */
     * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100);
-  const gotExp = Math.round(def.exp * expMult * farmMult('exp'));
-  const gotJobExp = Math.round(def.jobExp * expMult * farmMult('exp'));
+  const activeMap = currentMap();
+  const mapExpMultiplier = Math.max(1, Number(activeMap && activeMap.expMultiplier) || 1);
+  const mapJobExpMultiplier = Math.max(1, Number(activeMap && activeMap.jobExpMultiplier) || mapExpMultiplier);
+  const gotExp = Math.round(def.exp * expMult * farmMult('exp') * mapExpMultiplier);
+  const gotJobExp = Math.round(def.jobExp * expMult * farmMult('exp') * mapJobExpMultiplier);
   /* **隊友打死的怪，獎勵要記在玩家頭上。** 隊友是靠 withAlly() 換身跑
      playerAttack() 的，走到這裡時全域的 state 是隊友那份快照——不導回去的話
      經驗、鋅幣、掉落、圖鑑全部進了快照，玩家一毛都拿不到（實測過）。
@@ -13758,8 +13726,26 @@ function effectiveGearBonuses() {
       const effBonus = {};
       let hasPerRefine = false;
       for (const [bk, bv] of Object.entries(cb.bonus || {})) {
+        const itemPm = /^perItem(\d+)Refine_(.+)$/.exec(bk);
         const pm = /^per(\d+)Refine_(.+)$/.exec(bk);
-        if (pm) {
+        if (itemPm) {
+          /* 裝備搭配詞條可指定「另一件裝備」的精煉值作為倍率來源。
+             例如生體研究處女頭冠 + 銳星赤焰弓：弓每精煉+1，銳利射擊傷害+10%。
+             這裡不能使用 host.refine，因為 host 是頭冠本身，不是配對武器。 */
+          const step = Math.max(1, Number(itemPm[1]) || 1);
+          const targets = (cb.when && (cb.when.withAnyItem || cb.when.withItems)) || [];
+          const targetRefine = targets.reduce((best, itemId) => {
+            const slot = Object.values(lo.slots || {}).find(x => x && x.itemId === itemId);
+            return Math.max(best, slot ? Number(slot.refine) || 0 : 0);
+          }, 0);
+          const count = Math.floor(targetRefine / step);
+          if (count > 0) {
+            const tgt = {};
+            tgt[itemPm[2]] = bv * count;
+            mergeBonus(total, tgt);
+          }
+          hasPerRefine = true;
+        } else if (pm) {
           const tgt = {};
           tgt[pm[2]] = bv * Math.floor((host.refine || 0) / Number(pm[1]));
           mergeBonus(total, tgt);
@@ -15301,16 +15287,18 @@ function computeOfflineProgress(minMs) {
   const expMult = 1 + (buffMult('exp').flatBonus || 0) / 100;
   const raceExpOf = def => 1 + ((def && def.race && state.cardExpRace && state.cardExpRace[def.race]) || 0);
   const avgRaceExp = wAvg(m => raceExpOf(m));
-  const expFarm = farmMult('exp') * expMult * avgRaceExp * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100);
+  const mapExpMultiplier = Math.max(1, Number(map.expMultiplier) || 1);
+  const mapJobExpMultiplier = Math.max(1, Number(map.jobExpMultiplier) || mapExpMultiplier);
+  const expFarm = farmMult('exp') * expMult * avgRaceExp * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100) * mapExpMultiplier;
   const goldFarm = farmMult('gold');
   let expGained = Math.round(avgExp * totalKills * expFarm);
-  let jobExpGained = Math.round(avgJobExp * totalKills * expFarm);
+  let jobExpGained = Math.round(avgJobExp * totalKills * expFarm / mapExpMultiplier * mapJobExpMultiplier);
   let goldGained = Math.round((3 + avgLevel * 1.4) * totalKills * goldFarm);
   bossGained.forEach(b => {
     const bd = MONSTERS[b.id];
-    const bm = farmMult('exp') * expMult * raceExpOf(bd);
+    const bm = farmMult('exp') * expMult * raceExpOf(bd) * mapExpMultiplier;
     expGained += Math.round((bd.exp || 0) * b.kills * bm);
-    jobExpGained += Math.round((bd.jobExp || 0) * b.kills * bm);
+    jobExpGained += Math.round((bd.jobExp || 0) * b.kills * bm / mapExpMultiplier * mapJobExpMultiplier);
     goldGained += Math.round((3 + (bd.level || 0) * 1.4) * b.kills * goldFarm);
   });
 
