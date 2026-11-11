@@ -3338,7 +3338,31 @@ function renderCodexTab() {
   const subBar = codexSubBar(ids);
   ids = codexSubFilter(ids);
   if (codexView === 'mon') {
-    rows = ids.map(id => ({ id, name: MONSTERS[id].name, found: !!book.seen[id] }));
+    // 怪物圖鑑固定依「王國／大陸 → 區域 → 地圖 → 等級」排序，
+    // 每隻怪物以 REGIONS 中第一張正式配置地圖作為主歸屬，避免多地圖怪物重複列出。
+    const mapById = new Map((MAPS || []).map(m => [m.id, m]));
+    const regionOrder = new Map((REGIONS || []).map((r, i) => [r.id, i]));
+    const kingdomOrder = new Map();
+    (KINGDOMS || []).forEach((k, ki) => (k.regions || []).forEach(rid => kingdomOrder.set(rid, ki)));
+    const monsterMap = new Map();
+    (REGIONS || []).forEach((region, ri) => (region.maps || []).forEach((mapId, mi) => {
+      const map = mapById.get(mapId);
+      if (!map) return;
+      (map.monsters || []).forEach(entry => {
+        const mid = typeof entry === 'string' ? entry : entry.id;
+        if (mid && !monsterMap.has(mid)) monsterMap.set(mid, { mapId, mapName: map.name || mapId, regionId: region.id,
+          regionName: region.name, regionIndex: ri, mapIndex: mi, kingdomIndex: kingdomOrder.has(region.id) ? kingdomOrder.get(region.id) : 999 });
+      });
+    }));
+    const monsterNameZh = { ill_kraken: '深淵海王', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+    rows = ids.map(id => {
+      const d = MONSTERS[id] || {};
+      const loc = monsterMap.get(id) || { mapId: '', mapName: '未配置地圖', regionId: '', regionName: '未分類／特殊怪物', regionIndex: 999, mapIndex: 999, kingdomIndex: 999 };
+      const kingdom = (KINGDOMS || []).find(k => (k.regions || []).includes(loc.regionId));
+      return { id, name: monsterNameZh[id] || d.name || id, found: !!book.seen[id], ...loc,
+        kingdomName: kingdom ? kingdom.name : '未分類／特殊怪物', level: Number(d.level) || 0 };
+    }).sort((a, b) => a.kingdomIndex - b.kingdomIndex || a.regionIndex - b.regionIndex ||
+      a.mapIndex - b.mapIndex || a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
   } else if (codexView === 'card') {
     rows = ids.map(id => ({ id, name: (CARDS[id] || ITEMS[id]).name, found: !!book.item[id] }));
   } else if (codexView === 'hidden') {
@@ -3404,10 +3428,18 @@ function renderCodexTab() {
     html += '<div class="empty-hint">沒有符合條件的項目。</div>';
   } else {
     html += '<div class="codex-grid">';
+    let lastMonsterGroup = '';
     pageRows.forEach(r => {
-      html += (codexView === 'mon') ? codexMonCell(r, book)
-        : (codexView === 'hidden') ? codexBoxCell(r, book)
-        : codexItemCell(r, book);
+      if (codexView === 'mon') {
+        const groupKey = `${r.kingdomName}|||${r.regionName}|||${r.mapName}`;
+        if (groupKey !== lastMonsterGroup) {
+          html += `<div class="codex-monster-group" style="grid-column:1/-1;padding:9px 11px;margin:8px 0 2px;border-left:3px solid var(--gold);background:rgba(180,150,80,.10);border-radius:6px;font-weight:700;">${r.kingdomName}　›　${r.regionName}　›　${r.mapName}</div>`;
+          lastMonsterGroup = groupKey;
+        }
+        html += codexMonCell(r, book);
+      } else {
+        html += (codexView === 'hidden') ? codexBoxCell(r, book) : codexItemCell(r, book);
+      }
     });
     html += '</div>';
   }
@@ -3429,10 +3461,11 @@ function renderCodexTab() {
 function codexMonCell(r, book) {
   const d = MONSTERS[r.id];
   const kills = book.mon[r.id] || 0;
+  const displayName = r.name || d.name || r.id;
   const elemIcon = ELEMENT_ICONS[d.element] || '⚪';
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${r.found ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
-    <img class="codex-icon" src="${monsterImgSrc(r.id)}" alt="${d.name}" onerror="this.onerror=null;this.src='${placeholderImgSrc('monster')}'">
-    <div class="codex-cell-name">${d.name}</div>
+    <img class="codex-icon" src="${monsterImgSrc(r.id)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc('monster')}'">
+    <div class="codex-cell-name">${displayName}</div>
     <div class="codex-cell-sub">Lv.${d.level || '?'} ${elemIcon}</div>
     <div class="codex-cell-count ${kills ? '' : 'zero'}">${kills ? '☠ ' + kills : '未遇過'}</div>
   </div>`;
@@ -3586,6 +3619,8 @@ function renderCodexDetail(id) {
     if (!d) return '';
     const kills = book.mon[id] || 0;
     const maps = getMonsterMaps(id);
+    const monsterNameZh = { ill_kraken: '深淵海王', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+    const displayMonsterName = monsterNameZh[id] || d.name || id;
     const drops = (d.drops || []).slice().sort((a, b) => b.chance - a.chance);
     const cd = (typeof MONSTER_CARD_DROPS !== 'undefined') ? MONSTER_CARD_DROPS[id] : null;
     const dropRows = drops.map(x => {
@@ -3615,7 +3650,7 @@ function renderCodexDetail(id) {
       <div class="codex-detail-head">
         <img class="codex-detail-icon" src="${monsterImgSrc(id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('monster')}'">
         <div>
-          <div class="codex-detail-name">${d.name} <span class="codex-detail-lv">Lv.${d.level || '?'}</span></div>
+          <div class="codex-detail-name">${displayMonsterName} <span class="codex-detail-lv">Lv.${d.level || '?'}</span></div>
           <div class="codex-detail-tags">
             <span>${ELEMENT_ICONS[d.element] || '⚪'} ${ELEMENT_NAMES[d.element] || d.element || '無'}</span>
             ${d.race ? `<span>${RACE_LABELS[d.race] || d.race}</span>` : ''}
@@ -3660,7 +3695,7 @@ function renderCodexDetail(id) {
     if (!m) return '';
     return `<div class="codex-spot ${s.mvp ? 'mvp' : ''}">
       <img class="codex-spot-icon" src="${monsterImgSrc(s.mon)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('monster')}'">
-      <span class="codex-spot-mon">${s.mvp ? '👑' : ''}${m.name}<span class="codex-src-lv">Lv.${m.level || '?'}</span></span>
+      <span class="codex-spot-mon">${s.mvp ? '👑' : ''}${({ ill_kraken: '深淵海王', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' })[s.mon] || m.name}<span class="codex-src-lv">Lv.${m.level || '?'} </span></span>
       <span class="codex-drop-rate" title="掉落率">${(s.dropChance * 100).toFixed(2)}%</span>
       <span class="codex-spot-name">${s.mapName}</span>
       ${s.mvp ? '<span class="codex-spot-mvp" title="需在自動戰鬥頁面開啟 BOSS 模式">BOSS 模式</span>' : ''}
@@ -3668,6 +3703,8 @@ function renderCodexDetail(id) {
       <button class="codex-go" onclick="event.stopPropagation();codexGoToMap('${s.mapId}')">前往</button>
     </div>`;
   }).join('');
+  const albumSource = card && !spots.length && typeof getCardAcquisitionSource === 'function' ? getCardAcquisitionSource(id) : null;
+  const albumRows = albumSource && albumSource.type === 'album' ? `<div class="codex-spot box-source"><img class="codex-spot-icon" src="${itemImgSrc(albumSource.itemId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-spot-mon">📦 ${albumSource.name}</span><span class="codex-spot-name">卡冊收錄；官方未公開此卡於卡冊內的逐卡數值機率</span></div>` : '';
   const shopRows = Object.values(NPC_SHOPS)
     .filter(sh => (sh.items || []).includes(id))
     .map(sh => `<div class="codex-spot shop"><span class="codex-spot-mon">🏪 ${sh.name || '商店'}</span>
@@ -3721,7 +3758,7 @@ function renderCodexDetail(id) {
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
     ${unimpl}
     <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
-    <div class="codex-spots">${relicRows}${shopRows}${boxRows}${srcRows || (relicRows || shopRows || boxRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
+    <div class="codex-spots">${relicRows}${shopRows}${boxRows}${albumRows}${srcRows || (relicRows || shopRows || boxRows || albumRows ? '' : '<div class="dim">沒有怪物掉落、箱子來源或商店販售紀錄</div>')}</div>
   </div>`;
 }
 

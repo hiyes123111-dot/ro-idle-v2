@@ -3456,7 +3456,15 @@ const BOX_POOLS = {
    MVP 30 張、迷你王 39 張。 */
 const CARD_ALBUM_WEIGHT = { mvp: 0.02, miniBoss: 0.1, normal: 1 };
 let _bossCardKind = null;
+const ALBUM_MVP_CARD_IDS = new Set([
+  'ep21_tris_card','ep21_tan_borg_card','ep21_bihailin_card','ep21_reinhardt_card',
+  'ep21_evan_wigner_card','ep21_lalila_card','ep21_richard_card','ep21_lora_card',
+  'ep21_aurely_card','ep21_ylze_card','ep21_epesto_card','ep21_mary_stella_card',
+  'ep21_john_card','ep21_kunt_card','ep21_galacia_card','ep21_iana_card',
+  'ep21_lee_card','ep21_nadoyou_card'
+]);
 function bossCardKind(cardId) {
+  if (ALBUM_MVP_CARD_IDS.has(cardId)) return 'mvp';
   if (!_bossCardKind) {
     _bossCardKind = {};
     for (const [monKey, d] of Object.entries(MONSTER_CARD_DROPS)) {
@@ -3495,7 +3503,8 @@ Object.assign(BOX_POOLS, {
   },
   // 老舊收集冊：MVP 由 drawFromBox 的固定 0.01% 專屬區間抽取，主卡池排除 MVP，避免重複計算。
   card: { build: () => cardDrawable().filter(k => bossCardKind(k) !== 'mvp'), weight: cardWeight },
-  cardFlat: { build: cardDrawable },     // 完全平均
+  // 具有魔力的卡片冊專收 MVP 卡；普通／迷你王卡留在老舊收集冊。
+  cardFlat: { build: () => cardDrawable().filter(k => bossCardKind(k) === 'mvp') },
 });
 Object.entries(ALBUM_SLOT).forEach(([album, slot]) => {
   BOX_POOLS['card_' + slot] = {
@@ -3560,17 +3569,19 @@ const TOMB_MVP_ALBUM_CARDS = [
   'v_b_trentini_card',
 ];
 
-/* 老舊收集冊：全部 MVP 卡總機率固定為 0.01%（目前 30 張 MVP 卡均分，
-   每張約 0.00033333%）；一般卡池已排除 MVP，避免額外權重再次提高總機率。
-   其他卡冊沿用原本的稀有獎勵機制，不受本次調整影響。 */
+/* MVP 卡只由具有魔力的卡片冊抽出；老舊收集冊主池排除 MVP。
+   官方公開資料未提供兩種卡冊逐卡的完整數值機率，因此保留既有卡冊抽取機制，
+   不將未公開數值宣稱為官方機率。 */
 function drawFromBox(kind) {
+  // 老舊收集冊：沿用本作先前指定的 MVP 卡總機率 0.01%（每次開冊獨立判定）。
+  // 官方公告未公開逐張卡冊機率，故此數值是本作設定，不宣稱為官方掉率。
   if (kind === 'card') {
-    if (Math.random() < 0.0001) {
-      const eligible = cardDrawable().filter(card => bossCardKind(card) === 'mvp');
-      if (eligible.length) return eligible[Math.floor(Math.random() * eligible.length)];
+    const mvpPool = cardDrawable().filter(id => bossCardKind(id) === 'mvp');
+    if (mvpPool.length && Math.random() < 0.0001) {
+      return mvpPool[Math.floor(Math.random() * mvpPool.length)];
     }
   }
-  if (kind === 'cardFlat' || kind === 'card_garment') {
+  if (kind === 'card_garment') {
     const r = Math.random();
     if (r < 0.0013) {
       const card = TOMB_MVP_ALBUM_CARDS[Math.floor(r / 0.0001)];
@@ -3946,6 +3957,20 @@ const MONSTER_RANGED_BASIC_ATTACKS = new Set([
 
 function isMonsterRangedBasicAttack(monDef) {
   return !!(monDef && MONSTER_RANGED_BASIC_ATTACKS.has(String(monDef.id || '').toLowerCase()));
+}
+
+// 怪物遠距離物理技能：魔法技能不納入；物理技能只接受明確標記或已知弓系技能 ID。
+// 白名單保留玩家端同名技能 ID，供共用技能資料與怪物技能資料沿用。
+const MONSTER_RANGED_PHYSICAL_SKILLS = new Set([
+  'AC_DOUBLE', 'AC_SHOWER', 'AC_CHARGEARROW', 'SN_SHARPSHOOTING',
+  'ac_double', 'ac_shower', 'ac_chargearrow', 'sn_sharpshooting',
+  'ac_double_strafe', 'ac_arrow_shower', 'ac_charge_arrow', 'sn_sharp_shooting'
+]);
+function isMonsterRangedPhysicalSkill(sk) {
+  if (!sk || sk.magic) return false;
+  const id = String(sk.id || sk.skillId || '').trim();
+  return sk.rangeType === 'ranged' || MONSTER_RANGED_PHYSICAL_SKILLS.has(id)
+    || MONSTER_RANGED_PHYSICAL_SKILLS.has(id.toUpperCase());
 }
 
 function applyPlayerReflect(mon, monDef, dmgTaken) {
@@ -7489,7 +7514,9 @@ function monsterCastSkillInner(mon, monDef, sk) {
     raw *= Math.max(0, 1 - Math.max(0, skillSizeResist) / 100);
     // 距離與傷害類型分開判定：魔法技能一律遠距離；物理技能一律近距離。
     // 遠距離減傷可與魔法技能自身的魔法承傷分類同時生效。
-    if (sk.magic) {
+    if (sk.magic || isMonsterRangedPhysicalSkill(sk)) {
+      // 魔法技能與遠距離物理技能都屬遠距離承傷；物理近戰技能不吃此詞條。
+      // 舊卡片 rangedDmgTakenPct 與現行 rangedDmgResist 合併，避免重複或漏算。
       const rangedResist = getCardBonus('rangedDmgResist') - getCardBonus('rangedDmgTakenPct');
       raw *= Math.max(0, 1 - Math.max(0, rangedResist) / 100);
     }
@@ -7974,6 +8001,15 @@ function getCodexPool() {
 // 哪些怪會掉這個道具（圖鑑的「取得來源」欄用）
 let _codexSourceCache = null;
 let _codexSourceSignature = '';
+function getCardAcquisitionSource(cardId) {
+  const card = CARDS[cardId];
+  if (!card) return null;
+  const monsters = getItemSources(cardId);
+  if (monsters.length) return { type: 'monster', sources: monsters };
+  const album = card.albumSource || (bossCardKind(cardId) === 'mvp' ? 'magic_card_album' : 'old_card_album');
+  return { type: 'album', itemId: album, name: ITEMS[album]?.name || (album === 'magic_card_album' ? '具有魔力的卡片冊' : '老舊收集冊') };
+}
+
 function getItemSources(itemId) {
   const sourceSignature = `${Object.keys(MONSTERS).length}:${MAPS.length}:${Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0)}`;
   if (!_codexSourceCache || _codexSourceSignature !== sourceSignature) {
@@ -8424,8 +8460,8 @@ function onPlayerDown() {
 
    99 之後的每一級都要靠打寶模式才走得動——曲線就是照那個前提配的，
    見 data.js 的 expToNextBaseLevel()。 */
-const BASE_LEVEL_CAP = 250;
-const BASE_LEVEL_CAP_ADVANCED = 250;
+const BASE_LEVEL_CAP = 275;
+const BASE_LEVEL_CAP_ADVANCED = 275;
 const STAT_CAP = 99;
 const STAT_CAP_ADVANCED = 130;
 function isTier3(jobId) {
@@ -8435,7 +8471,7 @@ function isTier3(jobId) {
 function baseLevelCapOf(jobId) {
   const jd = JOB_TREE[jobId || (state && state.jobId)];
   const tier = jd?.tier ?? 0;
-  if (tier >= 3) return BASE_LEVEL_CAP_ADVANCED;  // 3轉 250
+  if (tier >= 3) return BASE_LEVEL_CAP_ADVANCED;  // 3轉 275
   return 99;  // 1轉、2轉、進階二轉都 99
 }
 function statCapOf(jobId) {
@@ -13785,8 +13821,19 @@ function effectiveGearBonuses() {
         const effBonus = {};
         let hasPerRefine = false;
         for (const [bk, bv] of Object.entries(cb.bonus || {})) {
+          const itemPm = /^perItem(\d+)Refine_(.+)$/.exec(bk);
           const pm = /^per(\d+)Refine_(.+)$/.exec(bk);
-          if (pm) {
+          if (itemPm) {
+            const step = Math.max(1, Number(itemPm[1]) || 1);
+            const targets = (cb.when && (cb.when.withAnyItem || cb.when.withItems)) || [];
+            const targetRefine = targets.reduce((best, itemId) => {
+              const slot = Object.values(lo.slots || {}).find(x => x && x.itemId === itemId);
+              return Math.max(best, slot ? Number(slot.refine) || 0 : 0);
+            }, 0);
+            const count = Math.floor(targetRefine / step);
+            if (count > 0) { const tgt = {}; tgt[itemPm[2]] = bv * count; mergeBonus(total, tgt); }
+            hasPerRefine = true;
+          } else if (pm) {
             const tgt = {};
             tgt[pm[2]] = bv * Math.floor(((host && host.refine) || 0) / +pm[1]);
             mergeBonus(total, tgt);
