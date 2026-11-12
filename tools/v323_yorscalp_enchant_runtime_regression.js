@@ -1,0 +1,32 @@
+// v2.5.323 Yorscalp headgear enchant runtime regression
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const data=fs.readFileSync('js/data.js','utf8');
+const c={};vm.createContext(c);
+vm.runInContext(data+';globalThis.x={ITEMS};',c,{timeout:30000});
+const I=c.x.ITEMS;
+const ids=['str','int','smart','speed','def'].flatMap(k=>[1,2,3,4].map(n=>'yorscalp_'+k+n));
+assert.equal(ids.length,20);
+for(const id of ids){assert(I[id],id+' material exists');assert(I[id].name.startsWith('耶斯卡夫的'),id+' localized');}
+const eng=fs.readFileSync('js/engine.js','utf8');
+assert(eng.includes("const YORSCALP_CIRCLET_IDS = ['yorscalp_p_circlet', 'yorscalp_m_circlet']"),'only the two circlets are enchantable');
+assert(eng.includes('const enchant = (inst && inst.enchant) || null;'),'instance enchant enters loadout');
+assert(eng.includes("${d.enchant || '-'}"),'enchant included in gear cache signature');
+const helper=eng.slice(eng.indexOf('const YORSCALP_CIRCLET_IDS'),eng.indexOf('function effectiveGearBonuses'));
+const hc={};vm.createContext(hc);vm.runInContext(helper+';globalThis.fn=yorscalpEnchantBonus;',hc);
+const bonus=hc.fn('yorscalp_str4',10);
+assert.equal(bonus.atk,75,'+10 STR4 gives five +2 stacks');
+assert.equal(bonus.pAtk,10,'+10 STR4 gives two +4 stacks');
+const intBonus=hc.fn('yorscalp_int3',8);
+assert.equal(intBonus.matk,40);assert.equal(intBonus.sMatk,6);
+const speed=hc.fn('yorscalp_speed2',8);
+assert.equal(speed.atk,20);assert.equal(speed.matk,20);
+assert.equal(speed.afterAttackDelayPct,4);assert.equal(speed.skillAfterDelayPct,4);
+const def=hc.fn('yorscalp_def4',8);
+assert.equal(def.hpPct,10,'DEF4 +8 gives MHP +10%');
+const ui=fs.readFileSync('js/ui.js','utf8');
+assert(ui.includes("showYorscalpEnchantPanel('${slotKey}')"),'equipment action panel exposes enchant entry');
+assert(ui.includes('removeItem(enchantId, 1)'),'enchant consumes one material');
+assert(ui.includes('state.instances[instRef].enchant = enchantId'),'enchant is stored on equipment instance');
+assert(ui.includes('更換時會覆蓋') || ui.includes('舊附魔不會退還'),'replacement behavior is explained');
+assert(ui.includes('RES/MRES，目前遊戲引擎尚無完整計算系統'),'unsupported effects disclosed');
+console.log('v2.5.323 Yorscalp enchant runtime: PASS (20 materials, refine scaling, instance persistence, UI and limits)');

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="320" viewBox="0 0 240 320">
+<defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#182238"/><stop offset="1" stop-color="#080d19"/></linearGradient><linearGradient id="g" x2="1" y2="1"><stop stop-color="#e9d59a"/><stop offset="1" stop-color="#9a7330"/></linearGradient></defs>
+<rect x="5" y="5" width="230" height="310" rx="14" fill="url(#bg)" stroke="url(#g)" stroke-width="5"/>
+<path d="M35 202 Q58 112 116 69 Q151 39 188 73 Q154 78 148 108 Q191 95 207 130 Q167 128 154 158 Q131 191 85 199Z" fill="#9aa5ba" opacity=".82"/>
+<path d="M65 210 Q88 174 114 154 Q140 136 164 146 Q141 163 132 191 Q110 221 65 210Z" fill="#d8ddec" opacity=".75"/>
+<circle cx="149" cy="115" r="7" fill="#d8b66c"/>
+<path d="M28 228 H212" stroke="#b99857" stroke-width="2"/>
+<text x="120" y="258" fill="#f1dfad" font-size="16" text-anchor="middle" font-family="sans-serif">尼德霍格幻影卡片</text>
+<text x="120" y="283" fill="#aeb9cc" font-size="11" text-anchor="middle" font-family="sans-serif">NIDHOGG SHADOW</text>
+</svg>

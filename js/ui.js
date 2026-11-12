@@ -2193,6 +2193,11 @@ function renderMapTab() {
           <div class="town-npc-name">魏格納商隊兌換員</div>
           <div class="town-npc-hint">18 種 EP21 卡片碎片・30 個兌換 1 張</div>
         </div>
+        <div class="town-npc-card" onclick="openYorscalpBlacksmith();">
+          <div class="town-npc-icon">⚒️</div>
+          <div class="town-npc-name">鐵匠珊珊</div>
+          <div class="town-npc-hint">凱渥寶樂格防具改造為耶斯卡夫裝備</div>
+        </div>
       </div>
     </div>
     ` : ''}`;
@@ -2257,6 +2262,53 @@ function doEp21WignerExchange(cardId) {
   if (!result.ok) { if (typeof logMsg === 'function') logMsg(`⚠️ 兌換失敗：${result.reason}`); }
   openEp21WignerExchange();
   if (result.ok && typeof renderInventoryTab === 'function') renderInventoryTab();
+}
+
+
+const YORSCALP_REFORGE_UI_ROWS = [
+  ['gaebolg_armor','yorscalp_armor'],['gaebolg_robe','yorscalp_robe'],
+  ['gaebolg_manteau','yorscalp_manteau'],['gaebolg_muffler','yorscalp_muffler'],
+  ['gaebolg_boots','yorscalp_boots'],['gaebolg_shoes','yorscalp_shoes'],
+  ['gaebolg_earring','yorscalp_earring'],['gaebolg_glove','yorscalp_glove'],
+  ['gaebolg_ring','yorscalp_ring'],['gaebolg_necklace','yorscalp_necklace']
+];
+function openYorscalpBlacksmith() {
+  const old=document.getElementById('yorscalp-blacksmith'); if(old) old.remove();
+  const owner=typeof allyOwnerState==='function'?allyOwnerState():state;
+  const inv=owner.inventory||[];
+  const materialRows=[
+    ['ep21_wigner_ticket',200],['yorscalp_spirit',200],
+    ['yorscalp_symbol',50],['yorscalp_serpent',10]
+  ];
+  const materials=materialRows.map(([id,need])=>{
+    const have=getItemQty(id);
+    return `<span style="display:inline-block;margin:3px 8px 3px 0">${ITEMS[id]?.name||id}：${have}/${need}</span>`;
+  }).join('');
+  const rows=YORSCALP_REFORGE_UI_ROWS.map(([base,result])=>{
+    const count=inv.filter(r=>r.item===base).length;
+    const ready=count>0&&materialRows.every(([id,n])=>getItemQty(id)>=n);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 2px;border-bottom:1px solid var(--border,#444)">
+      <div style="min-width:0"><strong>${ITEMS[result]?.name||result}</strong><div class="dim" style="font-size:12px">底裝：${ITEMS[base]?.name||base}（持有 ${count} 件）</div></div>
+      <button class="btn-small ${ready?'':'ghost'}" ${ready?'':'disabled'} onclick="doYorscalpReforge('${base}')">改造</button></div>`;
+  }).join('');
+  const wrap=document.createElement('div'); wrap.id='yorscalp-blacksmith';
+  wrap.style.cssText='position:fixed;inset:0;z-index:10051;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:14px';
+  wrap.innerHTML=`<div style="width:min(650px,100%);max-height:86vh;overflow:auto;background:var(--panel,#20242b);color:var(--text,#fff);border:1px solid var(--border,#555);border-radius:14px;padding:16px;box-shadow:0 12px 40px #0009">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><h3 style="margin:0">⚒️ 鐵匠珊珊・耶斯卡夫改造</h3><button class="btn-small ghost" onclick="closeYorscalpBlacksmith()">關閉</button></div>
+    <p class="dim">成功率 100%。同部位凱渥寶樂格裝備改造成耶斯卡夫裝備，保留精煉、階級、卡片及附魔。</p>
+    <div style="padding:10px;background:var(--surface,#161a20);border-radius:8px;margin-bottom:10px">${materials}</div>
+    ${rows}
+    <p class="dim" style="font-size:12px;margin-bottom:0">改造材料：魏格納商隊兌換證 ×200、耶斯卡夫的精神 ×200、詛咒的象徵 ×50、墮落之蛇的形象 ×10。</p>
+  </div>`;
+  wrap.addEventListener('click',ev=>{if(ev.target===wrap)closeYorscalpBlacksmith();});
+  document.body.appendChild(wrap);
+}
+function closeYorscalpBlacksmith(){const el=document.getElementById('yorscalp-blacksmith');if(el)el.remove();}
+function doYorscalpReforge(baseId){
+  const result=reforgeYorscalpEquipment(baseId);
+  if(!result.ok&&typeof logMsg==='function')logMsg(`⚠️ 改造失敗：${result.reason}`);
+  openYorscalpBlacksmith();
+  if(result.ok&&typeof renderInventoryTab==='function')renderInventoryTab();
 }
 
 function onKingdomSelectChange(kingdomId) {
@@ -3729,7 +3781,15 @@ function renderCodexDetail(id) {
         const got = book.item[d.id] || 0;
         return `<div class="codex-drop ${got ? 'got' : ''}"><img src="${itemImgSrc(d.id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-drop-name">${it.name}</span><span class="codex-drop-rate">${d.chance.toFixed(2)}%</span><span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span></div>`;
       }).join('');
-      specialRewardRows = rows + hats + collectibles;
+      const gaebolgDrops = [
+        ...['gaebolg_armor','gaebolg_robe','gaebolg_manteau','gaebolg_muffler','gaebolg_boots','gaebolg_shoes'].map(id=>({id,chance:20/6})),
+        ...['gaebolg_earring','gaebolg_glove','gaebolg_ring','gaebolg_necklace'].map(id=>({id,chance:60/4}))
+      ].map(d => {
+        const it=ITEMS[d.id]; if(!it) return '';
+        const got=book.item[d.id]||0;
+        return `<div class="codex-drop ${got?'got':''}"><img src="${itemImgSrc(d.id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-drop-name">${it.name}</span><span class="codex-drop-rate">${d.chance.toFixed(2)}%</span><span class="codex-drop-got">${got?'✔ ×'+got:'—'}</span></div>`;
+      }).join('');
+      specialRewardRows = rows + hats + collectibles + gaebolgDrops;
     }
     return `<div class="codex-detail">
       <button class="codex-detail-close" onclick="toggleCodexDetail('${id}')">✕</button>
@@ -3868,8 +3928,11 @@ const CARD_BONUS_LABELS = {
   expAllPct: '經驗值', dropPct: '掉寶率'
 };
 function cardArtSrc(cardId) {
+  const fallback = (typeof CARD_ART_FALLBACKS !== 'undefined') ? CARD_ART_FALLBACKS[cardId] : null;
+  if (fallback) return fallback;
   const it = ITEMS[cardId];
-  return `images/cards/${it ? it.imgId : cardId}.jpg`;
+  const imageId = it && Number(it.imgId) > 0 ? Number(it.imgId) : null;
+  return imageId ? resolveImgPath(`cards/${imageId}.jpg`) : 'images/_placeholder_card.svg';
 }
 /* 百分比型的加成鍵，顯示時要帶 % */
 const CARD_PCT_KEYS = [
@@ -4334,6 +4397,7 @@ function showSlotActions(slotKey) {
   const instRef = state.equip && state.equip[slotKey];
   const inst = instRef && state.instances && state.instances[instRef] ? state.instances[instRef] : null;
   const currentGrade = inst && (inst.grade || inst.itemGrade) ? String(inst.grade || inst.itemGrade).toUpperCase() : '';
+  const currentEnchantId = inst && inst.enchant ? inst.enchant : null;
 
   let html = `<h3 class="panel-title">${ref > 0 ? `+${ref} ` : ''}${window.getItemDisplayName(itemId)}</h3>`;
   html += `<button class="btn-small" onclick="renderEquipTab()">← 返回裝備欄</button>`;
@@ -4343,6 +4407,9 @@ function showSlotActions(slotKey) {
      maxSlots ? `插槽 ${cards.length}/${maxSlots}` : ''].filter(Boolean).join('　')}</div>`;
   if (cards.length) {
     html += `<div class="equip-pick-cards">🃏 ${cards.map(id => CARDS[id] ? CARDS[id].name : id).join('、')}</div>`;
+  }
+  if (YORSCALP_CIRCLET_IDS.includes(itemId) && currentEnchantId) {
+    html += `<div class="equip-pick-cards">✨ 已附魔：${yorscalpEnchantDisplayName(currentEnchantId)}</div>`;
   }
   if (itemHasGradeBonus(d)) {
     html += `<div class="equip-pick-stats" style="margin:8px 0">
@@ -4358,10 +4425,95 @@ function showSlotActions(slotKey) {
     ${maxSlots > cards.length ? `<button class="btn-small ghost" onclick="showCardSelect('${slotKey}')">插卡</button>` : ''}
     ${cards.length ? `<button class="btn-small ghost danger" onclick="doRemoveCard('${slotKey}')">取出卡片</button>` : ''}
     <button class="btn-small ghost" onclick="showRefinePanel('${slotKey}')">精煉</button>
+    ${YORSCALP_CIRCLET_IDS.includes(itemId) ? `<button class="btn-small ghost" onclick="showYorscalpEnchantPanel('${slotKey}')">頭冠附魔</button>` : ''}
   </div>`;
   el.innerHTML = html;
 }
 
+
+
+const YORSCALP_ENCHANT_GROUPS = [
+  {key:'str',name:'力量',ids:['yorscalp_str1','yorscalp_str2','yorscalp_str3','yorscalp_str4']},
+  {key:'int',name:'智能',ids:['yorscalp_int1','yorscalp_int2','yorscalp_int3','yorscalp_int4']},
+  {key:'smart',name:'聰慧',ids:['yorscalp_smart1','yorscalp_smart2','yorscalp_smart3','yorscalp_smart4']},
+  {key:'speed',name:'速度',ids:['yorscalp_speed1','yorscalp_speed2','yorscalp_speed3','yorscalp_speed4']},
+  {key:'def',name:'防禦',ids:['yorscalp_def1','yorscalp_def2','yorscalp_def3','yorscalp_def4']}
+];
+function yorscalpEnchantDisplayName(id) {
+  const group = YORSCALP_ENCHANT_GROUPS.find(g => g.ids.includes(id));
+  if (!group) return id || '無';
+  return `${group.name}${group.ids.indexOf(id)+1}Lv`;
+}
+function yorscalpEnchantEffectText(id) {
+  const level = Number(String(id).slice(-1)) || 1;
+  const base = [3,5,10,15][level-1];
+  const secondary = [1,2,3,5][level-1];
+  if (id.startsWith('yorscalp_str')) return `每精煉+2：ATK +${base}；每+4：P.ATK +${secondary}`;
+  if (id.startsWith('yorscalp_int')) return `每精煉+2：MATK +${base}；每+4：S.MATK +${secondary}`;
+  if (id.startsWith('yorscalp_smart')) return `每精煉+2：ATK、MATK +${base}；每+4：變動詠唱 -${level}%、技能後延遲 -${level}%`;
+  if (id.startsWith('yorscalp_speed')) return `每精煉+2：ATK、MATK +${base}；每+4：攻擊後延遲、技能後延遲 -${level}%`;
+  const hp = [1,2,3,5][level-1];
+  const res = [5,10,20,25][level-1];
+  return `每精煉+2：RES、MRES +${res}；每+4：MHP +${hp}%`;
+}
+function showYorscalpEnchantPanel(slotKey) {
+  const itemId = getEquipBaseItemId(slotKey);
+  if (!YORSCALP_CIRCLET_IDS.includes(itemId)) {
+    showToast('只有耶斯卡夫執行之冠／審判之冠可以附魔');
+    return;
+  }
+  const el = document.getElementById('tab-equip');
+  if (!el) return;
+  const instRef = state.equip && state.equip[slotKey];
+  const inst = instRef && state.instances && state.instances[instRef] ? state.instances[instRef] : null;
+  const current = inst && inst.enchant ? inst.enchant : null;
+  let html = `<h3 class="panel-title">✨ 耶斯卡夫頭冠附魔</h3>
+    <button class="btn-small" onclick="showSlotActions('${slotKey}')">← 返回裝備</button>
+    <p class="muted" style="margin:8px 0">選擇背包持有的附魔材料，成功後消耗 1 個並記錄在這件裝備個體上。此版本採單一附魔欄位；更換會覆蓋舊附魔，舊材料不退還。</p>
+    ${current ? `<div class="equip-pick-cards">目前附魔：${yorscalpEnchantDisplayName(current)}</div>` : '<div class="equip-pick-cards">目前尚未附魔</div>'}`;
+  YORSCALP_ENCHANT_GROUPS.forEach(group => {
+    html += `<section style="margin:12px 0"><h4>${group.name}</h4><div class="equip-pick-list">`;
+    group.ids.forEach(id => {
+      const qty = getItemQty(id);
+      const level = group.ids.indexOf(id)+1;
+      html += `<div class="equip-pick-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;padding:8px;border:1px solid var(--border-color,#555);border-radius:8px">
+        <div><strong>${group.name}${level}Lv</strong><div class="muted" style="font-size:12px">${yorscalpEnchantEffectText(id)}</div><div class="muted" style="font-size:12px">持有：${qty}</div></div>
+        <button class="btn-small ${qty > 0 ? '' : 'ghost'}" ${qty > 0 ? `onclick="applyYorscalpEnchant('${slotKey}','${id}')"` : 'disabled'}>${current === id ? '已附魔' : '附魔'}</button>
+      </div>`;
+    });
+    html += `</div></section>`;
+  });
+  html += `<p class="muted" style="font-size:12px">注意：聰慧／速度的技能後延遲、變動詠唱，以及防禦附魔的 RES/MRES，目前遊戲引擎尚無完整計算系統；其餘 ATK、MATK、P.ATK、S.MATK、攻擊後延遲及 MHP 會依頭冠精煉值套用。</p>`;
+  el.innerHTML = html;
+}
+function applyYorscalpEnchant(slotKey, enchantId) {
+  const itemId = getEquipBaseItemId(slotKey);
+  if (!YORSCALP_CIRCLET_IDS.includes(itemId) || !YORSCALP_ENCHANT_RULES[enchantId]) return false;
+  if (getItemQty(enchantId) < 1) {
+    showToast(`缺少附魔材料：${ITEMS[enchantId] ? ITEMS[enchantId].name : enchantId}`);
+    return false;
+  }
+  const instRefBefore = state.equip && state.equip[slotKey];
+  const existing = instRefBefore && state.instances && state.instances[instRefBefore] ? state.instances[instRefBefore].enchant : null;
+  if (existing === enchantId) {
+    showToast('這件裝備已經有相同附魔');
+    return false;
+  }
+  if (existing && !confirm(`目前已有「${yorscalpEnchantDisplayName(existing)}」，確定消耗新材料並覆蓋嗎？舊附魔不會退還。`)) return false;
+  removeItem(enchantId, 1);
+  const instRef = getOrCreateEquipInstance(slotKey);
+  if (!instRef) {
+    addItem(enchantId, 1);
+    return false;
+  }
+  state.instances[instRef].enchant = enchantId;
+  recomputeDerived(false);
+  saveGame();
+  if (typeof renderTopBar === 'function') renderTopBar();
+  showYorscalpEnchantPanel(slotKey);
+  showToast(`已附魔：${yorscalpEnchantDisplayName(enchantId)}`);
+  return true;
+}
 
 function setEquipGrade(slotKey, grade) {
   const panel = document.getElementById('tab-equip');

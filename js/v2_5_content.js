@@ -29,7 +29,7 @@
       // 依網站風鷹技能圖鑑更新；保留既有索引 7～10，讓陷阱引擎的 ID 不變。
       ['自然親和',5,'buff_flee','neutral'],['風之印記',5,'passive','atkFlat'],['增幅箭',10,'damage','wind'],['疾風暴',10,'damage_aoe','wind'],['災厄疾風',5,'buff_atk','neutral'],['進階陷阱研究',5,'passive','atkFlat'],
       ['堅固陷阱',5,'passive','rangerTrapProc'],['烈焰陷阱',5,'passive','rangerTrapProc'],['深盲陷阱',5,'passive','rangerTrapProc'],['迅捷陷阱',5,'passive','rangerTrapProc'],
-      ['鷹之熟練',1,'passive','hitFlat'],['鷹之迴旋',5,'damage','neutral'],['鷹擊',5,'damage','neutral'],['野性步伐',5,'passive','fleeFlat'],['漸進射擊',5,'damage','neutral','v25_windhawk_progressive_shot']
+      ['鷹之熟練',1,'passive','hitFlat'],['鷹之迴旋',5,'damage','neutral'],['鷹擊',5,'damage','neutral'],['野性步伐',5,'passive','fleeFlat'],['漸進射擊',5,'damage','neutral','v25_windhawk_progressive_shot'],['狂野疾行',5,'damage_multi','weapon','wh_wild_walk']
     ],
     troubadour: [
       ['舞台禮儀',5,'passive','atkFlat'],['美聲回顧',1,'passive','matkFlat'],['葛帔尼亞夜曲',5,'magic_aoe','wind'],['暮色小夜曲',5,'passive','matkFlat'],['洛基奏鳴曲',5,'magic_aoe','neutral'],['礦工狂想曲',5,'passive','defFlat'],['音樂劇插曲',5,'magic','neutral'],['普隆德拉進行曲',5,'passive','atkFlat'],['亡靈鎮魂歌',5,'magic_aoe','holy'],['克瓦希爾奏鳴曲',1,'passive','maxHpMult'],['混聲烙印',5,'damage','neutral'],['金屬狂怒',5,'damage_aoe','neutral'],['節奏戰波',5,'damage_aoe','wind'],['節奏射擊',5,'damage','wind'],['玫瑰箭矢',5,'damage','neutral'],['神秘交響曲',1,'passive','matkFlat']
@@ -231,9 +231,23 @@
             type:'damage', element:'neutral', requiresWeapon:'bow',
             spCost:[30,34,38,42,46], cooldown:Array(5).fill(2), mult:[8,10,12,14,16],
             desc:'弓專用獵鷹俯衝突擊，造成 ATK 800%～1600% 傷害。'
+          },
+          '狂野疾行': {
+            type:'damage_multi', element:'weapon', spCost:[0,0,0,0,0], cooldown:Array(5).fill(20),
+            mult:[46,74,102,130,158], hits:Array(5).fill(3),
+            critRateMult:1, critDmgMult:0.5,
+            fleeFlat:[100,150,200,250,300], duration:[6,9,12,15,18], rangeType:'ranged',
+            requires:[{skillId:'v25_wind_hawk_1',level:3},{skillId:'v25_wind_hawk_13',level:3}],
+            desc:'風鷹狩獵者四轉遠距離物理技能，使用獵鷹造成3段攻擊；每段ATK 4600%～15800%，依BaseLv、CON、自然親和與鷹之熟練加成，可依自身暴擊率暴擊且暴擊傷害加成減半。施放後FLEE+100～300，持續6～18秒。本作沒有AP與移動速度系統，故不消耗AP，移動速度效果不模擬。'
           }
         };
         if (sourceValues[name]) Object.assign(sk, sourceValues[name]);
+        if (name === '狂野疾行') {
+          sk.id = 'wh_wild_walk';
+          sk.maxLv = 5;
+          sk.requiresSkill = 'v25_wind_hawk_13';
+          sk.spCost = [0,0,0,0,0]; // 本作無 AP 系統；不將官方 AP 消耗錯當 SP
+        }
 
         // 下列六招在來源圖鑑標示「效果待實作」：沿用本作既有觸發／被動效果，只採用來源的技能名稱與最高等級。
         const pendingNames = new Set(['迅捷陷阱','烈焰陷阱','堅固陷阱','深盲陷阱','野性步伐','鷹之熟練']);

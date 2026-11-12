@@ -2533,7 +2533,10 @@ function recomputeDerived(fullHeal) {
         'magic_sword_lt:autoSpell_meteorstorm': { skill: 'meteorstorm', lv: 7, melee: true },
         'magic_sword_lt:autoSpell_psychicwave': { skill: 'so_psychicwave', lv: 5, melee: true },
         'oriental_sword_lt:autoSpell_sonicwave': { skill: 'rk_sonicwave', lv: 2, melee: true },
-        'cd_in_mouthk:autoSpell_gravitation': { skill: 'hw_gravitation', lv: 3, melee: true }
+        'cd_in_mouthk:autoSpell_gravitation': { skill: 'hw_gravitation', lv: 3, melee: true },
+        // 塔諾斯大刀-AD：精煉+9後，近距離普通攻擊以較高機率自動施放風壓飛刃；
+        // 官方描述未公布精確機率，遊戲暫以 5% 作為可調整值；若玩家已學更高等級，跟隨已學等級。
+        'thanos_tsword_ad:autoSpellWindcutter': { skill: 'rk_windcutter', lv: 2, melee: true, useLearnedLv: true }
       };
       (def.condBonus || []).forEach(cb => {
         if (!cb || !cb.bonus || (cb.when && !condMet(cb.when, host, lo))) return;
@@ -2544,7 +2547,7 @@ function recomputeDerived(fullHeal) {
           if (!state.cardAutoSpells[trigger]) state.cardAutoSpells[trigger] = [];
           state.cardAutoSpells[trigger].push({ on: trigger, skill: meta.skill, lv: meta.lv,
             chance: Number(chance), melee: !!meta.melee, requiresSmokyTransform: !!meta.requiresSmokyTransform,
-            sourceItemId: d.itemId });
+            useLearnedLv: !!meta.useLearnedLv, sourceItemId: d.itemId });
         });
       });
       (def.ailment || []).forEach(e => {
@@ -3395,6 +3398,8 @@ const EQUIP_TYPES = ['armor', 'weapon', 'ammo'];
    韓文名（손목 아대）、日文假名、以及完全沒有漢字的英文名（Costume Engineer Cap）。
    使用者要求把這些擋掉，只留有中文名的道具。過濾後剩 14,509 件。 */
 function boxEligible(k) {
+  // EP21 耶斯卡夫裝備有指定取得／改造途徑，不納入通用神秘紫箱隨機池。
+  if (typeof k === 'string' && (k.startsWith('yorscalp_') || k.startsWith('gaebolg_'))) return false;
   const it = ITEMS[k];
   if (!it || CARDS[k] || /卡片$/.test(it.name)) return false;
   if (it.boxOpen || BOX_ITEM_NAMES.includes(it.name)) return false;
@@ -8380,6 +8385,21 @@ function killMonster(def, monObj) {
     addItem(fragment, 1);
     logMsg(`🧩 試煉獎勵：獲得 ${ITEMS[fragment] ? ITEMS[fragment].name : fragment}！`);
   }
+
+  // EP21 試煉首領裝備獎勵：每次擊殺各自判定一件防具池／飾品池。
+  // 20% 防具池、60% 飾品池為本作掉落配置；不代表官方逐件公開機率。
+  if (isEp21TrialBoss && Math.random() < Math.min(1, 0.20 * dropMult)) {
+    const pool = ['gaebolg_armor','gaebolg_robe','gaebolg_manteau','gaebolg_muffler','gaebolg_boots','gaebolg_shoes'];
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    addItem(item,1);
+    logMsg(`🛡️ 試煉獎勵：獲得${ITEMS[item].name}！`);
+  }
+  if (isEp21TrialBoss && Math.random() < Math.min(1, 0.60 * dropMult)) {
+    const pool = ['gaebolg_earring','gaebolg_glove','gaebolg_ring','gaebolg_necklace'];
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    addItem(item,1);
+    logMsg(`💍 試煉獎勵：獲得${ITEMS[item].name}！`);
+  }
   // EP21 特殊收藏品：機率掉落，不保證每次擊殺必得。
   if (isEp21TrialBoss && Math.random() < Math.min(1, 0.05 * dropMult)) {
     addItem('old_violet_box', 1);
@@ -10316,7 +10336,20 @@ function castSkillInner(skillId, opts) {
   const useMag = sk.type === 'magic' || sk.type === 'magic_aoe';
 
   // 屬性相剋：技能屬性 vs 怪物屬性
-  const skElement = (sk.requiresSpirit && state.elementalSpirit ? state.elementalSpirit.element : sk.element) || 'none';
+  const skElement = (sk.requiresSpirit && state.elementalSpirit ? state.elementalSpirit.element
+    : sk.element === 'weapon' ? (() => {
+        const weaponId = getEquipBaseItemId('weapon');
+        const weapon = weaponId ? ITEMS[weaponId] : null;
+        let element = weapon && weapon.element ? weapon.element : 'none';
+        if (isBowWeapon(weaponId)) {
+          const ammo = getEquippedAmmo();
+          if (ammo && ammo.element) element = ammo.element;
+        }
+        if (state.buffs.some(b => b.type === 'holyweapon')) element = 'holy';
+        const elementBuff = state.buffs.find(b => b.type === 'eleweapon' && b.element);
+        if (elementBuff) element = elementBuff.element;
+        return element;
+      })() : sk.element) || 'none';
   /* 魔法屬性增傷已集中在 skillBaseDamage()，讓主動、觸發及持續魔法共用，避免重複乘算。 */
   /* 聖十字攻擊：官方「裝備雙手矛時傷害會變成雙倍」（#66）。
      乘進 mult 而不是另外算一份傷害，理由跟 skillDmg_ 那條完全一樣——
@@ -11692,28 +11725,58 @@ function castSkillInner(skillId, opts) {
       break;
     }
     case 'damage_multi': {
-      // 連刺攻擊：依體型多段
+      // 多段單體攻擊；命中與技能暴擊各整招判定一次。
       if (!state.monsters || state.monsters.length === 0) break;
       const target = state.monsters[0];
       const def = MONSTERS[target.defId];
-      // 命中判定：整招視為一次判定
+      const applyWildWalkFlee = () => {
+        if (sk.id !== 'wh_wild_walk') return;
+        const flee = Array.isArray(sk.fleeFlat) ? sk.fleeFlat[lv - 1] : (sk.fleeFlat || 0);
+        const duration = Array.isArray(sk.duration) ? sk.duration[lv - 1] : (sk.duration || 0);
+        state.buffs = state.buffs.filter(b => b.skillId !== sk.id);
+        state.buffs.push({type:'flee',mult:1,flatBonus:flee,msRemaining:duration*1000,skillId:sk.id});
+        recomputeDerived(false);
+        logMsg(`🦅 狂野疾行發動：FLEE +${flee}，持續 ${duration} 秒。移動速度效果不在本作模擬。`);
+      };
       if (!skillHits(sk, lv, def, target)) {
         logMsg(`「${sk.name}」被 ${def.name} 閃避了！`);
         if (typeof showPlayerFloat === 'function') showPlayerFloat('MISS', 'miss');
+        applyWildWalkFlee();
         break;
       }
       const elemMult = getElementMultiplierVsMonster(skElement, def, target);
       const multiEleDmgBonus = cardTargetDmgMult(def) - 1;
       const hits = Array.isArray(sk.hits) ? sk.hits[lv - 1] : (sk.hits || 1);
+      let perHitMult = mult;
+      if (sk.id === 'wh_wild_walk') {
+        // 官方公式：[(1800 + 2800×技能Lv + 5×CON + 30×(自然親和Lv+鋼製喙Lv))×BaseLv/100]%。
+        const baseMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
+        const con = Math.max(0, Number(state.traitStats && state.traitStats.con) || 0);
+        const natureLv = skillLv('v25_wind_hawk_1');
+        const beakLv = skillLv('falconnastery');
+        const extraPct = (5 * con + 30 * (natureLv + beakLv)) / 100;
+        perHitMult = (baseMult + extraPct) * (Math.max(1, Number(state.baseLevel) || 1) / 100)
+          * (1 + skillDmgPct / 100);
+      }
+      let critFactor = 1;
+      if (sk.critRateMult) {
+        const critBuff = buffMult('crit');
+        const critRate = Math.min(100, (state.critRate * critBuff.mult + critBuff.flatBonus) * sk.critRateMult);
+        if (Math.random() * 100 < critRate) {
+          const critDamageMult = (typeof sk.critDmgMult === 'number') ? sk.critDmgMult : 1;
+          critFactor = 1 + (0.5 + (state.cardCritDmgPct || 0) / 100) * critDamageMult;
+        }
+      }
       let totalDmg = 0;
       for (let i = 0; i < hits; i++) {
-        const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * mult * (1 + multiEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target)) + raceFlatBonus(def);
+        const dmg = mitigateDamage(skillBaseDamage(useMag, def, elemMult, sk) * perHitMult * critFactor * (1 + multiEleDmgBonus) * ailDmgTakenMult(target), ...defOf(def, 1, false, target)) + raceFlatBonus(def);
         totalDmg += dmg;
         target.hp -= dmg;
         if (target.hp <= 0) break;
       }
       logMsg(`⚡ 「${sk.name}」Lv${lv} 造成 ${hits} 段攻擊，共 ${totalDmg} 點傷害！`);
       if (target.hp <= 0) killMonster(def, target);
+      applyWildWalkFlee();
       break;
     }
     case 'special_charge': {
@@ -12666,6 +12729,50 @@ function exchangeEp21Card(cardId) {
     return {ok:true, card:recipe.card, fragment:recipe.fragment, consumed:30};
   } finally { ep21ExchangeBusy = false; }
 }
+
+/* EP21 鐵匠珊珊：凱渥寶樂格防具改造為同部位耶斯卡夫裝備。
+   依台灣伺服器 EP21 改造材料：兌換證200、精神200、詛咒象徵50、墮落之蛇形象10。
+   轉換單件裝備個體時保留 refine/cards/grade/enchant 等實例欄位。 */
+const YORSCALP_REFORGE_RECIPES = [{"base": "gaebolg_armor", "result": "yorscalp_armor"}, {"base": "gaebolg_robe", "result": "yorscalp_robe"}, {"base": "gaebolg_manteau", "result": "yorscalp_manteau"}, {"base": "gaebolg_muffler", "result": "yorscalp_muffler"}, {"base": "gaebolg_boots", "result": "yorscalp_boots"}, {"base": "gaebolg_shoes", "result": "yorscalp_shoes"}, {"base": "gaebolg_earring", "result": "yorscalp_earring"}, {"base": "gaebolg_glove", "result": "yorscalp_glove"}, {"base": "gaebolg_ring", "result": "yorscalp_ring"}, {"base": "gaebolg_necklace", "result": "yorscalp_necklace"}];
+let yorscalpReforgeBusy = false;
+function reforgeYorscalpEquipment(baseId) {
+  if (yorscalpReforgeBusy) return {ok:false,reason:'改造處理中，請稍候'};
+  const recipe = YORSCALP_REFORGE_RECIPES.find(r => r.base === baseId);
+  if (!recipe || !ITEMS[recipe.base] || !ITEMS[recipe.result]) return {ok:false,reason:'改造配方不存在'};
+  const owner = allyOwnerState();
+  if (!Array.isArray(owner.inventory)) return {ok:false,reason:'背包資料異常'};
+  const required = {ep21_wigner_ticket:200,yorscalp_spirit:200,yorscalp_symbol:50,yorscalp_serpent:10};
+  for (const [id,qty] of Object.entries(required)) {
+    const have = getItemQty(id);
+    if (have < qty) return {ok:false,reason:`${ITEMS[id]?.name || id}不足，需要${qty}個，目前${have}個`};
+  }
+  const row = owner.inventory.find(r => r.item === baseId);
+  if (!row) return {ok:false,reason:`需要先取得${ITEMS[baseId].name}`};
+  const instId = row.instanceId;
+  const instances = owner.instances || state.instances || {};
+  if (instId && (!instances[instId] || instances[instId].item !== baseId)) return {ok:false,reason:'裝備個體資料不存在，未扣除任何材料'};
+  yorscalpReforgeBusy = true;
+  try {
+    // 先扣除全部材料，再轉換底裝；所有必要條件已預先檢查。
+    for (const [id,qty] of Object.entries(required)) {
+      if (!removeItem(id,qty)) throw new Error(`材料扣除失敗：${id}`);
+    }
+    if (instId) {
+      instances[instId].item = recipe.result; // refine/cards/grade/enchant/extra sockets remain untouched
+      withOwner(() => codexRecordItem(recipe.result,1));
+    } else {
+      if (!removeItem(baseId,1)) throw new Error('底裝扣除失敗');
+      addItem(recipe.result,1);
+    }
+    if (typeof logMsg === 'function') logMsg(`⚒️ 鐵匠珊珊改造完成：${ITEMS[recipe.result].name}（成功率100%，保留裝備資料）`);
+    if (typeof saveGame === 'function') saveGame();
+    return {ok:true,base:baseId,result:recipe.result,materials:required};
+  } catch (err) {
+    if (typeof logMsg === 'function') logMsg(`⚠️ 改造失敗：${err.message || err}。請檢查背包與材料。`);
+    return {ok:false,reason:err.message || '改造失敗'};
+  } finally { yorscalpReforgeBusy = false; }
+}
+
 /* 一次開完手上所有同款箱子（#143）。
 
    一個一個點：50 個箱子＝50 次點擊 + 50 行紀錄，卡冊那條鏈（未解封 → 卡冊 → 卡片）
@@ -13542,7 +13649,8 @@ function buildLoadout() {
     const inst = getEquipInstance(slot);
     const refine = (inst && inst.refine) || 0;
     const list = (inst && inst.cards) ? inst.cards.filter(Boolean) : [];
-    slots[slot] = { itemId, refine, grade: (inst && (inst.grade || inst.itemGrade)) || null, cards: list };
+    const enchant = (inst && inst.enchant) || null;
+    slots[slot] = { itemId, refine, grade: (inst && (inst.grade || inst.itemGrade)) || null, cards: list, enchant };
     items.add(itemId);
     list.forEach(cid => {
       cards.add(cid);
@@ -13609,6 +13717,14 @@ function condMet(when, host, lo) {
         ))
       : !!(host && gradeRank(host.grade) >= required);
     if (!required || !hasGrade) return false;
+  }
+  /* allItemGradesMin：套裝指定多件裝備「全部」達品級門檻。 */
+  if (when.allItemGradesMin) {
+    const ranks = {D:1,C:2,B:3,A:4,S:5};
+    for (const [id, grade] of Object.entries(when.allItemGradesMin)) {
+      const slot = Object.values(lo.slots || {}).find(x => x && x.itemId === id);
+      if (!slot || (ranks[String(slot.grade || '').toUpperCase()] || 0) < (ranks[String(grade).toUpperCase()] || 999)) return false;
+    }
   }
   /* when.ammo：目前裝備的箭矢（陣列＝任一種都算）。箭矢不在裝備欄、
      buildLoadout() 特別帶了 `ammo` 欄位出來——大地之弓＋地靈箭矢那類配對用。 */
@@ -13761,6 +13877,44 @@ function mergeBonus(target, bonus, scale) {
 let _gearBonusCache = null;
 let _gearBonusKey = '';
 let _activeSets = [];
+
+/* EP21 耶斯卡夫頭冠附魔：附魔是裝備個體屬性，會跟著裝備移動／存檔。
+   官方效果以頭冠精煉值計算：每+2套用一次主詞條，每+4套用一次副詞條。
+   僅支援執行之冠與審判之冠，避免其他頭具誤吃附魔。 */
+const YORSCALP_CIRCLET_IDS = ['yorscalp_p_circlet', 'yorscalp_m_circlet'];
+const YORSCALP_ENCHANT_RULES = {
+  yorscalp_str1:{step2:{atk:3},step4:{pAtk:1}},
+  yorscalp_str2:{step2:{atk:5},step4:{pAtk:2}},
+  yorscalp_str3:{step2:{atk:10},step4:{pAtk:3}},
+  yorscalp_str4:{step2:{atk:15},step4:{pAtk:5}},
+  yorscalp_int1:{step2:{matk:3},step4:{sMatk:1}},
+  yorscalp_int2:{step2:{matk:5},step4:{sMatk:2}},
+  yorscalp_int3:{step2:{matk:10},step4:{sMatk:3}},
+  yorscalp_int4:{step2:{matk:15},step4:{sMatk:5}},
+  yorscalp_smart1:{step2:{atk:3,matk:3},step4:{variableCastPct:-1,skillAfterDelayPct:1}},
+  yorscalp_smart2:{step2:{atk:5,matk:5},step4:{variableCastPct:-2,skillAfterDelayPct:2}},
+  yorscalp_smart3:{step2:{atk:10,matk:10},step4:{variableCastPct:-3,skillAfterDelayPct:3}},
+  yorscalp_smart4:{step2:{atk:15,matk:15},step4:{variableCastPct:-4,skillAfterDelayPct:4}},
+  yorscalp_speed1:{step2:{atk:3,matk:3},step4:{afterAttackDelayPct:1,skillAfterDelayPct:1}},
+  yorscalp_speed2:{step2:{atk:5,matk:5},step4:{afterAttackDelayPct:2,skillAfterDelayPct:2}},
+  yorscalp_speed3:{step2:{atk:10,matk:10},step4:{afterAttackDelayPct:3,skillAfterDelayPct:3}},
+  yorscalp_speed4:{step2:{atk:15,matk:15},step4:{afterAttackDelayPct:4,skillAfterDelayPct:4}},
+  yorscalp_def1:{step2:{},step4:{hpPct:1}},
+  yorscalp_def2:{step2:{},step4:{hpPct:2}},
+  yorscalp_def3:{step2:{},step4:{hpPct:3}},
+  yorscalp_def4:{step2:{},step4:{hpPct:5}}
+};
+function yorscalpEnchantBonus(enchantId, refine) {
+  const rule = YORSCALP_ENCHANT_RULES[enchantId];
+  if (!rule) return null;
+  const bonus = {};
+  const n2 = Math.floor(Math.max(0, Number(refine) || 0) / 2);
+  const n4 = Math.floor(Math.max(0, Number(refine) || 0) / 4);
+  if (n2) Object.entries(rule.step2 || {}).forEach(([k,v]) => { bonus[k] = (bonus[k] || 0) + v * n2; });
+  if (n4) Object.entries(rule.step4 || {}).forEach(([k,v]) => { bonus[k] = (bonus[k] || 0) + v * n4; });
+  return bonus;
+}
+
 function effectiveGearBonuses() {
   const lo = buildLoadout();
   /* 簽章要涵蓋**每一個 condMet() 看得到的東西**，不然條件式加成會卡在舊值。
@@ -13770,7 +13924,7 @@ function effectiveGearBonuses() {
      素質只有加點時會變（一次 recomputeDerived），不是每一擊都在動，成本可以忽略。 */
   const key = EQUIP_SLOTS_ALL.map(s => {
     const d = lo.slots[s];
-    return d ? `${d.itemId}+${d.refine}@${d.grade || '-'}[${d.cards.join(',')}]` : '-';
+    return d ? `${d.itemId}+${d.refine}@${d.grade || '-'}[${d.cards.join(',')}]<${d.enchant || '-'}>` : '-';
   }).join('|') + '#' + state.jobId
     + '#skills:' + Object.entries(state.learnedSkills || {}).sort(([a],[b]) => a.localeCompare(b)).map(([id, lv]) => `${id}:${lv}`).join(',')
     + '#' + BASE_STAT_KEYS.map(k => (state.stats && state.stats[k]) || 0).join(',')
@@ -13801,6 +13955,10 @@ function effectiveGearBonuses() {
     if (!def) return;
     const host = { slot, refine: d.refine, itemId: d.itemId, grade: d.grade || null };
     mergeBonus(total, def.bonus);
+    if (YORSCALP_CIRCLET_IDS.includes(d.itemId) && d.enchant) {
+      const enchantBonus = yorscalpEnchantBonus(d.enchant, d.refine);
+      if (enchantBonus) mergeBonus(total, enchantBonus);
+    }
     /* allStat：部分裝備把「全能力值 +N」直接寫在裝備頂層，
        不是放在 bonus:{}。getCardBonus() 會將總表中的 allStat 分配到六項基本素質，
        因此必須在這裡接入；否則裂隙核心戒指、三轉職業徽記、四轉星耀戰甲、
@@ -15271,6 +15429,16 @@ function computeOfflineProgress(minMs) {
     ];
     const offlineLoot = {};
     const addLoot = id => { if (ITEMS[id]) offlineLoot[id] = (offlineLoot[id] || 0) + 1; };
+    const rollGaebolgGearLoot = chanceScale => {
+      if (Math.random() < Math.min(1, 0.20 * dropMult) * chanceScale) {
+        const pool=['gaebolg_armor','gaebolg_robe','gaebolg_manteau','gaebolg_muffler','gaebolg_boots','gaebolg_shoes'];
+        addLoot(pool[Math.floor(Math.random()*pool.length)]);
+      }
+      if (Math.random() < Math.min(1, 0.60 * dropMult) * chanceScale) {
+        const pool=['gaebolg_earring','gaebolg_glove','gaebolg_ring','gaebolg_necklace'];
+        addLoot(pool[Math.floor(Math.random()*pool.length)]);
+      }
+    };
     if (canFarmBoss) {
       // 逐次模擬「每次擊殺 25% 抽一種碎片」及兩頂頭冠各自 1%，避免把 18 種碎片獨立四捨五入而超發。
       const fullKills = Math.floor(bossCount);
@@ -15281,6 +15449,7 @@ function computeOfflineProgress(minMs) {
         if (Math.random() < Math.min(1, 0.01 * dropMult)) addLoot('yorscalp_m_circlet');
         if (Math.random() < Math.min(1, 0.05 * dropMult)) addLoot('old_violet_box');
         if (Math.random() < Math.min(1, 0.02 * dropMult)) addLoot('old_card_album');
+        rollGaebolgGearLoot(1);
         (bossDef.drops || []).forEach(d => { if (Math.random() < Math.min(1, d.chance * dropMult)) addLoot(d.item); });
       }
       if (partialKill > 0) {
@@ -15289,6 +15458,7 @@ function computeOfflineProgress(minMs) {
         if (Math.random() < Math.min(1, 0.01 * dropMult) * partialKill) addLoot('yorscalp_m_circlet');
         if (Math.random() < Math.min(1, 0.05 * dropMult) * partialKill) addLoot('old_violet_box');
         if (Math.random() < Math.min(1, 0.02 * dropMult) * partialKill) addLoot('old_card_album');
+        rollGaebolgGearLoot(partialKill);
         (bossDef.drops || []).forEach(d => { if (Math.random() < Math.min(1, d.chance * dropMult) * partialKill) addLoot(d.item); });
       }
     }
