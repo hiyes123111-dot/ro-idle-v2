@@ -10,11 +10,11 @@ assert(data.includes("ep21_corrupted_tan: {id:'ep21_corrupted_tan'"), 'boss defi
 assert(data.includes("{ id: 'r_ep21', name: 'EP21 試煉'") && data.includes("maps: ['ep21_final_trial_hell']"), 'map is reachable from dedicated EP21 region selector');
 const fragments = ['tris','tan_borg','bihailin','reinhardt','evan_wigner','lalila','richard','lora','aurely','ylze','epesto','mary_stella','john','kunt','galacia','iana','lee','nadoyou'];
 for (const id of fragments) assert(data.includes(`ep21_${id}_card_fragment`), `fragment ${id} exists`);
-assert(engine.includes("map.id === 'ep21_final_trial_hell' && state.ep21TrialCleared"), 'cleared encounter does not respawn');
+assert(!engine.includes("if (map && map.id === 'ep21_final_trial_hell' && state.ep21TrialCleared)"), 'continuous challenge is not blocked by legacy clear flag');
 assert(engine.includes("state.mapId === 'ep21_final_trial_hell' && monKey === 'ep21_corrupted_tan'"), 'boss kill is identified');
 assert(engine.includes('Math.random() < 0.25'), 'fragment reward chance configured');
-assert(engine.includes('state.ep21TrialCleared = true'), 'boss kill marks encounter cleared');
+assert(engine.includes('試煉將持續進行，稍後自動迎戰下一隻首領'), 'boss kill keeps continuous challenge active');
 assert(ui.includes('function enterEp21FinalTrial()'), 'UI entrance function exists');
 assert(ui.includes("onclick=\"enterEp21FinalTrial();\""), 'town entry card is wired');
 assert(ui.includes("onclick=\"enterEp21FinalTrial()\""), 'persistent map-page entry is wired');
-console.log('v2.5.299 EP21 trial regression: PASS (map, boss, access, 18 fragments, one-clear lock, reward, UI)');
+console.log('v2.5.299 EP21 trial regression: PASS (map, boss, access, 18 fragments, continuous challenge, reward, UI)');

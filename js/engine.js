@@ -6681,8 +6681,7 @@ function spawnDelayMs(empty) {
 
 function spawnMonster() {
   const map = currentMap();
-  // EP21 單次挑戰：首領擊敗後鎖定本次進場，避免自動無限重生。
-  if (map && map.id === 'ep21_final_trial_hell' && state.ep21TrialCleared) { state.monsters = []; state.monster = null; return; }
+  // EP21 掛機模式：首領擊敗後沿用一般生怪流程，自動生成下一隻首領，允許連續挑戰。
   if (!map.monsters.length && !activeBossLists(map.id).length) {
     state.monsters = [];
     return;
@@ -8396,10 +8395,10 @@ function killMonster(def, monObj) {
     });
   }
   if (isEp21TrialBoss) {
-    state.ep21TrialCleared = true;
     state.monsters = (state.monsters || []).filter(m => m !== monObj);
     state.monster = state.monsters[0] || null;
-    logMsg('🏆 最終決戰－超困難試煉首領已擊敗！本次挑戰完成，重新進場可再次挑戰。');
+    // 不鎖定副本：保留原地圖與自動戰鬥狀態，讓 spawnMonster() 按一般掛機節奏補出下一隻首領。
+    logMsg('🏆 被侵蝕的坦已擊敗！試煉將持續進行，稍後自動迎戰下一隻首領。');
   }
   // 偷竊被動：擊敗怪物時機率額外掉落一份道具（照掉落率加權，見 pickWeightedDrop）
   if (state.stealChance && def.drops && def.drops.length > 0 && Math.random() * 100 < state.stealChance) {
@@ -14855,7 +14854,7 @@ function changeMap(mapId) {
   const map = MAPS.find(m => m.id === mapId);
   if (!map) return false;
   state.mapId = mapId;
-  if (mapId === 'ep21_final_trial_hell') state.ep21TrialCleared = false;
+  if (mapId === 'ep21_final_trial_hell') state.ep21TrialCleared = false; // 舊版存檔相容欄位；新版不再用它鎖定連續挑戰。
   // 回安全區全隊免費滿血復活（#83）——不然倒地的隊友只能靠天地樹葉子
   if ((map.monsters || []).length === 0) reviveAlliesInTown();
   ensureCodex().maps[mapId] = 1; // 探索成就用
@@ -15204,6 +15203,85 @@ function computeOfflineProgress(minMs) {
 
   const map = currentMap();
   const pool = map.monsters; // [{id, weight}]
+
+  /* EP21 超困難試煉離線連續挑戰：只使用角色在線上實際擊敗被侵蝕的坦的紀錄作為通行證。
+     每輪依實測擊殺時間加一般補怪間隔估算；不在離線抽樣期間呼叫 killMonster，避免重複發獎。 */
+  if (state.mapId === 'ep21_final_trial_hell') {
+    const bossId = 'ep21_corrupted_tan';
+    const bossDef = MONSTERS[bossId];
+    const rec = bossKillRecord(bossId, farmMode());
+    const measuredMs = rec && rec.n > 0 ? (rec.bestMs || rec.lastMs || 0) : 0;
+    const canFarmBoss = !!(bossDef && measuredMs >= BOSS_KILL_MIN_MS);
+    const cycleMs = canFarmBoss ? Math.max(1000, measuredMs + 3000) : 0;
+    const bossCount = canFarmBoss ? elapsedMs / cycleMs : 0;
+    const expMult = (1 + (buffMult('exp').flatBonus || 0) / 100)
+      * (1 + (getCardBonus('expAllPct') + getCardBonus('expGainPct')) / 100)
+      * (1 + ((bossDef.race && state.cardExpRace && state.cardExpRace[bossDef.race]) || 0));
+    const mapExp = Math.max(1, Number(map.expMultiplier) || 1);
+    const mapJobExp = Math.max(1, Number(map.jobExpMultiplier) || mapExp);
+    const expGained = Math.round((bossDef ? bossDef.exp : 0) * bossCount * expMult * farmMult('exp') * mapExp);
+    const jobExpGained = Math.round((bossDef ? bossDef.jobExp : 0) * bossCount * expMult * farmMult('exp') * mapJobExp);
+    const goldGained = Math.round((bossDef ? (3 + bossDef.level * 1.4) : 0) * bossCount * buffMult('gold').mult * farmMult('gold'));
+    const dropMult = farmMult('drop') * (1 + getCardBonus('dropPct') / 100);
+    const fragmentIds = [
+      'ep21_tris_card_fragment','ep21_tan_borg_card_fragment','ep21_bihailin_card_fragment',
+      'ep21_reinhardt_card_fragment','ep21_evan_wigner_card_fragment','ep21_lalila_card_fragment',
+      'ep21_richard_card_fragment','ep21_lora_card_fragment','ep21_aurely_card_fragment',
+      'ep21_ylze_card_fragment','ep21_epesto_card_fragment','ep21_mary_stella_card_fragment',
+      'ep21_john_card_fragment','ep21_kunt_card_fragment','ep21_galacia_card_fragment',
+      'ep21_iana_card_fragment','ep21_lee_card_fragment','ep21_nadoyou_card_fragment'
+    ];
+    const offlineLoot = {};
+    const addLoot = id => { if (ITEMS[id]) offlineLoot[id] = (offlineLoot[id] || 0) + 1; };
+    if (canFarmBoss) {
+      // 逐次模擬「每次擊殺 25% 抽一種碎片」及兩頂頭冠各自 1%，避免把 18 種碎片獨立四捨五入而超發。
+      const fullKills = Math.floor(bossCount);
+      const partialKill = bossCount - fullKills;
+      for (let i = 0; i < fullKills; i++) {
+        if (Math.random() < 0.25) addLoot(fragmentIds[Math.floor(Math.random() * fragmentIds.length)]);
+        if (Math.random() < Math.min(1, 0.01 * dropMult)) addLoot('yorscalp_p_circlet');
+        if (Math.random() < Math.min(1, 0.01 * dropMult)) addLoot('yorscalp_m_circlet');
+        (bossDef.drops || []).forEach(d => { if (Math.random() < Math.min(1, d.chance * dropMult)) addLoot(d.item); });
+      }
+      if (partialKill > 0) {
+        if (Math.random() < 0.25 * partialKill) addLoot(fragmentIds[Math.floor(Math.random() * fragmentIds.length)]);
+        if (Math.random() < Math.min(1, 0.01 * dropMult) * partialKill) addLoot('yorscalp_p_circlet');
+        if (Math.random() < Math.min(1, 0.01 * dropMult) * partialKill) addLoot('yorscalp_m_circlet');
+        (bossDef.drops || []).forEach(d => { if (Math.random() < Math.min(1, d.chance * dropMult) * partialKill) addLoot(d.item); });
+      }
+    }
+    const itemsGained = [];
+    Object.entries(offlineLoot).forEach(([id, qty]) => {
+      if (qty > 0) { addItem(id, qty); itemsGained.push({ item: id, qty }); }
+    });
+    const beforeBaseLv = state.baseLevel;
+    const beforeJobLv = state.jobLevel;
+    if (expGained || jobExpGained) gainExp(expGained, jobExpGained);
+    state.gold += goldGained;
+    const wholeBossKills = Math.floor(bossCount);
+    if (canFarmBoss && wholeBossKills > 0) {
+      codexRecordKill(bossId);
+      if (wholeBossKills > 1) ensureCodex().mon[bossId] += wholeBossKills - 1;
+    }
+    state.lastActiveAt = Date.now();
+    state.lastAttackTime = Date.now();
+    state.attackAccumulator = 0;
+    state.lastMonsterAttackTime = Date.now();
+    state._lastSlowTick = Date.now();
+    state.lastSpawnTime = Date.now();
+    (state.monsters || []).forEach(m => { m.lastAttackTime = Date.now(); });
+    (state.allies || []).forEach(a => { if (a) { a._atkAccum = 0; a._lastAttackAt = Date.now(); } });
+    saveGame();
+    return {
+      elapsedMs, elapsedSec, expGained, jobExpGained, goldGained, itemsGained,
+      baseLevelUps: state.baseLevel - beforeBaseLv,
+      jobLevelUps: state.jobLevel - beforeJobLv,
+      kills: wholeBossKills, allyCount: 0, mapName: map.name,
+      bossKills: wholeBossKills,
+      bossList: canFarmBoss && bossCount >= 0.5 ? [{ id: bossId, name: bossDef.name, kills: wholeBossKills }] : [],
+      ep21BossEligible: canFarmBoss
+    };
+  }
 
   if (!pool.length) {
     // 城鎮安全區：沒有怪物可打，離線期間只是安穩休息，沒有戰鬥收穫

@@ -3720,6 +3720,34 @@ function renderCodexDetail(id) {
         <span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span>
       </div>`;
     }
+    // EP21 試煉獎勵由 killMonster 的隨機獎池結算，並非 MONSTERS.drops。
+    // 圖鑑必須同步列出獎池，否則會錯誤顯示「沒有掉落物」。
+    let specialRewardRows = '';
+    if (id === 'ep21_corrupted_tan') {
+      const fragments = [
+        'ep21_tris_card_fragment','ep21_tan_borg_card_fragment','ep21_bihailin_card_fragment',
+        'ep21_reinhardt_card_fragment','ep21_evan_wigner_card_fragment','ep21_lalila_card_fragment',
+        'ep21_richard_card_fragment','ep21_lora_card_fragment','ep21_aurely_card_fragment',
+        'ep21_ylze_card_fragment','ep21_epesto_card_fragment','ep21_mary_stella_card_fragment',
+        'ep21_john_card_fragment','ep21_kunt_card_fragment','ep21_galacia_card_fragment',
+        'ep21_iana_card_fragment','ep21_lee_card_fragment','ep21_nadoyou_card_fragment'
+      ];
+      const fragmentRate = 25 / fragments.length;
+      const rows = fragments.map(itemId => {
+        const it = ITEMS[itemId]; if (!it) return '';
+        const got = book.item[itemId] || 0;
+        return `<div class="codex-drop ${got ? 'got' : ''}"><img src="${itemImgSrc(itemId)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-drop-name">${it.name}</span><span class="codex-drop-rate">${fragmentRate.toFixed(2)}%</span><span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span></div>`;
+      }).join('');
+      const hats = [
+        {id:'yorscalp_p_circlet', chance:1},
+        {id:'yorscalp_m_circlet', chance:1}
+      ].map(d => {
+        const it = ITEMS[d.id]; if (!it) return '';
+        const got = book.item[d.id] || 0;
+        return `<div class="codex-drop ${got ? 'got' : ''}"><img src="${itemImgSrc(d.id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-drop-name">${it.name}</span><span class="codex-drop-rate">${d.chance.toFixed(2)}%</span><span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span></div>`;
+      }).join('');
+      specialRewardRows = rows + hats;
+    }
     return `<div class="codex-detail">
       <button class="codex-detail-close" onclick="toggleCodexDetail('${id}')">✕</button>
       <div class="codex-detail-head">
@@ -3740,13 +3768,14 @@ function renderCodexDetail(id) {
         <span>HP ${d.hp}</span><span title="官方 renewal：傷害 = ATK×(0.8~1.2) + STR + 等級">ATK ${Math.round(d.atk * 0.8 + (d.mobStr || 0) + (d.level || 0))}~${Math.round(d.atk * 1.2 + (d.mobStr || 0) + (d.level || 0))}</span><span title="硬防（比例減傷）＋軟防（固定扣血）">DEF ${d.def}${d.defSoft ? '+' + d.defSoft : ''}</span><span title="魔防：魔法傷害看的是這個，硬魔防比例減傷、軟魔防固定扣血">MDEF ${d.mdef || 0}${d.mdefSoft ? '+' + d.mdefSoft : ''}</span>
         <span>EXP ${d.exp}</span><span>JOB ${d.jobExp}</span>
       </div>
+      ${id === 'ep21_corrupted_tan' ? '<div class="codex-sec-hint" style="margin:8px 0">⚔️ EP21 副本入口：可直接開始「最終決戰－超困難試煉」。</div><button class="btn-small" style="width:100%;margin:4px 0 10px" onclick="enterEp21FinalTrial()">⚔️ 直接進入 EP21 副本</button>' : ''}
       <div class="codex-detail-sec">出沒地圖<span class="codex-sec-hint">照出現率排序，點「前往」直接過去</span></div>
       ${maps.some(m => m.mvp) ? '<div class="codex-sec-hint codex-mvp-note">標「BOSS 模式」的要先在自動戰鬥頁面開啟 BOSS 模式才會出現。</div>' : ''}
       <div class="codex-spots">${maps.length
         ? maps.map(m => codexMapRow(m)).join('')
         : '<div class="dim">目前無地圖配置</div>'}</div>
       <div class="codex-detail-sec">掉落物</div>
-      <div class="codex-drops">${cardRow}${dropRows || (cardRow ? '' : '<div class="dim">沒有掉落物</div>')}</div>
+      <div class="codex-drops">${cardRow}${dropRows}${specialRewardRows}${(cardRow || dropRows || specialRewardRows) ? '' : '<div class="dim">沒有掉落物</div>'}</div>
     </div>`;
   }
 
@@ -5839,6 +5868,9 @@ function showOfflineModal(off) {
   const levelUpHtml = (off.baseLevelUps > 0 || off.jobLevelUps > 0)
     ? `<div class="offline-levelup">🎉 基礎等級 +${off.baseLevelUps}　職業等級 +${off.jobLevelUps}</div>`
     : '';
+  const ep21Hint = off.ep21BossEligible === false
+    ? '<p class="offline-duration">⚠️ 尚未在目前打寶模式下實際擊敗過被侵蝕的坦，因此這段離線時間不會模擬 EP21 首領獎勵。請先在線上成功擊敗一次，再開始離線掛機。</p>'
+    : (off.ep21BossEligible ? '<p class="offline-duration">⚔️ EP21 連續試煉已依照目前模式的實測擊殺速度完成離線結算。</p>' : '');
   // 隊友有出力的話寫出來——#135 之前隊友的傷害根本沒算進離線收益
   const partyHtml = off.allyCount
     ? `<p class="offline-duration">🤝 ${off.allyCount} 位隊友一起參戰。</p>` : '';
@@ -5850,6 +5882,7 @@ function showOfflineModal(off) {
     <p class="offline-duration">離開了 <strong>${formatDuration(off.elapsedMs)}</strong>，你的角色在原地持續戰鬥了 ${off.kills} 場戰鬥：</p>
     ${partyHtml}
     ${bossHtml}
+    ${ep21Hint}
     ${levelUpHtml}
     <div class="offline-stats-grid">
       <div>經驗值 +${off.expGained}</div>

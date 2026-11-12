@@ -26767,7 +26767,7 @@ const MAPS = [
     id: 'ep21_final_trial_hell', imgId: 5091, name: '最終決戰－超困難試煉',
     monsters: [{ id: 'ep21_corrupted_tan', weight: 100 }],
     bg: 'map-dungeon', expMultiplier: 1, jobExpMultiplier: 1,
-    desc: 'EP21 超困難試煉首階段。單次進場挑戰被侵蝕的坦；擊敗後本次挑戰結束，需重新進場才能再次挑戰。此版本為本遊戲戰鬥系統的平衡適配，非官方副本數值還原。'
+    desc: 'EP21 超困難試煉掛機狩場。擊敗被侵蝕的坦後會自動刷新下一隻，可連續挑戰並持續取得經驗與獎勵。此版本為本遊戲戰鬥系統的平衡適配，非官方副本數值還原。'
   },
 ];
 
@@ -27494,6 +27494,9 @@ function expToNextJobLevel(level, tier) {
 
 function monsterImgSrc(defId) {
   const def = MONSTERS[defId];
+  if (!def) return 'images/_placeholder_monster.png';
+  // 被侵蝕的坦為本作新增副本首領，尚無對應官方怪物 sprite；避免 imgId 1001855 造成破圖。
+  if (defId === 'ep21_corrupted_tan') return 'images/_placeholder_monster.png';
   return resolveImgPath(`monsters/${def.imgId}.png`);
 }
 

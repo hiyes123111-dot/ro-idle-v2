@@ -56,3 +56,7 @@ node tools/v2_regression.js
 
 ## 專案目錄
 歷史 QA 與稽核文件已分類至 `docs/`，遊戲執行檔案路徑保持不變。詳細整理方式見 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)。
+
+
+### v2.5.307 EP21 離線連續挑戰
+EP21 副本離線收益以目前打寶模式的線上實際 BOSS 擊殺紀錄為資格，按實測擊殺時間加 3 秒補怪間隔估算；未在該模式線上擊敗過 BOSS 時不發放離線首領獎勵。
