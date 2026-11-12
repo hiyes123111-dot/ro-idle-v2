@@ -3721,7 +3721,15 @@ function renderCodexDetail(id) {
         const got = book.item[d.id] || 0;
         return `<div class="codex-drop ${got ? 'got' : ''}"><img src="${itemImgSrc(d.id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-drop-name">${it.name}</span><span class="codex-drop-rate">${d.chance.toFixed(2)}%</span><span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span></div>`;
       }).join('');
-      specialRewardRows = rows + hats;
+      const collectibles = [
+        {id:'old_violet_box', chance:5},
+        {id:'old_card_album', chance:2}
+      ].map(d => {
+        const it = ITEMS[d.id]; if (!it) return '';
+        const got = book.item[d.id] || 0;
+        return `<div class="codex-drop ${got ? 'got' : ''}"><img src="${itemImgSrc(d.id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'"><span class="codex-drop-name">${it.name}</span><span class="codex-drop-rate">${d.chance.toFixed(2)}%</span><span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span></div>`;
+      }).join('');
+      specialRewardRows = rows + hats + collectibles;
     }
     return `<div class="codex-detail">
       <button class="codex-detail-close" onclick="toggleCodexDetail('${id}')">✕</button>

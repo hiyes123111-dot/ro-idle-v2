@@ -6882,7 +6882,7 @@ function weaponChainDamage(monDef, elemMult, roll, sk) {
   const allSizeBonus = typeof getCardBonus === 'function'
     ? getCardBonus('allSizeDmgPct') + getCardBonus('sizeDmg_all') : 0;
   const masteryPct = cardinalMaceBookMasteryPct(monDef);
-  const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus + masteryPct) / 100;
+  const physPct = 1 + ((state.physDmgPct || 0) + allSizeBonus + masteryPct + (typeof getCardBonus === 'function' ? getCardBonus('allElePhysDmgPct') : 0)) / 100;
   // 普通攻擊依武器判斷距離；物理技能依 SKILLS.rangeType 標籤判斷，
   // 避免龍騎士等職業的遠距離技能因手持非弓武器而錯吃近距離加成。
   const isRangedAttack = sk
@@ -13831,7 +13831,7 @@ function effectiveGearBonuses() {
       'atkPct', 'matkPct', 'aspdFlat', 'meleeDmgPct', 'rangedDmgPct',
       'rangedPhysDmgPct', 'allEleDmg', 'allTargetDmgPct', 'allClassDmg',
       'allPropertyDmgPct', 'allRaceDmgPct', 'allSizeDmgPct',
-      'allSizeMagicDmgPct', 'bossDmgPct', 'magicDmgPct', 'magicAllDmgPct',
+      'allSizeMagicDmgPct', 'allElePhysDmgPct', 'bossDmgPct', 'magicDmgPct', 'magicAllDmgPct',
       'critDmgPct', 'healPct', 'hpRegenPct',
       'variableCastPct', 'fixedCast', 'afterCastPct', 'afterCastDelayPct', 'afterAttackDelayPct', 'skillAfterDelayPct',
       'skillCdFlat', 'skillCdFlat_lordofvermillion', 'skillCdFlat_ra_arrowstorm',

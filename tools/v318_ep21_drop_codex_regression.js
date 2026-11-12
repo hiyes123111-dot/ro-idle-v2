@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const c={};vm.createContext(c);
+vm.runInContext(fs.readFileSync('js/data.js','utf8')+';globalThis.x={ITEMS,MONSTERS};',c,{timeout:30000});
+const {ITEMS,MONSTERS}=c.x;
+const frags=['tris','tan_borg','bihailin','reinhardt','evan_wigner','lalila','richard','lora','aurely','ylze','epesto','mary_stella','john','kunt','galacia','iana','lee','nadoyou'].map(x=>'ep21_'+x+'_card_fragment');
+for(const id of frags) assert(ITEMS[id],id+' must be in ITEMS for inventory/codex');
+for(const id of frags) assert(!MONSTERS[id],id+' must not be in MONSTERS');
+assert(ITEMS.old_violet_box&&ITEMS.old_card_album,'both collectible items exist');
+const ui=fs.readFileSync('js/ui.js','utf8');
+for(const id of ['old_violet_box','old_card_album']) assert(ui.includes("id:'"+id+"'"),id+' visible in EP21 monster codex');
+assert(ui.includes('specialRewardRows = rows + hats + collectibles'),'EP21 codex includes fragment, headgear and collectible rows');
+const eng=fs.readFileSync('js/engine.js','utf8');
+assert(eng.includes("addItem('old_violet_box', 1)")&&eng.includes("addItem('old_card_album', 1)"),'online special drops');
+assert(eng.includes("addLoot('old_violet_box')")&&eng.includes("addLoot('old_card_album')"),'offline special drops');
+console.log('v2.5.318 EP21 drop/codex audit: PASS (18 fragments in ITEMS, 2 collectibles, online/offline drops)');
