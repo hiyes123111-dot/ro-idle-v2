@@ -189,7 +189,7 @@
           sk.levelScaleMax = 50; sk.conScaleMax = 50; sk.rangeType = 'ranged';
           sk.critRateMult = 1; sk.critDmgMult = 0.5;
           sk.progressiveShotMaxStacks = 3;
-          sk.desc = '風鷹專用單體遠距離物理攻擊，ATK 600%～4200%；依基本等級與 CON 提升傷害，可依自身暴擊率暴擊，但暴擊傷害加成只有一半。最多累積 3 層；冷卻 5 秒，與銳利射擊相同。需裝備弓。';
+          sk.desc = '風鷹專用單體遠距離物理攻擊，ATK 600%～4200%；依基本等級與 CON 提升傷害，可依自身暴擊率暴擊，但暴擊傷害加成只有一半。最多累積 3 層，每層傷害 +10%（滿層 +30%）；超過 10 秒未再施放或移動時重置。需裝備弓。';
         }
         const sourceValues = {
           '自然親和': {

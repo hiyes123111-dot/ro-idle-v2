@@ -8339,7 +8339,7 @@ function killMonster(def, monObj) {
      迷你王在 #147 之後是獨立的一類，出現頻率高得多，每隻都放會變成背景音。 */
   if (def.isMvp && !acting && typeof playEventSfx === 'function') playEventSfx('mvp');
   withOwner(() => gainExp(gotExp, gotJobExp));
-  const goldGain = Math.round((3 + def.level * 1.4) * buffMult('gold').mult * farmMult('gold'));
+  const goldGain = Math.round((isEp21TrialBoss ? 100000 : (3 + def.level * 1.4)) * buffMult('gold').mult * farmMult('gold'));
   owner.gold += goldGain;
   if (state.dpsTracker) {
     const t = state.dpsTracker;
@@ -8379,6 +8379,15 @@ function killMonster(def, monObj) {
     const fragment = pool[Math.floor(Math.random() * pool.length)];
     addItem(fragment, 1);
     logMsg(`🧩 試煉獎勵：獲得 ${ITEMS[fragment] ? ITEMS[fragment].name : fragment}！`);
+  }
+  // EP21 特殊收藏品：機率掉落，不保證每次擊殺必得。
+  if (isEp21TrialBoss && Math.random() < Math.min(1, 0.05 * dropMult)) {
+    addItem('old_violet_box', 1);
+    logMsg('📦 試煉獎勵：獲得神秘紫箱！');
+  }
+  if (isEp21TrialBoss && Math.random() < Math.min(1, 0.02 * dropMult)) {
+    addItem('old_card_album', 1);
+    logMsg('📕 試煉獎勵：獲得老舊收集冊！');
   }
   // EP21 耶斯卡夫頭冠：僅由超困難試煉首領直接掉落。
   // 兩頂各自獨立判定 1%；此為本作平衡掉率，並非官方公布機率。
@@ -8451,6 +8460,7 @@ function killMonster(def, monObj) {
   // 回寫，確保隊員代打時重置的是實際出手角色，而不是隊長的狀態。
   if (!field.monsters || field.monsters.length === 0) {
     field.windhawkProgressiveStacks = 0;
+    field.windhawkProgressiveLastCastAt = 0;
   }
   // 換身中：把新的陣列同步回隊友，不然牠這一輪剩下的揮擊還是打舊陣列
   if (_allyActing) { _allyActing.monsters = field.monsters; _allyActing.monster = field.monster; }
@@ -8503,6 +8513,7 @@ function onPlayerDown() {
   state.monster = null;
   state.monsters = [];
   state.windhawkProgressiveStacks = 0;
+  state.windhawkProgressiveLastCastAt = 0;
   // 找到該地區的安全區，沒有就去普隆德拉
   const curRegion = regionOf(state.mapId);
   let safeMap = null;
@@ -10095,6 +10106,21 @@ function findSkillAnywhere(skillId) {
 function castSkill(skillId, opts) {
   return withLogLane('skill', () => castSkillInner(skillId, opts));
 }
+// 漸進射擊：每次施放疊 1 層，最多 3 層；距離上次施放超過 10 秒即重置。
+function nextProgressiveShotStack(owner, maxStacks, now = Date.now()) {
+  if (!owner) return 0;
+  const lastCastAt = Number(owner.windhawkProgressiveLastCastAt || 0);
+  if (!lastCastAt || now - lastCastAt > 10000) {
+    owner.windhawkProgressiveStacks = 0;
+  }
+  owner.windhawkProgressiveStacks = Math.min(
+    maxStacks,
+    Math.max(0, Number(owner.windhawkProgressiveStacks || 0)) + 1
+  );
+  owner.windhawkProgressiveLastCastAt = now;
+  return owner.windhawkProgressiveStacks;
+}
+
 function castSkillInner(skillId, opts) {
   const free = !!(opts && opts.free);
   const sk = free ? findSkillAnywhere(skillId) : findSkillForUse(skillId);
@@ -10396,12 +10422,16 @@ function castSkillInner(skillId, opts) {
       // 卡片屬性傷害加成
       const skEleDmgBonus = cardTargetDmgMult(def) - 1;
       let skillMult = mult;
-      // 漸進射擊：每次成功施放累積 1 層，最多 3 層；層數直接作為技能倍率層數。
-      // 未設定額外持續時間，故依使用者規格保留至戰鬥結束／切換角色狀態重置。
+      // 漸進射擊：10 秒內連續施放才保留層數；超過 10 秒未再施放則下一發從 1 層重新累積。
       if (sk.progressiveShotMaxStacks) {
-        state.windhawkProgressiveStacks = Math.min(sk.progressiveShotMaxStacks, (state.windhawkProgressiveStacks || 0) + 1);
-        skillMult *= state.windhawkProgressiveStacks;
-        logMsg(`🏹 漸進射擊累積 ${state.windhawkProgressiveStacks}/${sk.progressiveShotMaxStacks} 層。`);
+        const progressiveOwner = allyOwnerState();
+        const progressiveStacks = nextProgressiveShotStack(progressiveOwner, sk.progressiveShotMaxStacks);
+        // 同步到目前施放狀態，避免隊員代打時顯示與傷害倍率不一致。
+        state.windhawkProgressiveStacks = progressiveStacks;
+        state.windhawkProgressiveLastCastAt = progressiveOwner.windhawkProgressiveLastCastAt;
+        // 官方堆疊效果是每層增加 10% 傷害，最多 +30%；不是把基礎傷害乘以層數。
+        skillMult *= (1 + progressiveStacks * 0.10);
+        logMsg(`🏹 漸進射擊累積 ${progressiveStacks}/${sk.progressiveShotMaxStacks} 層（傷害 +${progressiveStacks * 10}%）。`);
       }
       let faExtraFlat = 0;   // 獵鷹突擊：鋼製喙那份固定傷害，加在防禦之後
       // 超音速投擲被動：音速投擲傷害+90%
@@ -14860,6 +14890,8 @@ function changeMap(mapId) {
   const map = MAPS.find(m => m.id === mapId);
   if (!map) return false;
   state.mapId = mapId;
+  state.windhawkProgressiveStacks = 0;
+  state.windhawkProgressiveLastCastAt = 0;
   if (mapId === 'ep21_final_trial_hell') state.ep21TrialCleared = false; // 舊版存檔相容欄位；新版不再用它鎖定連續挑戰。
   // 回安全區全隊免費滿血復活（#83）——不然倒地的隊友只能靠天地樹葉子
   if ((map.monsters || []).length === 0) reviveAlliesInTown();
@@ -15227,7 +15259,7 @@ function computeOfflineProgress(minMs) {
     const mapJobExp = Math.max(1, Number(map.jobExpMultiplier) || mapExp);
     const expGained = Math.round((bossDef ? bossDef.exp : 0) * bossCount * expMult * farmMult('exp') * mapExp);
     const jobExpGained = Math.round((bossDef ? bossDef.jobExp : 0) * bossCount * expMult * farmMult('exp') * mapJobExp);
-    const goldGained = Math.round((bossDef ? (3 + bossDef.level * 1.4) : 0) * bossCount * buffMult('gold').mult * farmMult('gold'));
+    const goldGained = Math.round((canFarmBoss ? 100000 : 0) * bossCount * buffMult('gold').mult * farmMult('gold'));
     const dropMult = farmMult('drop') * (1 + getCardBonus('dropPct') / 100);
     const fragmentIds = [
       'ep21_tris_card_fragment','ep21_tan_borg_card_fragment','ep21_bihailin_card_fragment',
@@ -15247,12 +15279,16 @@ function computeOfflineProgress(minMs) {
         if (Math.random() < 0.25) addLoot(fragmentIds[Math.floor(Math.random() * fragmentIds.length)]);
         if (Math.random() < Math.min(1, 0.01 * dropMult)) addLoot('yorscalp_p_circlet');
         if (Math.random() < Math.min(1, 0.01 * dropMult)) addLoot('yorscalp_m_circlet');
+        if (Math.random() < Math.min(1, 0.05 * dropMult)) addLoot('old_violet_box');
+        if (Math.random() < Math.min(1, 0.02 * dropMult)) addLoot('old_card_album');
         (bossDef.drops || []).forEach(d => { if (Math.random() < Math.min(1, d.chance * dropMult)) addLoot(d.item); });
       }
       if (partialKill > 0) {
         if (Math.random() < 0.25 * partialKill) addLoot(fragmentIds[Math.floor(Math.random() * fragmentIds.length)]);
         if (Math.random() < Math.min(1, 0.01 * dropMult) * partialKill) addLoot('yorscalp_p_circlet');
         if (Math.random() < Math.min(1, 0.01 * dropMult) * partialKill) addLoot('yorscalp_m_circlet');
+        if (Math.random() < Math.min(1, 0.05 * dropMult) * partialKill) addLoot('old_violet_box');
+        if (Math.random() < Math.min(1, 0.02 * dropMult) * partialKill) addLoot('old_card_album');
         (bossDef.drops || []).forEach(d => { if (Math.random() < Math.min(1, d.chance * dropMult) * partialKill) addLoot(d.item); });
       }
     }
