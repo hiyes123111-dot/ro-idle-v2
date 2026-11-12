@@ -3483,7 +3483,7 @@ function renderCodexTab() {
   /* 搜尋不再限制「已發現」（使用者 2026-08-15 指定全開放）。
      舊規則是為了不讓玩家用搜尋框偷看還沒遇到的內容，但圖鑑的定位已經
      從「收集紀錄」改成「查東西在哪打」——查不到還沒發現的東西就等於沒用。 */
-  if (codexSearch) rows = rows.filter(r => (r.name || '').toLowerCase().includes(codexSearch));
+  if (codexSearch) rows = rows.filter(r => { const d = ITEMS[r.id] || {}; const c = CARDS[r.id] || {}; const hay = [r.name, d.name, d.searchTerms, c.name, c.searchTerms, r.id].filter(Boolean).join(' ').toLowerCase(); return hay.includes(codexSearch); });
 
   /* 職業篩選（使用者 2026-08-22 指定）：武器/防具分頁可只顯示本職業裝得上的裝備 */
   if (codexView === 'item' && codexJobFilter) {

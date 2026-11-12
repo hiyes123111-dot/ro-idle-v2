@@ -1093,8 +1093,10 @@ function recomputeDerived(fullHeal) {
   state.hPlus = traitCRT;
   state.cRate = Math.floor(traitCRT / 3);
   state.critDmgPct = state.cRate;
-  state.pAtk = Math.floor(traitCON / 5);
-  state.sMatk = Math.floor(traitCON / 5);
+  // P.ATK / S.MATK 不只來自 CON：裝備、卡片、升階與套裝的固定值也要併入面板。
+  // effectiveGearBonuses() 已統一正規化 patk/pAtk、smatk/sMatk，故此處直接讀取總表。
+  state.pAtk = Math.floor(traitCON / 5) + getCardBonus('pAtk');
+  state.sMatk = Math.floor(traitCON / 5) + getCardBonus('sMatk');
 
   // 完全迴避（無視命中判定）與暴擊率（無視閃避判定）
   state.perfectDodge = Math.floor(cLuk / 10);
@@ -6562,7 +6564,9 @@ function skillHits(sk, lv, monDef, inst) {
 // 攻擊力的臨時修正：詛咒（×0.75）與挑釁（±N%）
 function playerAtkMult() {
   // P.ATK 是最終物理傷害百分比，必須放在武器／素質／熟練度合併後的最終乘區。
-  const pAtkPct = (typeof getCardBonus === 'function' ? getCardBonus('pAtk') : 0) + (buffMult('pAtk').flatBonus || 0);
+  // state.pAtk 已包含 CON 衍生值及裝備／卡片／套裝固定值，避免只算裝備值、漏掉 CON，
+  // 也避免 getCardBonus 再加一次造成重複。限時 buff 另外加在此處。
+  const pAtkPct = (state.pAtk || 0) + (buffMult('pAtk').flatBonus || 0);
   return playerAilAtkMult() * (1 + pDebuff('atkPct') / 100) * (1 + pAtkPct / 100);
 }
 /* 自動防禦（#22）：這一擊有沒有被完全擋下。只擋物理，跟「完全迴避」是兩件事——
@@ -6916,7 +6920,8 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
      魔法那半沒有現成的桶，掛在這裡——這是全專案唯一一個「知道自己在算魔法、
      手上又有 monDef」的地方，放別處都得再開一條平行的管線。 */
   if (useMag) {
-    const sMatkPct = (typeof getCardBonus === 'function' ? getCardBonus('sMatk') : 0) + (buffMult('sMatk').flatBonus || 0);
+    // state.sMatk 已包含 CON 衍生值及裝備／卡片／套裝固定值；限時 buff 另外加總。
+    const sMatkPct = (state.sMatk || 0) + (buffMult('sMatk').flatBonus || 0);
     const dragon = (state.dragonMatkPct && monDef && monDef.race === 'dragon') ? state.dragonMatkPct : 0;
     /* 魔法體型／種族增傷與物理分開計算：一般 sizeDmg_、raceDmg_ 是物理裝備詞條，
        不能直接挪用，否則同一張物理卡片會意外增加魔法傷害。世界之光與滅世魔靴
@@ -13688,6 +13693,11 @@ function condMet(when, host, lo) {
   /* withAnyItem：陣列中**任一件**有裝就算成立（官方同一件裝備常有無孔/有孔兩個 id，
      「與XX一起裝備」應該兩種都算——沙漠雙劍那次踩過同一個坑）。 */
   if (when.withAnyItem && !when.withAnyItem.some(i => lo.items.has(i))) return false;
+  /* withItemGroups：每個群組至少裝備其中一件；用於同一套裝支援舊版／LT 兩種部件，
+     例如斗篷可選舊版或 LT、鎧甲也可選舊版或 LT，且必須各自滿足一組。 */
+  if (when.withItemGroups && !when.withItemGroups.every(group =>
+    Array.isArray(group) && group.some(i => lo.items.has(i))
+  )) return false;
   /* itemRefineMin：裝備描述中「搭配指定武器，該武器精煉+N以上」。
      與 refineMin（卡片宿主自身精煉）分開，避免誤讀成吊墜/卡片本身精煉。 */
   if (when.itemRefineMin != null) {
