@@ -3413,31 +3413,12 @@ function renderCodexTab() {
   const subBar = codexSubBar(ids);
   ids = codexSubFilter(ids);
   if (codexView === 'mon') {
-    // 怪物圖鑑固定依「王國／大陸 → 區域 → 地圖 → 等級」排序，
-    // 每隻怪物以 REGIONS 中第一張正式配置地圖作為主歸屬，避免多地圖怪物重複列出。
-    const mapById = new Map((MAPS || []).map(m => [m.id, m]));
-    const regionOrder = new Map((REGIONS || []).map((r, i) => [r.id, i]));
-    const kingdomOrder = new Map();
-    (KINGDOMS || []).forEach((k, ki) => (k.regions || []).forEach(rid => kingdomOrder.set(rid, ki)));
-    const monsterMap = new Map();
-    (REGIONS || []).forEach((region, ri) => (region.maps || []).forEach((mapId, mi) => {
-      const map = mapById.get(mapId);
-      if (!map) return;
-      (map.monsters || []).forEach(entry => {
-        const mid = typeof entry === 'string' ? entry : entry.id;
-        if (mid && !monsterMap.has(mid)) monsterMap.set(mid, { mapId, mapName: map.name || mapId, regionId: region.id,
-          regionName: region.name, regionIndex: ri, mapIndex: mi, kingdomIndex: kingdomOrder.has(region.id) ? kingdomOrder.get(region.id) : 999 });
-      });
-    }));
-    const monsterNameZh = { ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+    // 怪物圖鑑只依怪物等級由低至高排列；不顯示王國、區域或地圖分組。
     rows = ids.map(id => {
       const d = MONSTERS[id] || {};
-      const loc = monsterMap.get(id) || { mapId: '', mapName: '未配置地圖', regionId: '', regionName: '未分類／特殊怪物', regionIndex: 999, mapIndex: 999, kingdomIndex: 999 };
-      const kingdom = (KINGDOMS || []).find(k => (k.regions || []).includes(loc.regionId));
-      return { id, name: monsterNameZh[id] || d.name || id, found: !!book.seen[id], ...loc,
-        kingdomName: kingdom ? kingdom.name : '未分類／特殊怪物', level: Number(d.level) || 0 };
-    }).sort((a, b) => a.kingdomIndex - b.kingdomIndex || a.regionIndex - b.regionIndex ||
-      a.mapIndex - b.mapIndex || a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
+      const monsterNameZh = { ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+      return { id, name: monsterNameZh[id] || d.name || id, found: !!book.seen[id], level: Number(d.level) || 0 };
+    }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
   } else if (codexView === 'card') {
     rows = ids.map(id => ({ id, name: (CARDS[id] || ITEMS[id]).name, found: !!book.item[id] }));
   } else if (codexView === 'hidden') {
@@ -3503,14 +3484,8 @@ function renderCodexTab() {
     html += '<div class="empty-hint">沒有符合條件的項目。</div>';
   } else {
     html += '<div class="codex-grid">';
-    let lastMonsterGroup = '';
     pageRows.forEach(r => {
       if (codexView === 'mon') {
-        const groupKey = `${r.kingdomName}|||${r.regionName}|||${r.mapName}`;
-        if (groupKey !== lastMonsterGroup) {
-          html += `<div class="codex-monster-group" style="grid-column:1/-1;padding:9px 11px;margin:8px 0 2px;border-left:3px solid var(--gold);background:rgba(180,150,80,.10);border-radius:6px;font-weight:700;">${r.kingdomName}　›　${r.regionName}　›　${r.mapName}</div>`;
-          lastMonsterGroup = groupKey;
-        }
         html += codexMonCell(r, book);
       } else {
         html += (codexView === 'hidden') ? codexBoxCell(r, book) : codexItemCell(r, book);

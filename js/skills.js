@@ -458,7 +458,7 @@ const SKILLS = {
   /* 官方：遠距離物理範圍技，ATK 600%~1800%，依基本等級遞增，
      「以暴擊率 +50 判定暴擊，暴擊加成只有一半」——本作唯一會暴擊的範圍技。 */
   sn_sharpshooting: {
-    id: 'sn_sharpshooting', name: '銳利射擊 Sharp Shooting', maxLv: 5,
+    id: 'sn_sharpshooting', name: '銳利射擊', maxLv: 5,
     type: 'damage_aoe', element: 'neutral',
     spCost: [16, 18, 20, 22, 24], cooldown: [5, 5, 5, 5, 5],
     mult: [6, 9, 12, 15, 18],

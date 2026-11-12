@@ -21267,6 +21267,7 @@ const MONSTERS = {
   g_rybio: {id:'g_rybio',imgId:1483,name:'拷問技術者',icon:'👿',level:98,hp:9939,atk:476,def:109,element:'none',exp:1,jobExp:1,drops:[],hit:361,flee:250,atkInterval:1.79,mobStr:96,mobInt:30},
   g_phendark: {id:'g_phendark',imgId:1484,name:'阿修羅狂戰士',icon:'👻',level:102,hp:12408,atk:540,def:440,element:'none',exp:1,jobExp:1,drops:[],hit:386,flee:267,atkInterval:1.744,mobStr:111,mobInt:20},
   g_mysteltainn: {id:'g_mysteltainn',imgId:1485,name:'Mysteltainn',icon:'👻',level:130,hp:70000,atk:1079,def:73,element:'none',exp:1,jobExp:1,drops:[],hit:487,flee:369,atkInterval:1.152,mobStr:102,mobInt:65},
+  mysteltainn: {id:'mysteltainn',imgId:1485,name:'弒神者（Mysteltainn）',icon:'👻',level:130,hp:70000,atk:1079,def:73,element:'none',exp:1,jobExp:1,drops:[],hit:487,flee:369,atkInterval:1.152,mobStr:102,mobInt:65},
   g_tirfing: {id:'g_tirfing',imgId:1486,name:'獸牙怪',icon:'👻',level:114,hp:59000,atk:948,def:87,element:'none',exp:1,jobExp:1,drops:[],hit:440,flee:319,atkInterval:0.816,mobStr:105,mobInt:73},
   g_executioner: {id:'g_executioner',imgId:1487,name:'行刑者',icon:'👻',level:101,hp:40200,atk:670,def:97,element:'none',exp:1,jobExp:1,drops:[],hit:371,flee:297,atkInterval:0.768,mobStr:99,mobInt:78},
   g_anolian: {id:'g_anolian',imgId:1488,name:'虎蜥人',icon:'👻',level:109,hp:16615,atk:508,def:61,element:'none',exp:1,jobExp:1,drops:[],hit:354,flee:272,atkInterval:0.9,mobStr:130,mobInt:66},
@@ -24048,6 +24049,7 @@ const MONSTER_CARD_DROPS = {
   ill_kraken: { card: 'ill_kraken_card', chance: 0.0001 }, // 官方資料庫：0.01%
   empathizer: { card: 'empathizer_card', chance: 0.0001 }, // Empathizer Card 0.01%
   dame_of_sentinel: { card: 'observation_card', chance: 0.0001 }, // Dame of Sentinel Card 0.01%
+  mysteltainn: { card: 'mysteltainn_card', chance: 0.0005 }, // 弒神者卡片 0.05%
   poring: { card: 'poring_card', chance: 0.0005 },
   boiled_rice: { card: 'lucky_riceball_c', chance: 0.0005 },
   fabre: { card: 'fabre_card', chance: 0.0005 },
@@ -24522,6 +24524,19 @@ const MONSTER_CARD_DROPS = {
   sropho: { card: 'sropho_card', chance: 0.0005 }, // v2.5.300: restore obtainable card source
   pot_dofle: { card: 'pot_dofle_card', chance: 0.0005 }, // v2.5.300: restore obtainable card source
 
+  // v2.5.310：既有 MVP 卡片補齊掉落映射；沿用遊戲 MVP 卡片基準率 0.01%
+  baphomet: { card: 'baphomet_real_card', chance: 0.0001 },
+  kiel_: { card: 'kiel_card', chance: 0.0001 },
+  holy_skogul: { card: 'holy_skogul_card', chance: 0.0001 },
+  queen_scaraba: { card: 'q_scaraba_card', chance: 0.0001 },
+  b_seyren: { card: 'b_seyren_card', chance: 0.0001 },
+  b_eremes: { card: 'b_eremes_card', chance: 0.0001 },
+  b_harword: { card: 'b_harword_card', chance: 0.0001 },
+  b_magaleta: { card: 'b_magaleta_card', chance: 0.0001 },
+  b_shecil: { card: 'b_shecil_card', chance: 0.0001 },
+  b_katrinn: { card: 'b_katrinn_card', chance: 0.0001 },
+  thanatos: { card: 'thanatos_card', chance: 0.0001 },
+
 };
 
 
@@ -24536,6 +24551,26 @@ const MAPS = [
     id: 'novice_ground', imgId: 5001, name: '新手訓練場',
     monsters: [{ id: 'poring', weight: 40 }, { id: 'lunatic', weight: 35 }, { id: 'fabre', weight: 25 }],
     bg: 'map-novice'
+  },
+  {
+    id: 'novice_dr_field', imgId: 5001, name: '新手訓練場・幻生態區',
+    monsters: [
+      { id: 'dr_eggring', weight: 18 },
+      { id: 'dr_lunatic', weight: 16 },
+      { id: 'dr_fabre', weight: 16 },
+      { id: 'dr_hornet', weight: 14 },
+      { id: 'dr_roda_frog', weight: 14 },
+      { id: 'dr_desert_wolf_b', weight: 12 },
+      { id: 'dr_spore', weight: 10 }
+    ],
+    bg: 'map-novice',
+    desc: '本作擴充的新手幻生態練習區，收錄七種低等級變異魔物。'
+  },
+  {
+    id: 'festival_rice_field', imgId: 5437, name: '節慶活動狩場',
+    monsters: [{ id: 'boiled_rice', weight: 100 }],
+    bg: 'map-novice',
+    desc: '本作節慶活動狩場，肉粽怪出沒。'
   },
   {
     id: 'prontera', imgId: 5002, name: '普隆德拉',
@@ -24641,6 +24676,12 @@ const MAPS = [
     id: 'prt_sewb5', imgId: 5064, name: '地下水道05',
     monsters: [{ id: 'mummy', weight: 30 }, { id: 'ghoul', weight: 25 }, { id: 'bathory', weight: 15 }, { id: 'marionette', weight: 10 }],
     bg: 'map-dungeon'
+  },
+  {
+    id: 'prt_prison', imgId: 5270, name: '普隆德拉地下監獄',
+    monsters: [{ id: 'watcher', weight: 100 }],
+    bg: 'map-dungeon',
+    desc: '觀察者出沒的地下監獄狩場。'
   },
   {
     id: 'prt_monk', imgId: 5065, name: '武僧學院',
@@ -24766,6 +24807,12 @@ const MAPS = [
     id: 'gef_dun03', imgId: 5049, name: '吉芬洞穴03',
     monsters: [{ id: 'wraith_dead', weight: 27 }, { id: 'wind_ghost', weight: 20 }, { id: 'wraith', weight: 53 }],
     bg: 'map-dungeon'
+  },
+  {
+    id: 'gef_d01_i', imgId: 5270, name: '幻影吸血鬼洞窟',
+    monsters: [{ id: 'ill_drainliar', weight: 100 }],
+    bg: 'map-dungeon',
+    desc: '幻影吸血鬼洞窟狩場，幻影紅蝙蝠出沒。'
   },
   {
     id: 'gefenia01', imgId: 5050, name: '葛帔尼亞01',
@@ -25369,7 +25416,7 @@ const MAPS = [
   },
   {
     id: 'gl_knt02', imgId: 5177, name: '古城騎士團02',
-    monsters: [{ id: 'knight_of_abyss', weight: 4 }, { id: 'khalitzburg', weight: 25 }, { id: 'raydric', weight: 51 }, { id: 'alice', weight: 1 }, { id: 'raydric_archer', weight: 19 }],
+    monsters: [{ id: 'knight_of_abyss', weight: 4 }, { id: 'khalitzburg', weight: 25 }, { id: 'raydric', weight: 50 }, { id: 'alice', weight: 1 }, { id: 'raydric_archer', weight: 19 }, { id: 'mysteltainn', weight: 1 }],
     bg: 'map-dungeon'
   },
   {
@@ -25829,7 +25876,7 @@ const MAPS = [
   },
   {
     id: 'lhz_dun04', imgId: 5269, name: '生體實驗洞穴04',
-    monsters: [{ id: 'mineral', weight: 25 }, { id: 'pitman', weight: 25 }, { id: 'waste_stove', weight: 25 }, { id: 'driller', weight: 25 }],
+    monsters: [{ id: 'randel', weight: 14 }, { id: 'flamel', weight: 14 }, { id: 'celia', weight: 14 }, { id: 'chen', weight: 14 }, { id: 'gertie', weight: 14 }, { id: 'alphoccio', weight: 15 }, { id: 'trentini', weight: 15 }],
     bg: 'map-dungeon'
   },
   {
@@ -26179,7 +26226,7 @@ const MAPS = [
   },
   {
     id: 'mal_dun01', imgId: 5339, name: '星光珊瑚地區',
-    monsters: [{ id: 'king_dramoh', weight: 1 }, { id: 'red_eruma', weight: 46 }, { id: 'siorava', weight: 31 }, { id: 'shellfish', weight: 8 }, { id: 'aster', weight: 8 }, { id: 'crab', weight: 8 }],
+    monsters: [{ id: 'king_dramoh', weight: 1 }, { id: 'red_eruma', weight: 46 }, { id: 'siorava', weight: 31 }, { id: 'shellfish', weight: 8 }, { id: 'aster', weight: 8 }, { id: 'crab', weight: 8 }, { id: 'wild_rider', weight: 1 }],
     bg: 'map-dungeon'
   },
   {
@@ -26784,14 +26831,14 @@ const KINGDOMS = [
 ];
 
 const REGIONS = [
-  { id: 'r_novice', name: '新手教學區', subtitle: '你的冒險旅程即將展開', icon: '🌱', maps: ['novice_safe', 'novice_ground', 'test_arena'] },
+  { id: 'r_novice', name: '新手教學區', subtitle: '你的冒險旅程即將展開', icon: '🌱', maps: ['novice_safe', 'novice_ground', 'test_arena', 'novice_dr_field', 'festival_rice_field'] },
   {
     id: 'r_prontera', name: '普隆德拉', subtitle: '盧恩 米德加茲王國首都普隆德拉', icon: '🏰',
-    maps: ['prontera', 'prt_fild00', 'prt_fild01', 'prt_fild02', 'prt_fild03', 'prt_fild04', 'prt_fild05', 'prt_fild06', 'prt_fild07', 'prt_fild08', 'prt_fild09', 'prt_fild10', 'prt_fild11', 'prt_maze01', 'prt_maze02', 'prt_maze03', 'prt_sewb1', 'prt_sewb2', 'prt_sewb3', 'prt_sewb4', 'prt_sewb5', 'prt_monk', 'prt_castle', 'prt_church', 'prt_chiyu', 'prt_gld', 'gld_dun01']
+    maps: ['prontera', 'prt_fild00', 'prt_fild01', 'prt_fild02', 'prt_fild03', 'prt_fild04', 'prt_fild05', 'prt_fild06', 'prt_fild07', 'prt_fild08', 'prt_fild09', 'prt_fild10', 'prt_fild11', 'prt_maze01', 'prt_maze02', 'prt_maze03', 'prt_sewb1', 'prt_sewb2', 'prt_sewb3', 'prt_sewb4', 'prt_sewb5', 'prt_monk', 'prt_castle', 'prt_church', 'prt_chiyu', 'prt_gld', 'gld_dun01', 'prt_prison']
   },
   {
     id: 'r_geffen', name: '吉芬', subtitle: '盧恩 米德加茲王國魔法之都吉芬', icon: '🔮',
-    maps: ['geffen', 'gef_fild01', 'gef_fild02', 'gef_fild03', 'gef_fild04', 'gef_fild05', 'gef_fild06', 'gef_fild07', 'gef_fild08', 'gef_fild09', 'gef_fild10', 'gef_fild11', 'gef_fild12', 'gef_fild13', 'gef_fild14', 'gef_tower', 'gef_dun00', 'gef_dun01', 'gef_dun02', 'gef_dun03', 'gefenia01', 'gefenia02', 'gefenia03', 'gefenia04', 'gef_gld', 'gef_fild00', 'orcsdun01', 'orcsdun02', 'gld_dun03']
+    maps: ['geffen', 'gef_fild01', 'gef_fild02', 'gef_fild03', 'gef_fild04', 'gef_fild05', 'gef_fild06', 'gef_fild07', 'gef_fild08', 'gef_fild09', 'gef_fild10', 'gef_fild11', 'gef_fild12', 'gef_fild13', 'gef_fild14', 'gef_tower', 'gef_dun00', 'gef_dun01', 'gef_dun02', 'gef_dun03', 'gefenia01', 'gefenia02', 'gefenia03', 'gefenia04', 'gef_gld', 'gef_fild00', 'orcsdun01', 'orcsdun02', 'gld_dun03', 'gef_d01_i']
   },
   { id: 'r_payon', name: '培恩', subtitle: '盧恩 米德加茲王國山岳之都斐揚', icon: '⛰️', maps: ['payon', 'payon_field', 'pay_fild01', 'pay_fild02', 'pay_fild03', 'pay_fild04', 'pay_fild05', 'pay_fild06', 'pay_fild07', 'pay_fild08', 'pay_fild09', 'pay_fild10', 'pay_fild11', 'pay_arche', 'pay_dun00', 'pay_dun01', 'pay_dun02', 'pay_dun03', 'pay_dun04', 'pay_gld', 'gld_dun04'] },
   { id: 'r_morroc', name: '夢羅克', subtitle: '盧恩 米德加茲王國沙漠之都夢羅克', icon: '🏜️', maps: ['morroc', 'morroc_desert', 'moc_fild01', 'moc_fild02', 'moc_fild03', 'moc_fild04', 'moc_fild05', 'moc_fild06', 'moc_fild07', 'moc_fild08', 'moc_fild09', 'moc_fild10', 'moc_fild11', 'moc_fild12', 'moc_fild13', 'moc_fild14', 'moc_fild15', 'moc_fild16', 'moc_fild17', 'moc_fild18', 'moc_fild19', 'moc_fild20', 'moc_fild21', 'moc_fild22', 'moc_pryd01', 'moc_pryd02', 'moc_pryd03', 'moc_pryd04', 'moc_pryd05', 'moc_pryd06', 'moc_prydb1', 'moc_prydn2', 'in_sphinx1', 'in_sphinx2', 'in_sphinx3', 'in_sphinx4', 'in_sphinx5', 'moc_gld', 'moc_ruins', 'moc_fild22b'] },
@@ -26996,7 +27043,7 @@ const MVP_MAP_DATA = {
   tha_t09: ['randgris', 'retribution', 'solace', 'shelter', 'observation', 'tha_dolor'],
   tha_t10: ['randgris', 'retribution', 'solace', 'shelter', 'observation', 'tha_maero'],
   tha_t11: ['randgris', 'doppelganger', 'retribution', 'solace', 'shelter', 'observation', 'tha_despero'],
-  tha_t12: ['randgris', 'doppelganger', 'dark_lord', 'retribution', 'solace', 'shelter', 'observation'],
+  tha_t12: ['randgris', 'doppelganger', 'dark_lord', 'retribution', 'solace', 'shelter', 'observation', 'thanatos'],
 
   // === 深淵湖水 ===
   abyss_01: ['detale'],
@@ -27077,10 +27124,14 @@ const MVP_MAP_DATA = {
   mosk_dun03: ['gopinich'],
   nyd_dun01: ['duneyrr'],
   odin_tem02: ['skeggiold', 'skeggiold_'],
-  odin_tem03: ['randgris', 'g_randgris', 'skeggiold', 'skeggiold_'],
+  odin_tem03: ['randgris', 'g_randgris', 'skeggiold', 'skeggiold_', 'holy_skogul'],
   schg_dun01: ['kublin'],
   spl_fild03: ['tendrilrion'],
-  lhz_tomb_fallen: ['v_b_celia','v_b_chen','v_b_alphoccio','v_b_eremes','v_b_magaleta','v_b_shecil','v_b_harword','v_b_katrinn','v_b_seyren','v_b_randel','v_b_flamel','v_b_gertie','v_b_trentini'],
+  lhz_tomb_fallen: ['v_b_celia', 'v_b_chen', 'v_b_alphoccio', 'v_b_eremes', 'v_b_magaleta', 'v_b_shecil', 'v_b_harword', 'v_b_katrinn', 'v_b_seyren', 'v_b_randel', 'v_b_flamel', 'v_b_gertie', 'v_b_trentini', 'b_seyren', 'b_eremes', 'b_harword', 'b_magaleta', 'b_shecil', 'b_katrinn'],
+  // v2.5.310：補齊既有卡片對應的 MVP／特殊怪物出現地圖
+  dic_dun03: ['queen_scaraba'],
+
+  mal_dun01: ['wild_rider'],
 };
 
 

@@ -10412,10 +10412,16 @@ function castSkillInner(skillId, opts) {
          以前是寫死 `sk.id === 'turnundead'`，改成看欄位在不在——
          心靈震波官方也是「傷害隨基本等級與 INT 增加」，同一組欄位就夠用。 */
       if (sk.levelScaleMax || sk.intScaleMax || sk.conScaleMax) {
-        const lvlBonusPct = (state.baseLevel / 99) * (sk.levelScaleMax || 0);
-        const intBonusPct = (state.stats.int / 99) * (sk.intScaleMax || 0);
-        const conBonusPct = (state.stats.con / 99) * (sk.conScaleMax || 0);
+        // 四轉角色可能尚未初始化某項衍生素質（尤其 CON）；不可讓 undefined 傳入乘算而產生 NaN。
+        const baseLevel = Math.max(1, Number(state.baseLevel) || 1);
+        const intStat = Math.max(0, Number(state.stats && state.stats.int) || 0);
+        const conStat = Math.max(0, Number(state.traitStats && state.traitStats.con) || 0);
+        const lvlBonusPct = (baseLevel / 99) * (Number(sk.levelScaleMax) || 0);
+        const intBonusPct = (intStat / 99) * (Number(sk.intScaleMax) || 0);
+        const conBonusPct = (conStat / 99) * (Number(sk.conScaleMax) || 0);
         skillMult *= (1 + lvlBonusPct / 100 + intBonusPct / 100 + conBonusPct / 100);
+        // 防止任何缺漏素質／裝備資料污染整筆傷害；若係數異常，退回已驗證的技能倍率。
+        if (!Number.isFinite(skillMult)) skillMult = Number.isFinite(mult) ? mult : 1;
       }
       /* 強酸火煙瓶投擲（#78）：官方「傷害隨目標的 VIT 增加」。
          本作怪物沒有 vit 欄位，用 defSoft 代替——軟防就是從 VIT 推導出來的。 */
