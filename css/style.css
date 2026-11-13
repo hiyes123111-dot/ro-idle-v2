@@ -1077,6 +1077,7 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .skill-type { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
 .skill-type.passive { background: #5b6b9c; color: #fff; }
 .skill-type.attack { background: #c0392b; color: #fff; }
+.skill-type.magic { background: #6c5ce7; color: #fff; }
 .skill-type.heal { background: #27ae60; color: #fff; }
 .skill-type.dot { background: #8e44ad; color: #fff; }
 .skill-type.buff { background: #2980b9; color: #fff; }
@@ -2039,3 +2040,10 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 /* v2.5.250：RO 原版底圖裝備格也直接顯示該裝備支援的階級選項 */
 .equipwin-grade{display:block;position:relative;z-index:3;max-width:48px;margin:2px auto 0;padding:1px 2px;font-size:9px;line-height:1.2;border:1px solid var(--gold);border-radius:4px;background:var(--bg-panel);color:var(--gold-soft)}
 .equipwin-slot{overflow:visible}
+
+/* v2.5.365：戰鬥訊息時間戳與語意層級 */
+.log-time{display:inline-block;margin-right:4px;color:#8f98aa;font-size:.78em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.log-line.log-warning{color:#ffb5a8}
+.log-line.log-success{color:#9fe0b2}
+.log-line.log-combat{color:#f2d58a}
+.log-line{overflow-wrap:anywhere}

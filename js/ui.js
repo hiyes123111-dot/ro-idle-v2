@@ -2035,7 +2035,13 @@ function renderLogNow() {
     const el = document.getElementById(LOG_PANES[lane]);
     if (!el) return;
     const rows = (combatLogLanes[lane] || []).slice(-30);
-    el.innerHTML = rows.map(m => `<div class="log-line">${m}</div>`).join('');
+    el.innerHTML = rows.map(m => {
+      const raw = String(m || '');
+      const tone = /失敗|警告|無法|不足|被擊敗|死亡/.test(raw) ? 'warning'
+        : /恢復|治癒|治療|獲得|掉落|成功/.test(raw) ? 'success'
+        : /造成 [0-9,]+ 點傷害|暴擊/.test(raw) ? 'combat' : 'normal';
+      return `<div class="log-line log-${tone}">${raw}</div>`;
+    }).join('');
     el.scrollTop = el.scrollHeight;
   });
 }
@@ -2794,6 +2800,46 @@ function setEncounterMode(mode) {
 /* ---------------- 技能分頁（可縮放、按職業分組） ---------------- */
 let expandedJobs = {}; // { jobId: true/false }
 
+/* 全職業技能統一戰鬥標籤：標籤只描述已知機制；距離無法由資料可靠判斷時明確標示待確認，不猜測。 */
+function getSkillCombatTags(sk) {
+  if (!sk) return [];
+  const tags = [];
+  const add = (label, cls='') => { if (label && !tags.some(t => t.label === label)) tags.push({ label, cls }); };
+  const type = String(sk.type || '').toLowerCase();
+  const desc = String(sk.desc || '');
+  const name = String(sk.name || '');
+  const text = `${name} ${desc}`;
+  const physicalTypes = ['damage','damage_aoe','damage_multihit'];
+  const magicTypes = ['magic','magic_aoe','field_aoe_magic'];
+  const attack = physicalTypes.includes(type) || magicTypes.includes(type) || ['multi_dot_stun','poison_proc','stun_field'].includes(type);
+  const isPhysical = physicalTypes.includes(type);
+  const isMagic = magicTypes.includes(type) || type === 'elemental_summon';
+  if (isPhysical) add('物理', 'attack');
+  if (isMagic) add('魔法', 'magic');
+  if (type === 'passive' || sk.passiveStat) add('被動', 'passive');
+  if (['heal','heal_over_time','cardinal_heal','field_heal'].includes(type) || /恢復.{0,8}HP|治療|補血/.test(text)) add('治療', 'heal');
+  if (type.includes('buff') || ['cardinal_support','elemental_summon'].includes(type) || /提升自身|增加自身|賦予自身|使自身.{0,12}(提升|增加)|強化自身/.test(text)) add('輔助／增益', 'buff');
+  if (type.includes('debuff') || /降低目標|使目標.{0,8}(下降|降低)|弱化敵人/.test(text)) add('減益', 'debuff');
+  if (type.includes('dot') || /持續.{0,8}(傷害|攻擊)|每秒.{0,8}傷害/.test(text)) add('持續傷害', 'dot');
+  if (/召喚|獵鷹|狼|傭兵|精靈/.test(text) || type === 'elemental_summon') add('召喚／使魔', 'buff');
+  if (/範圍|周圍|全部敵人|所有敵人/.test(text) || ['damage_aoe','magic_aoe','field_aoe_magic','stun_field','field_heal','dispel_aoe','ailment_aoe'].includes(type)) add('範圍', 'buff');
+  if (attack) {
+    let range = sk.rangeLabel || sk.range || '';
+    if (!range) {
+      if (sk.requiresWeapon === 'bow' || /弓箭|箭矢|連射.{0,8}箭|射出.{0,8}箭|射擊|遠距離/.test(text)) range = '遠距離';
+      else if (/近距離/.test(text)) range = '近距離';
+      else range = '距離待確認';
+    }
+    add(range, range === '距離待確認' ? 'debuff' : 'buff');
+  } else if (!tags.length) {
+    add('功能待確認', 'debuff');
+  }
+  return tags;
+}
+function renderSkillCombatTags(sk) {
+  return getSkillCombatTags(sk).map(t => `<span class="skill-type ${t.cls}">${t.label}</span>`).join(' ');
+}
+
 function renderSkillsTab() {
   const el = document.getElementById('tab-skills');
   const allJobs = getAllLearnedJobs();
@@ -2910,7 +2956,7 @@ function renderSkillsTab() {
 
         html += `<div class="skill-row ${lv > 0 ? 'learned' : ''}">
           <div class="skill-info">
-            <div class="skill-name"><img src="images/skills/${skillArt}" alt="" style="width:24px;height:24px;vertical-align:middle;margin-right:5px">${sk.name} ${statusTag} ${typeTag} ${elemTag}</div>
+            <div class="skill-name"><img src="images/skills/${skillArt}" alt="" style="width:24px;height:24px;vertical-align:middle;margin-right:5px">${sk.name} ${statusTag} ${typeTag} ${elemTag} ${renderSkillCombatTags(sk)}</div>
             <div class="skill-desc">${sk.rangeLabel ? `<span class="skill-range-tag">[${sk.rangeLabel}]</span> ` : ``}${sk.desc}</div>
             <div class="skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</div>
           </div>
@@ -2944,7 +2990,7 @@ function renderSkillsTab() {
       const typeTag = sk.type === 'passive' ? '<span class="skill-type passive">被動</span>' : '';
       html += `<div class="skill-row learned">
         <div class="skill-info">
-          <div class="skill-name">${sk.name} <span class="skill-tag">Lv${lv}</span> ${typeTag}</div>
+          <div class="skill-name">${sk.name} <span class="skill-tag">Lv${lv}</span> ${typeTag} ${renderSkillCombatTags(sk)}</div>
           <div class="skill-desc">${sk.rangeLabel ? `<span class="skill-range-tag">[${sk.rangeLabel}]</span> ` : ``}${sk.desc}</div>
           <div class="skill-cost">SP ${spCost} ・ 冷卻 ${cd}s</div>
         </div>
@@ -4171,6 +4217,7 @@ let invCategory = 'weapon';
 let invSub = 'all';
 let invSearch = '';        // 四個分類共用同一個搜尋字串
 let invSort = 'name';      // name | qty | value
+let invQuickFilter = 'all'; // 道具快速篩選
 
 function invCategoryOf(itemId) {
   if (CARDS[itemId]) return 'card';
@@ -4318,6 +4365,7 @@ function renderCompareBadge(itemId, newRefine, instanceId) {
 function setInvCategory(c) {
   invCategory = INV_CATEGORIES.some(x => x.key === c) ? c : INV_CATEGORIES[0].key;
   invSub = 'all';
+  invQuickFilter = 'all';
   renderInventoryTab();
 }
 function setInvSub(s) { invSub = s; renderInventoryTab(); }
@@ -4460,6 +4508,7 @@ function showSlotActions(slotKey) {
     ${YORSCALP_CIRCLET_IDS.includes(itemId) ? `<button class="btn-small ghost" onclick="showYorscalpEnchantPanel('${slotKey}')">頭冠附魔</button>` : ''}
   </div>`;
   el.innerHTML = html;
+  el.dataset.cardSelectFilter = 'all';
 }
 
 
@@ -5146,6 +5195,27 @@ function toggleInventoryAutoSell(itemId) {
 }
 
 
+function invQuickFilterMatch(itemId, filter) {
+  const d = ITEMS[itemId] || {};
+  const name = String(d.name || '');
+  const desc = String(d.desc || '');
+  if (filter === 'all') return true;
+  if (filter === 'material') return d.type === 'material';
+  if (filter === 'consumable') return d.type === 'consumable';
+  if (filter === 'usable') return d.type === 'consumable' &&
+    !!(d.heal || d.restoreSp || d.healPct || d.restoreSpPct || d.boxOpen || d.aspdPct);
+  if (filter === 'no_effect') return d.type === 'consumable' &&
+    !(d.heal || d.restoreSp || d.healPct || d.restoreSpPct || d.boxOpen || d.aspdPct);
+  if (filter === 'unopened') return /箱|盒|寶箱|寶盒/.test(name) && !d.boxOpen;
+  if (filter === 'pet') return /寵物|寵物蛋|孵化|捕捉/.test(name + ' ' + desc);
+  if (filter === 'ammo') return !!d.ammo || d.type === 'ammo';
+  return true;
+}
+function setInvQuickFilter(filter) {
+  invQuickFilter = ['all','material','consumable','usable','no_effect','unopened','pet','ammo'].includes(filter) ? filter : 'all';
+  renderInventoryTab();
+}
+
 function renderInventoryTab() {
   const el = document.getElementById('tab-inventory');
   if (!el) return;
@@ -5173,6 +5243,7 @@ function renderInventoryTab() {
 
     let rows = inCat;
     if (invSub !== 'all') rows = rows.filter(r => invSubOf(r.item) === invSub);
+    if (invCategory === 'item' && invQuickFilter !== 'all') rows = rows.filter(r => invQuickFilterMatch(r.item, invQuickFilter));
     if (invSearch) rows = rows.filter(r => (ITEMS[r.item].name || '').toLowerCase().includes(invSearch));
 
     rows = rows.slice().sort((a, b) => {
@@ -5194,6 +5265,19 @@ function renderInventoryTab() {
            ${subKeys.map(s => `<button class="btn-chip ${invSub === s ? 'active' : ''}" onclick="setInvSub('${s}')">${invSubLabel(invCategory, s)} ${subCount[s]}</button>`).join('')}
          </div>`
       : '';
+
+    const quickFilters = invCategory === 'item' ? [
+      ['all','全部',inCat.length], ['material','素材',inCat.filter(r=>invQuickFilterMatch(r.item,'material')).length],
+      ['consumable','消耗品',inCat.filter(r=>invQuickFilterMatch(r.item,'consumable')).length],
+      ['usable','用得到的',inCat.filter(r=>invQuickFilterMatch(r.item,'usable')).length],
+      ['no_effect','吃了沒效果',inCat.filter(r=>invQuickFilterMatch(r.item,'no_effect')).length],
+      ['unopened','打不開的箱子',inCat.filter(r=>invQuickFilterMatch(r.item,'unopened')).length],
+      ['pet','寵物相關',inCat.filter(r=>invQuickFilterMatch(r.item,'pet')).length],
+      ['ammo','箭矢',inCat.filter(r=>invQuickFilterMatch(r.item,'ammo')).length]
+    ] : [];
+    const quickFilterHtml = quickFilters.length > 0 ? `<div class="inv-subs inv-quick-filters">
+      ${quickFilters.filter(x=>x[0]==='all'||x[2]>0).map(x=>`<button class="btn-chip ${invQuickFilter===x[0]?'active':''}" onclick="setInvQuickFilter('${x[0]}')">${x[1]} ${x[2]}</button>`).join('')}
+    </div>` : '';
 
     const items = rows.map(row => {
       const def = ITEMS[row.item];
@@ -5304,6 +5388,7 @@ function renderInventoryTab() {
         </select>
       </div>
       ${subChips}
+      ${quickFilterHtml}
       <div class="inv-list">${items || `<div class="empty-hint">${emptyMsg}</div>`}</div>`;
 
     // 露天商店（僅商人職業且已學會露天商店技能時顯示）
@@ -5614,8 +5699,11 @@ function renderCharacterTab() {
       const unlocked = (job?.tier || 0) >= 4 && (state.baseLevel || 0) >= 200;
       const alloc = state.traitAlloc || {};
       return `<section class="trait-allocation-panel" style="margin:12px 0;padding:12px;border:1px solid var(--gold);border-radius:10px;">
-        <div style="font-weight:700;color:var(--gold);font-size:1.05em;">四轉六大特性配點</div>
-        <div style="margin:6px 0 10px;color:var(--text-muted,#aaa);font-size:.9em;">${unlocked ? `剩餘 T.Status Point：${state.tStatusPoints || 0}（每次配點消耗 1 點；單項上限 100）` : '四轉職業且 Base Lv.200 才會解鎖；基本素質點數與特性點數分開計算。'}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div style="font-weight:700;color:var(--gold);font-size:1.05em;">四轉六大特性配點</div>
+          ${unlocked ? `<button class="btn-small" onclick="confirmTraitReset()" ${Object.values(alloc).every(v => !(Number(v) > 0)) ? 'disabled' : ''}>🔄 重置特性點</button>` : ''}
+        </div>
+        <div style="margin:6px 0 10px;color:var(--text-muted,#aaa);font-size:.9em;">${unlocked ? `剩餘 T.Status Point：${state.tStatusPoints || 0}（每次配點消耗 1 點；單項上限 100）。重置免費，全部已分配點數返還。` : '四轉職業且 Base Lv.200 才會解鎖；基本素質點數與特性點數分開計算。'}</div>
         <div class="trait-allocation-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
           ${traitDefs.map(([key,code,name,desc]) => {
             const value = alloc[key] || 0;
@@ -5903,6 +5991,34 @@ function renderRebirthPanel() {
 }
 
 /* 洗點要二次確認：花 10 萬且素質全歸 1，手滑的代價不小（#120）*/
+/* 六大特性重置：免費返還全部已分配 T.Status Point，不影響基本素質與技能。 */
+function confirmTraitReset() {
+  const job = currentJob();
+  if ((job?.tier || 0) < 4 || (state.baseLevel || 0) < 200) {
+    logMsg('⚠️ 四轉職業且 Base Lv.200 才能重置六大特性。');
+    return;
+  }
+  const alloc = state.traitAlloc || {};
+  const refund = ['pow','sta','wis','spl','con','crt']
+    .reduce((sum, key) => sum + Math.max(0, Math.floor(Number(alloc[key]) || 0)), 0);
+  if (refund <= 0) { logMsg('目前沒有已分配的特性點數。'); return; }
+  const msg = [
+    '六大特性重置確認：',
+    `・將六項已分配特性全部歸零`,
+    `・返還 ${refund} 點 T.Status Point`,
+    '・免費，不扣除 Zeny',
+    '・不影響基本素質、技能、等級與裝備',
+    '',
+    '確定要重置嗎？'
+  ].join('\n');
+  if (!confirm(msg)) return;
+  const result = resetTraitStats();
+  if (result) {
+    renderCharacterTab();
+    renderTopBar();
+  }
+}
+
 function confirmStatReset() {
   const why = statResetBlockReason();
   if (why) { logMsg('⚠️ ' + why); return; }
@@ -7347,6 +7463,86 @@ function doDestroyInstance(instanceId) {
 }
 
 // 插卡入口在裝備欄上，而裝備欄住在「裝備」分頁，所以這個選單也畫在那裡
+function getCardTagLabels(card) {
+  const desc = String(card && card.desc || '');
+  const bonusText = JSON.stringify(card ? {bonus: card.bonus || {}, condBonus: card.condBonus || []} : {});
+  const source = `${desc} ${bonusText}`.toLocaleLowerCase();
+  const tags = [];
+  const add = (label) => { if (!tags.includes(label)) tags.push(label); };
+
+  if (/遠距離|rangeddmg|遠程/.test(source)) add('遠距離');
+  if (/近距離|meleedmg/.test(source)) add('近距離');
+  if (/物理|\batk\b|patk|cri|hit|meleedmg|rangeddmg/.test(source)) add('物理');
+  if (/魔法|\bmatk\b|sm atk|smatk|magicdmg|magicele/.test(source)) add('魔法');
+  if (/恢復|治癒|治療|hp恢復|h\.plus|heal/.test(source)) add('輔助／恢復');
+  if (/def|mdef|res|mres|抗性|減傷|無視防禦/.test(source)) add('防禦／抗性');
+  if (/種族|全種族|race|對.{0,8}系/.test(source)) add('種族增傷');
+  if (/體型|全體型|size/.test(source)) add('體型增傷');
+  if (/階級|一般階級|boss|階級敵人/.test(source)) add('階級增傷');
+  if (/屬性|火屬|水屬|風屬|地屬|念屬|暗屬|聖屬|不死屬|毒屬|ele/.test(source)) add('屬性效果');
+  if (/技能|自動念咒|觸發|機率/.test(source)) add('技能／觸發');
+  if (!tags.length) add('能力／特殊效果');
+
+  const jobNames = [
+    '盧恩騎士','皇家禁衛軍','機械工匠','基因學者','大法師','咒術士','妖術師','元素支配者',
+    '魅影追蹤者','斬首者','暗影十字','遊俠','風鷹射手','遊唱詩人','浪姬舞者','宮廷樂師',
+    '浪跡舞者','修羅','龍神','天帝','悟靈士','獵靈士','主教','樞機主教','大主教','祭司',
+    '十字軍','騎士','刺客','弓箭手','法師','服事','商人','盜賊','劍士'
+  ];
+  const jobs = jobNames.filter(name => desc.includes(name));
+  jobs.slice(0, 3).forEach(name => add(`職業：${name}`));
+  if (!jobs.length && /職業限定|系列裝備時|系列角色裝備時/.test(desc)) add('職業限定（詳見效果）');
+  return tags;
+}
+
+function cardTagHtml(card) {
+  return getCardTagLabels(card).map(tag =>
+    `<span class="card-tag" style="display:inline-block;font-size:.72em;line-height:1.5;padding:1px 6px;margin:3px 4px 0 0;border:1px solid rgba(210,180,90,.45);border-radius:10px;color:var(--gold,#d5b45a)">${tag}</span>`
+  ).join('');
+}
+
+function filterCardSelectList(value) {
+  const el = document.getElementById('tab-equip');
+  if (!el) return;
+  const input = document.getElementById('card-select-search');
+  const q = String(value !== undefined ? value : (input ? input.value : '')).trim().toLocaleLowerCase();
+  const activeFilter = el.dataset.cardSelectFilter || 'all';
+  const rows = Array.from(el.querySelectorAll('[data-card-search]'));
+  let shown = 0;
+  rows.forEach(row => {
+    const hay = String(row.dataset.cardSearch || '').toLocaleLowerCase();
+    const keywordMatch = !q || hay.includes(q);
+    const physical = /物理|\batk\b|p\.atk/.test(hay);
+    const magic = /魔法|\bmatk\b|s\.matk/.test(hay);
+    const near = /近距離|近\s*[／/]\s*遠距離|近\/遠距離/.test(hay);
+    const far = /遠距離|近\s*[／/]\s*遠距離|近\/遠距離/.test(hay);
+    const categoryMatch = activeFilter === 'all' ||
+      (activeFilter === 'physical' && physical) ||
+      (activeFilter === 'magic' && magic) ||
+      (activeFilter === 'near' && near) ||
+      (activeFilter === 'far' && far);
+    const match = keywordMatch && categoryMatch;
+    row.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  const count = el.querySelector('#card-select-result-count');
+  if (count) count.textContent = `顯示 ${shown} / ${rows.length} 張`;
+  const empty = el.querySelector('#card-select-no-match');
+  if (empty) empty.style.display = shown ? 'none' : '';
+  el.querySelectorAll('[data-card-filter]').forEach(btn => {
+    const active = btn.dataset.cardFilter === activeFilter;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function setCardSelectFilter(filter) {
+  const el = document.getElementById('tab-equip');
+  if (!el) return;
+  el.dataset.cardSelectFilter = ['all', 'physical', 'magic', 'near', 'far'].includes(filter) ? filter : 'all';
+  filterCardSelectList();
+}
+
 function showCardSelect(slotKey) {
   const el = document.getElementById('tab-equip');
   if (!el) return;
@@ -7375,6 +7571,7 @@ function showCardSelect(slotKey) {
           <div class="card-details">
             <span class="card-name">${c.name}</span>
             <span class="card-desc">${itemDescriptionHtml(c.desc || '')}</span>
+            <span class="card-tags">${cardTagHtml(c)}</span>
           </div>
         </div>
       </div>`;
@@ -7388,21 +7585,38 @@ function showCardSelect(slotKey) {
   } else if (availableCards.length === 0) {
     html += `<div class="empty-hint">背包裡沒有能插在這個部位的卡片。</div>`;
   } else {
-    html += '<div class="codex-detail-sec">可插入</div><div class="card-list">';
+    html += `<div class="codex-detail-sec">可插入 <span id="card-select-result-count" style="float:right;font-size:.85em;color:var(--text-muted,#aaa)">顯示 ${availableCards.length} / ${availableCards.length} 張</span></div>`;
+    html += `<div style="margin:8px 0 12px">
+      <input id="card-select-search" type="search" class="form-control" placeholder="🔎 搜尋卡片名稱、效果或關鍵字…" autocomplete="off"
+        oninput="filterCardSelectList(this.value)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--gold,#b99a45);border-radius:9px;background:var(--panel-bg,#24151a);color:var(--text,#eee)">
+      <div style="font-size:.8em;color:var(--text-muted,#aaa);margin-top:4px">可搜尋卡片名稱、效果內容及卡片 ID</div>
+      <div class="card-search-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px">
+        <button type="button" class="btn-small active" data-card-filter="all" aria-pressed="true" onclick="setCardSelectFilter('all')">全部</button>
+        <button type="button" class="btn-small" data-card-filter="physical" aria-pressed="false" onclick="setCardSelectFilter('physical')">⚔️ 物理</button>
+        <button type="button" class="btn-small" data-card-filter="magic" aria-pressed="false" onclick="setCardSelectFilter('magic')">✨ 魔法</button>
+        <button type="button" class="btn-small" data-card-filter="near" aria-pressed="false" onclick="setCardSelectFilter('near')">👊 近距離</button>
+        <button type="button" class="btn-small" data-card-filter="far" aria-pressed="false" onclick="setCardSelectFilter('far')">🏹 遠距離</button>
+      </div>
+    </div>`;
+    html += '<div class="card-list" id="card-select-list">';
     availableCards.forEach(c => {
-      html += `<div class="card-row">
+      const searchText = `${c.card.name || ''} ${c.card.desc || ''} ${c.cardId} ${getCardTagLabels(c.card).join(' ')}`.toLocaleLowerCase()
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html += `<div class="card-row" data-card-search="${searchText}">
         <div class="card-info">
           <span class="card-icon">${c.card.icon}</span>
           <div class="card-details">
             <span class="card-name">${c.card.name} x${c.qty}</span>
             <span class="card-desc">${itemDescriptionHtml(c.card.desc || '')}</span>
+            <span class="card-tags">${cardTagHtml(c.card)}</span>
           </div>
         </div>
         <button class="btn-small" onclick="insertCard('${slotKey}','${c.cardId}');showCardSelect('${slotKey}');">插卡</button>
       </div>`;
     });
-    html += '</div>';
+    html += '</div><div id="card-select-no-match" class="empty-hint" style="display:none">沒有符合關鍵字的卡片。</div>';
   }
 
   el.innerHTML = html;
 }
+

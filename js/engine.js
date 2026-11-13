@@ -267,10 +267,13 @@ function pushCombatLog(text, lane) {
   if (_allyActing && typeof text === 'string' && text.indexOf('你') >= 0) {
     text = text.split('你').join(_allyActing._allyName);
   }
-  combatLogBuf.push(text);
+  const now = new Date();
+  const stamp = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}]`;
+  const displayText = `<span class="log-time">${stamp}</span> ${text}`;
+  combatLogBuf.push(displayText);
   if (combatLogBuf.length > 60) combatLogBuf.shift();
   const buf = combatLogLanes[ln];
-  buf.push(text);
+  buf.push(displayText);
   if (buf.length > 40) buf.shift();
 }
 
@@ -2792,8 +2795,9 @@ function cardTargetDmgMult(monDef) {
   }
   if (monDef.race && state.cardRaceDmgBonus && state.cardRaceDmgBonus[monDef.race]) bonus += state.cardRaceDmgBonus[monDef.race];
   if (monDef.size && state.cardSizeDmgBonus && state.cardSizeDmgBonus[monDef.size]) bonus += state.cardSizeDmgBonus[monDef.size];
-  // 對所有種族增傷（例如米德加爾特大太陽神頭盔精煉 +13）；同一共用乘區供物理與魔法技能使用。
+  // 舊 allRaceDmgPct 維持歷史共用效果；新資料可明確區分物理／魔法，避免物理冠冕誤加魔法傷害。
   if (state.cardAllRaceDmgPct) bonus += state.cardAllRaceDmgPct / 100;
+  bonus += getCardBonus('allRacePhysDmgPct') / 100;
   // 魔物家族（哥布靈族／獸人族…）與指名單一隻怪的增傷
   if (state.cardFamilyDmgBonus) {
     const fam = familyOfMonster(monDef);
@@ -6958,7 +6962,7 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     // 讓主動施法、自動念咒、受擊反制與場地／持續傷害都能吃到，避免只在主動施法乘區生效。
     const magicElement = (sk && sk.element) || 'none';
     targetPct += getCardBonus('magicEleDmg_' + magicElement);
-    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('magicAllDmgPct');
+    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allRaceMagicDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('magicAllDmgPct');
     // 古代夢羅克貴族首飾：全屬性目標的魔法傷害，與物理端使用相同專用詞條，避免雙重計算。
     targetPct += getCardBonus('allPropertyDmgPct');
     // 所有階級魔法傷害是獨立詞條；不得把物理 allClassDmg 誤套到魔法。
@@ -9602,6 +9606,19 @@ function allocateTraitStat(key) {
   recomputeDerived(false);
   saveGame();
   return true;
+}
+
+function resetTraitStats() {
+  if ((currentJob()?.tier || 0) < 4 || (state.baseLevel || 0) < 200) return false;
+  const keys = ['pow','sta','wis','spl','con','crt'];
+  if (!state.traitAlloc) state.traitAlloc = {};
+  const refunded = keys.reduce((sum, key) => sum + Math.max(0, Math.floor(Number(state.traitAlloc[key]) || 0)), 0);
+  if (refunded <= 0) return false;
+  keys.forEach(key => { state.traitAlloc[key] = 0; });
+  recomputeDerived(false);
+  saveGame();
+  logMsg(`🔄 六大特性已重置，返還 ${refunded} 點 T.Status Point。`);
+  return refunded;
 }
 
 /* ---------------- 技能 ---------------- */
