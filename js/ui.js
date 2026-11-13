@@ -3187,7 +3187,7 @@ const ITEM_TYPE_LABELS = {
   weapon: '武器', armor: '防具', consumable: '消耗品', material: '素材', etc: '雜物', card: '卡片'
 };
 let codexView = 'mon';      // mon | card | item | sets
-let codexFilter = 'all';    // all | found | missing
+let codexFilter = 'all';    // all | found | missing | recent
 let codexSearch = '';
 let codexPage = 0;
 let codexOpenId = null;
@@ -3485,7 +3485,7 @@ function renderCodexTab() {
       return { id, name: monsterNameZh[id] || d.name || id, found: !!book.seen[id], level: Number(d.level) || 0 };
     }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
   } else if (codexView === 'card') {
-    rows = ids.map(id => ({ id, name: (CARDS[id] || ITEMS[id]).name, found: !!book.item[id] }));
+    rows = ids.map(id => ({ id, name: (CARDS[id] || ITEMS[id]).name, found: !!book.item[id], recent: !!(CARDS[id] && CARDS[id].addedVersion) }));
   } else if (codexView === 'hidden') {
     rows = ids.map(id => ({ id, name: ITEMS[id].name, found: !!(book.box && book.box[id]) }));
   } else {
@@ -3493,6 +3493,7 @@ function renderCodexTab() {
   }
   if (codexFilter === 'found') rows = rows.filter(r => r.found);
   else if (codexFilter === 'missing') rows = rows.filter(r => !r.found);
+  else if (codexFilter === 'recent' && codexView === 'card') rows = rows.filter(r => r.recent);
   /* 搜尋不再限制「已發現」（使用者 2026-08-15 指定全開放）。
      舊規則是為了不讓玩家用搜尋框偷看還沒遇到的內容，但圖鑑的定位已經
      從「收集紀錄」改成「查東西在哪打」——查不到還沒發現的東西就等於沒用。 */
@@ -3539,6 +3540,7 @@ function renderCodexTab() {
         <button class="btn-small ${codexFilter === 'all' ? 'active' : ''}" onclick="setCodexFilter('all')">全部</button>
         <button class="btn-small ${codexFilter === 'found' ? 'active' : ''}" onclick="setCodexFilter('found')">已發現</button>
         <button class="btn-small ${codexFilter === 'missing' ? 'active' : ''}" onclick="setCodexFilter('missing')">未發現</button>
+        ${codexView === 'card' ? `<button class="btn-small ${codexFilter === 'recent' ? 'active' : ''}" onclick="setCodexFilter('recent')">✨ 近期新增 44</button>` : ''}
       </div>
     </div>
     ${catBar}${subBar}`;
@@ -3598,7 +3600,7 @@ function codexItemCell(r, book) {
     (typeof window.getItemDisplayName === 'function' ? window.getItemDisplayName(r.id) : '') || r.id;
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${got ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
     <img class="codex-icon" src="${itemImgSrc(r.id)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-    <div class="codex-cell-name">${displayName}</div>
+    <div class="codex-cell-name">${displayName}${cardDef && cardDef.addedVersion ? ` <span style="display:inline-block;margin-left:3px;padding:1px 4px;border:1px solid #d8b34a;border-radius:5px;color:#f2cf65;font-size:10px;white-space:nowrap;">新 ${cardDef.addedVersion.replace('v2.5.','')}</span>` : ''}</div>
     <div class="codex-cell-sub">${sub}</div>
     <div class="codex-cell-count ${got ? '' : 'zero'}">${got ? '×' + got : '未取得'}</div>
   </div>`;
@@ -3968,6 +3970,9 @@ function describeCondition(when) {
   if (when.weaponReq) bits.push(`裝備${(typeof weaponReqName === 'function' && weaponReqName(when.weaponReq)) || when.weaponReq}`);
   if (when.withCards) bits.push(when.withCards.map(c => (CARDS[c] || {}).name || c).join('、') + ' 同時裝備');
   if (when.withItems) bits.push(when.withItems.map(i => (ITEMS[i] || {}).name || i).join('、') + ' 同時裝備');
+  if (when.withAnyItem) bits.push(when.withAnyItem.map(i => (ITEMS[i] || {}).name || i).join('／') + ' 任一件同時裝備');
+  if (when.itemGradeMin) bits.push(`指定裝備階級 ${when.itemGradeMin} 以上`);
+  if (when.itemRefineMin != null) bits.push(`指定裝備精煉 +${when.itemRefineMin} 以上`);
   if (when.statMin) bits.push(Object.entries(when.statMin).map(([k, v]) => `${k.toUpperCase()} ${v} 以上`).join('、'));
   if (when.statMax) bits.push(Object.entries(when.statMax).map(([k, v]) => `${k.toUpperCase()} ${v} 以下`).join('、'));
   if (when.jobIs) bits.push((Array.isArray(when.jobIs) ? when.jobIs : [when.jobIs])
@@ -4024,7 +4029,7 @@ function describeCardBonus(card) {
   (card.condBonus || []).forEach(cb => {
     const inner = [];
     for (const [k, v] of Object.entries(cb.bonus || {})) {
-      const s = formatCardBonus(k, v, cb.bonus);
+      const s = formatCardBonus(k, v, Object.assign({}, cb.bonus, {__conditionItems: (cb.when && (cb.when.withItems || cb.when.withAnyItem)) || []}));
       if (s) inner.push(s);
     }
     if (inner.length) out.push(`${describeCondition(cb.when)}：${inner.join('、')}`);
@@ -4053,6 +4058,20 @@ function formatCardBonus(k, v, all) {
   if (k.startsWith('skillDmg_')) {
     const sk = (typeof findSkillAnywhere === 'function') ? findSkillAnywhere(k.slice(9)) : null;
     return `${sk ? sk.name.split(' ')[0] : k.slice(9)} 傷害 ${signed(v, 1)}`;
+  }
+  // 搭配指定裝備後，依「該裝備」精煉等級累加的效果。
+  // 例如耶斯卡夫 EP21 卡片：A階級頭冠+10後，頭冠每精煉+1，指定技能傷害+12%。
+  const itemRefine = /^perItem(\\d+)Refine_(.+)$/.exec(k);
+  if (itemRefine) {
+    const step = Math.max(1, Number(itemRefine[1]) || 1);
+    const targetIds = (all && all.__conditionItems) || [];
+    const targetName = targetIds.map(id => (ITEMS[id] || {}).name || id).join('／');
+    const innerKey = itemRefine[2];
+    if (innerKey.startsWith('skillDmg_')) {
+      const sk = (typeof findSkillAnywhere === 'function') ? findSkillAnywhere(innerKey.slice(9)) : null;
+      return `${targetName ? targetName + ' ' : ''}每精煉 +${step}，${sk ? sk.name.split(' ')[0] : innerKey.slice(9)} 傷害 ${signed(v, 1)}`;
+    }
+    return `${targetName ? targetName + ' ' : ''}每精煉 +${step}，${formatCardBonus(innerKey, v, all) || innerKey}`;
   }
   // 吸血／吸SP 的機率與比例是一組，機率那個鍵不單獨成句
   if (k === 'lifeStealChance' || k === 'spStealChance') return '';
@@ -5583,10 +5602,40 @@ function renderCharacterTab() {
           >🔄 洗點 ${STAT_RESET_COST_ZENY.toLocaleString()}z</button>`;
       })()}
     </div>
+    ${(() => {
+      const traitDefs = [
+        ['pow','POW','威力','每點：素質物理攻擊 +5；每3點：P.ATK +1。'],
+        ['sta','STA','體力','每點：RES +1；每3點：額外 RES +5。'],
+        ['wis','WIS','智慧','每點：MRES +1；每3點：額外 MRES +5。'],
+        ['spl','SPL','咒語','每點：素質魔法攻擊 +5；每3點：S.MATK +1。'],
+        ['con','CON','集中','每點：HIT +2、FLEE +2；每5點：P.ATK、S.MATK 各 +1。'],
+        ['crt','CRT','創意','每點：H.PLUS +1；每3點：C.RATE +1。']
+      ];
+      const unlocked = (job?.tier || 0) >= 4 && (state.baseLevel || 0) >= 200;
+      const alloc = state.traitAlloc || {};
+      return `<section class="trait-allocation-panel" style="margin:12px 0;padding:12px;border:1px solid var(--gold);border-radius:10px;">
+        <div style="font-weight:700;color:var(--gold);font-size:1.05em;">四轉六大特性配點</div>
+        <div style="margin:6px 0 10px;color:var(--text-muted,#aaa);font-size:.9em;">${unlocked ? `剩餘 T.Status Point：${state.tStatusPoints || 0}（每次配點消耗 1 點；單項上限 100）` : '四轉職業且 Base Lv.200 才會解鎖；基本素質點數與特性點數分開計算。'}</div>
+        <div class="trait-allocation-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+          ${traitDefs.map(([key,code,name,desc]) => {
+            const value = alloc[key] || 0;
+            const canAdd = unlocked && (state.tStatusPoints || 0) > 0 && value < 100;
+            return `<div style="padding:9px;background:var(--panel-soft,rgba(255,255,255,.04));border-radius:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+                <strong>${code}｜${name}</strong><strong>${value}/100</strong>
+                <button class="btn-tiny" ${canAdd ? '' : 'disabled'} onclick="allocateTraitStat('${key}');renderCharacterTab();renderTopBar();">＋</button>
+              </div>
+              <div style="font-size:.82em;line-height:1.45;margin-top:5px;color:var(--text-muted,#bbb);">${desc}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="font-size:.8em;color:var(--text-muted,#999);margin-top:8px;">點數取得：四轉 Base Lv.200 初始 7 點；之後每升 1 級 +3 點，每逢 5 的倍數等級額外 +4 點。</div>
+      </section>`;
+    })()}
     <div class="derived-grid trait-summary" style="margin-top:10px;">
       <div style="grid-column:1 / -1;font-weight:700;color:var(--gold);">四轉六大特性</div>
       <div title="四轉六大特性總值，包含裝備、卡片、套裝與 JobLv 成長效果。">四轉特性：POW ${state.traitStats?.pow || 0}　STA ${state.traitStats?.sta || 0}　WIS ${state.traitStats?.wis || 0}　SPL ${state.traitStats?.spl || 0}　CON ${state.traitStats?.con || 0}　CRT ${state.traitStats?.crt || 0}</div>
-      <div title="四轉特性衍生值：RES 由 STA、MRES 由 WIS、H.PLUS 與 C.RATE 由 CRT、P.ATK 與 S.MATK 由 CON 計算。">四轉衍生：RES ${state.res || 0}　MRES ${state.mres || 0}　H.PLUS ${state.hPlus || 0}　C.RATE ${state.cRate || 0}　P.ATK ${state.pAtk || 0}　S.MATK ${state.sMatk || 0}</div>
+      <div title="四轉特性衍生值：POW 每3點+1 P.ATK；SPL 每3點+1 S.MATK；CON 每5點各+1 P.ATK、S.MATK；STA/WIS 分別增加 RES/MRES；CRT 增加 H.PLUS 與 C.RATE。">四轉衍生：RES ${state.res || 0}　MRES ${state.mres || 0}　H.PLUS ${state.hPlus || 0}　C.RATE ${state.cRate || 0}　P.ATK ${state.pAtk || 0}　S.MATK ${state.sMatk || 0}</div>
     </div>
     ${setListHtml}
     ${buffListHtml}

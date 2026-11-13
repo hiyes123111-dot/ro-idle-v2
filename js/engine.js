@@ -287,6 +287,9 @@ function createCharacter(name, statAlloc, gender) {
     jobLevel: 1, jobExp: 0,
     stats,
     statPoints: 0,
+    tStatusPoints: 0,
+    traitAlloc: { pow: 0, sta: 0, wis: 0, spl: 0, con: 0, crt: 0 },
+    _traitPointMigrated: true,
     skillPoints: 0, // 保留相容性，實際使用 jobSkillPoints
     jobSkillPoints: {}, // { jobId: remainingPoints } 按職業分離的技能點
     jobLevelHistory: {}, // { jobId: jobLevel } 轉職歷史（職業加成跨職業繼承）
@@ -842,6 +845,17 @@ function passiveSourceSkills() {
 
 function recomputeDerived(fullHeal) {
   const job = currentJob();
+  // 四轉特性配點獨立於基本素質點數；舊存檔依目前等級補齊應得點數。
+  const TRAIT_KEYS = ['pow', 'sta', 'wis', 'spl', 'con', 'crt'];
+  if (!state.traitAlloc) state.traitAlloc = { pow: 0, sta: 0, wis: 0, spl: 0, con: 0, crt: 0 };
+  TRAIT_KEYS.forEach(k => { state.traitAlloc[k] = Math.max(0, Math.min(100, Math.floor(Number(state.traitAlloc[k]) || 0))); });
+  const isFourthJob = (job?.tier || 0) >= 4;
+  const earnedTraitPoints = isFourthJob && (state.baseLevel || 0) >= 200
+    ? 7 + 3 * ((state.baseLevel || 0) - 200) + 4 * (Math.floor((state.baseLevel || 0) / 5) - 40)
+    : 0;
+  const spentTraitPoints = TRAIT_KEYS.reduce((n, k) => n + state.traitAlloc[k], 0);
+  // 以職業階級、BaseLv 與已投入點數推導剩餘點數；轉職至四轉時也能正確補發。
+  state.tStatusPoints = Math.max(0, earnedTraitPoints - spentTraitPoints);
   const s = state.stats;
   const bl = state.baseLevel;
 
@@ -1095,8 +1109,10 @@ function recomputeDerived(fullHeal) {
   state.critDmgPct = state.cRate;
   // P.ATK / S.MATK 不只來自 CON：裝備、卡片、升階與套裝的固定值也要併入面板。
   // effectiveGearBonuses() 已統一正規化 patk/pAtk、smatk/sMatk，故此處直接讀取總表。
-  state.pAtk = Math.floor(traitCON / 5) + getCardBonus('pAtk');
-  state.sMatk = Math.floor(traitCON / 5) + getCardBonus('sMatk');
+  // 官方六大特性衍生：POW 每 3 點 +1 P.ATK；SPL 每 3 點 +1 S.MATK；
+  // CON 每 5 點同時 +1 P.ATK、+1 S.MATK。特性值包含裝備／卡片／套裝效果。
+  state.pAtk = Math.floor(traitPOW / 3) + Math.floor(traitCON / 5) + getCardBonus('pAtk');
+  state.sMatk = Math.floor(traitSPL / 3) + Math.floor(traitCON / 5) + getCardBonus('sMatk');
 
   // 完全迴避（無視命中判定）與暴擊率（無視閃避判定）
   state.perfectDodge = Math.floor(cLuk / 10);
@@ -8608,6 +8624,15 @@ function gainExp(baseExp, jobExp) {
     leveled = true;
     state.baseExp -= need;
     state.baseLevel++;
+    // 四轉 T.Status Point：BaseLv 200 取得 7 點；之後每級 +3，逢 5 級額外 +4。
+    if ((currentJob()?.tier || 0) >= 4 && state.baseLevel === 200) {
+      state.tStatusPoints = (state.tStatusPoints || 0) + 7;
+      logMsg('✨ 四轉特性解鎖！獲得 7 點 T.Status Point。');
+    } else if ((currentJob()?.tier || 0) >= 4 && state.baseLevel > 200) {
+      const traitGain = 3 + (state.baseLevel % 5 === 0 ? 4 : 0);
+      state.tStatusPoints = (state.tStatusPoints || 0) + traitGain;
+      logMsg(`✨ 獲得 ${traitGain} 點 T.Status Point。`);
+    }
     const gained = statPointsAtLevel(state.baseLevel);
     state.statPoints += gained;
     logMsg(`🎉 基礎等級提升到 ${state.baseLevel}！獲得 ${gained} 點屬性點。`);
@@ -9560,6 +9585,20 @@ function allocateStat(key) {
   if (state.statPoints < cost) return false;
   state.stats[key]++;
   state.statPoints -= cost;
+  recomputeDerived(false);
+  saveGame();
+  return true;
+}
+
+
+function allocateTraitStat(key) {
+  const k = String(key || '').toLowerCase();
+  if (!['pow','sta','wis','spl','con','crt'].includes(k)) return false;
+  if ((currentJob()?.tier || 0) < 4 || (state.baseLevel || 0) < 200) return false;
+  if (!state.traitAlloc) state.traitAlloc = { pow: 0, sta: 0, wis: 0, spl: 0, con: 0, crt: 0 };
+  if ((state.traitAlloc[k] || 0) >= 100 || (state.tStatusPoints || 0) < 1) return false;
+  state.traitAlloc[k] = (state.traitAlloc[k] || 0) + 1;
+  state.tStatusPoints--;
   recomputeDerived(false);
   saveGame();
   return true;
@@ -10825,13 +10864,13 @@ function castSkillInner(skillId, opts) {
       const statBonus = Array.isArray(sk.statBonus) ? sk.statBonus[lv - 1] : sk.statBonus;
       const hitBonus = Array.isArray(sk.hitBonus) ? sk.hitBonus[lv - 1] : sk.hitBonus;
       state.buffs.push({ type: 'blessing', strBonus: statBonus, intBonus: statBonus, dexBonus: statBonus, msRemaining: dur * 1000, skillId: sk.id });
-      state.buffs.push({ type: 'hit', mult: 1, flatBonus: hitBonus, msRemaining: dur * 1000 });
+      state.buffs.push({ type: 'hit', mult: 1, flatBonus: hitBonus, msRemaining: dur * 1000, skillId: sk.id });
       logMsg(`✨ 「${sk.name}」Lv${lv} 發動，STR/INT/DEX與HIT上升！`);
       break;
     }
     case 'buff_sprate': {
       const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
-      state.buffs.push({ type: 'sprate', mult, msRemaining: dur * 1000 });
+      state.buffs.push({ type: 'sprate', mult, msRemaining: dur * 1000, skillId: sk.id });
       logMsg(`✨ 「${sk.name}」Lv${lv} 發動，SP自然恢復速度上升！`);
       break;
     }
@@ -10844,7 +10883,7 @@ function castSkillInner(skillId, opts) {
     }
     case 'buff_holyweapon': {
       const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
-      state.buffs.push({ type: 'holyweapon', mult: 1, msRemaining: dur * 1000 });
+      state.buffs.push({ type: 'holyweapon', mult: 1, msRemaining: dur * 1000, skillId: sk.id });
       logMsg(`✨ 「${sk.name}」Lv${lv} 發動，武器暫時附加聖屬性！`);
       break;
     }
@@ -11275,10 +11314,15 @@ function castSkillInner(skillId, opts) {
     case 'cardinal_support': {
       const dur = (Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration || 120) * 1000;
       const value = Array.isArray(sk.value) ? sk.value[lv - 1] : (sk.value || 0);
-      const push = (type, multValue, flatBonus) => state.buffs.push({
-        type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
-        msRemaining: dur, skillId: sk.id
-      });
+      const push = (type, multValue, flatBonus) => {
+        // 同一技能再次施放時刷新該技能自己的所有子效果，不累積舊 buff；
+        // 不同技能即使共用 type，也保留各自效果。
+        state.buffs = (state.buffs || []).filter(b => !(b.skillId === sk.id && b.type === type));
+        state.buffs.push({
+          type, mult: multValue == null ? 1 : multValue, flatBonus: flatBonus || 0,
+          msRemaining: dur, skillId: sk.id
+        });
+      };
       const pushParty = (type, multValue, flatBonus) => {
         push(type, multValue, flatBonus);
         if (sk.party) forEachPartyMate(() => push(type, multValue, flatBonus));
@@ -11328,8 +11372,9 @@ function castSkillInner(skillId, opts) {
           logMsg(`✨ 「${sk.name}」恢復自身 HP ${own.hp}${partyText}，P.ATK／S.MATK +${value}，持續 ${Math.round(dur/1000)} 秒。`);
           break;
         }
-        // 爆裂聖光提升的是暴擊傷害，不是暴擊率；critdmg 由 state.cardCritDmgPct／技能暴擊傷害公式讀取。
-        case 'presensAcies': pushParty('crit', 1, value); break;
+        // 爆裂聖光提升的是暴擊傷害，不是暴擊率；必須進 critdmg 桶，
+        // recomputeDerived() 會將它併入 cardCritDmgPct，供普攻與可暴擊技能共用。
+        case 'presensAcies': pushParty('critdmg', 1, value); break;
       }
       if (sk.effect !== 'competentia') logMsg(`✨ 「${sk.name}」Lv${lv} 發動，全隊效果生效 ${Math.round(dur/1000)} 秒。`);
       recomputeDerived(false);
@@ -11674,7 +11719,7 @@ function castSkillInner(skillId, opts) {
       let dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
       // 武器保有：速度激發持續時間+10%
       if (sk.id === 'adrenaline' && state.hiltBindingDurationBonus) dur *= (1 + state.hiltBindingDurationBonus);
-      state.buffs.push({ type: 'aspd', mult, msRemaining: dur * 1000 });
+      state.buffs.push({ type: 'aspd', mult, msRemaining: dur * 1000, skillId: sk.id });
       // 雙手劍加速額外加成：暴擊率+命中
       if (sk.bonusCrit) {
         const critBonus = Array.isArray(sk.bonusCrit) ? sk.bonusCrit[lv - 1] : sk.bonusCrit;
@@ -13652,6 +13697,7 @@ function buildLoadout() {
   const cardHosts = {};          // cardId → [{slot, refine, itemId}]（同一張卡可能插在兩件裝備上）
   const cards = new Set();
   const items = new Set();
+  const enchants = new Set(); // 裝備實例上的附魔 ID（如餓熊威力、光速瞬移）
   EQUIP_SLOTS_ALL.forEach(slot => {
     const itemId = getEquipBaseItemId(slot);
     if (!itemId) return;
@@ -13661,6 +13707,7 @@ function buildLoadout() {
     const enchant = (inst && inst.enchant) || null;
     slots[slot] = { itemId, refine, grade: (inst && (inst.grade || inst.itemGrade)) || null, cards: list, enchant };
     items.add(itemId);
+    if (enchant) enchants.add(enchant);
     list.forEach(cid => {
       cards.add(cid);
       (cardHosts[cid] = cardHosts[cid] || []).push({ slot, refine, itemId });
@@ -13671,7 +13718,7 @@ function buildLoadout() {
   /* 目前裝備的箭矢也要進 loadout：箭矢配對效果（大地之弓＋地靈箭矢那類）
      的 when.ammo 判斷要查這裡。 */
   const ammo = getEquippedAmmoId() || null;
-  return { slots, cardHosts, cards, items, ammo, jobLine: new Set(jobLine) };
+  return { slots, cardHosts, cards, items, enchants, ammo, jobLine: new Set(jobLine) };
 }
 
 /* 條件成立與否。host 是「這張卡插在哪一件裝備上」，套裝沒有宿主就傳 null */
@@ -13679,6 +13726,11 @@ function condMet(when, host, lo) {
   if (!when) return true;
   if (when.refineMin != null && !(host && host.refine >= when.refineMin)) return false;
   if (when.refineMax != null && !(host && host.refine <= when.refineMax)) return false;
+  // 卡片官方條件：插槽宿主武器等級達指定門檻（例如武器等級 Lv.5）。
+  if (when.weaponLvMin != null) {
+    const hostItem = host && ITEMS && ITEMS[host.itemId];
+    if (!hostItem || (Number(hostItem.weaponLv) || 0) < when.weaponLvMin) return false;
+  }
   if (when.baseLevelMin != null && (state.baseLevel || 0) < when.baseLevelMin) return false;
   if (when.baseLevelMax != null && (state.baseLevel || 0) > when.baseLevelMax) return false;
   // 技能等級門檻：支援裝備「習得技能最高等級時」的條件效果。
@@ -13693,10 +13745,13 @@ function condMet(when, host, lo) {
   if (when.jobIs && !(Array.isArray(when.jobIs) ? when.jobIs.includes(state.jobId) : state.jobId === when.jobIs)) return false;
   if (when.weaponReq && !weaponReqMet(when.weaponReq)) return false;
   if (when.withCards && !when.withCards.every(c => lo.cards.has(c))) return false;
-  if (when.withItems && !when.withItems.every(i => lo.items.has(i))) return false;
+  // withItems 可引用實際裝備 ID，也可引用裝備實例上的附魔 ID。
+  // 舊版時光超越者系列的「餓熊威力／光速瞬移」等是附魔，不是獨立 ITEMS 道具。
+  const hasEquippedItemOrEnchant = id => lo.items.has(id) || (lo.enchants && lo.enchants.has(id));
+  if (when.withItems && !when.withItems.every(hasEquippedItemOrEnchant)) return false;
   /* withAnyItem：陣列中**任一件**有裝就算成立（官方同一件裝備常有無孔/有孔兩個 id，
      「與XX一起裝備」應該兩種都算——沙漠雙劍那次踩過同一個坑）。 */
-  if (when.withAnyItem && !when.withAnyItem.some(i => lo.items.has(i))) return false;
+  if (when.withAnyItem && !when.withAnyItem.some(hasEquippedItemOrEnchant)) return false;
   /* withItemGroups：每個群組至少裝備其中一件；用於同一套裝支援舊版／LT 兩種部件，
      例如斗篷可選舊版或 LT、鎧甲也可選舊版或 LT，且必須各自滿足一組。 */
   if (when.withItemGroups && !when.withItemGroups.every(group =>
@@ -14586,7 +14641,10 @@ function redeemRelicTicket(setId) {
 const BASE_STAT_KEYS = ['str', 'agi', 'vit', 'int', 'dex', 'luk'];
 function getCardBonus(stat) {
   const all = effectiveGearBonuses();
-  let total = all[stat] || 0;
+  const traitKey = String(stat || '').toLowerCase();
+  const allocatedTrait = ['pow','sta','wis','spl','con','crt'].includes(traitKey)
+    ? (state.traitAlloc?.[traitKey] || 0) : 0;
+  let total = (all[stat] || 0) + allocatedTrait;
   /* perBaseLv10_<目標>（緋紅色系列）：官方「角色等級 70 以上，BaseLv 每上升 10 時 ATK+5」。
      看的是**基礎等級**，70 級起算——不足 70 不生效。 */
   for (const k in all) {
