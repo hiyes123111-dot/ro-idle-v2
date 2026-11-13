@@ -271,10 +271,10 @@ function pushCombatLog(text, lane) {
   const stamp = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}]`;
   const displayText = `<span class="log-time">${stamp}</span> ${text}`;
   combatLogBuf.push(displayText);
-  if (combatLogBuf.length > 60) combatLogBuf.shift();
+  if (combatLogBuf.length > 900) combatLogBuf.shift();
   const buf = combatLogLanes[ln];
   buf.push(displayText);
-  if (buf.length > 40) buf.shift();
+  if (buf.length > 300) buf.shift();
 }
 
 /* ---------------- 建立新角色 ---------------- */
@@ -646,24 +646,35 @@ function buffSourceLabel(b) {
    `skillLv()`，取兩邊較高的那個（卡片給 Lv1、玩家學到 Lv10 就是 Lv10）。 */
 function cardGrantedSkills() {
   const out = {};
-  if (typeof allEquippedCards !== 'function') return out;
-  /* 卡片與**裝備本身**都可以給技能（#127）。官方不只卡片會寫「可使用○○」，
-     武器也會（強襲戰矛的連刺攻擊 Lv3、長角之矛的解毒）。兩邊格式相同，走同一段。 */
-  const givers = allEquippedCards().map(id => CARDS[id]);
+  const add = (grants) => (grants || []).forEach(g => {
+    if (!g || !SKILLS[g.id]) return;
+    const lv = Math.max(1, Math.min(SKILLS[g.id].maxLv || 1, g.lv || 1));
+    if (!out[g.id] || lv > out[g.id]) out[g.id] = lv;
+  });
+  // 卡片賦予技能：卸卡即失效。
+  if (typeof allEquippedCards === 'function') {
+    allEquippedCards().forEach(id => {
+      const card = CARDS[id];
+      if (card) add(card.grantSkill);
+    });
+  }
+  // 裝備賦予技能：支援精煉門檻，技能權限只在符合條件的裝備仍穿戴時存在。
   if (typeof EQUIP_SLOTS_ALL !== 'undefined') {
     EQUIP_SLOTS_ALL.forEach(slot => {
       const itemId = getEquipBaseItemId(slot);
-      if (itemId && ITEMS[itemId]) givers.push(ITEMS[itemId]);
+      const item = itemId && ITEMS[itemId];
+      if (!item) return;
+      add(item.grantSkill);
+      const inst = getEquipInstance(slot);
+      const refine = Number(inst && inst.refine || 0);
+      (item.grantSkillWhen || []).forEach(rule => {
+        const when = rule.when || {};
+        if (when.refineMin != null && refine < when.refineMin) return;
+        if (when.refineMax != null && refine > when.refineMax) return;
+        add(rule.skills);
+      });
     });
   }
-  givers.forEach(c => {
-    if (!c || !c.grantSkill) return;
-    c.grantSkill.forEach(g => {
-      if (!SKILLS[g.id]) return;                       // 本作沒有這個技能就跳過
-      const lv = Math.max(1, Math.min(SKILLS[g.id].maxLv || 1, g.lv || 1));
-      if (!out[g.id] || lv > out[g.id]) out[g.id] = lv;
-    });
-  });
   return out;
 }
 /* 這個技能實際上有幾級：玩家學的與卡片給的取高。 */
@@ -8013,10 +8024,15 @@ let _codexPoolCache = null;
 let _codexPoolSignature = '';
 function getCodexPool() {
   // V2／擴充內容會在主資料庫載入後追加地圖與怪物；舊版永久快取會漏掉新怪物及其掉落物。
-  const poolSignature = `${MAPS.length}:${Object.keys(MONSTERS).length}:${Object.keys(ITEMS).length}:${Object.keys(CARDS).length}:` +
-    MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|') + ':' +
-    Object.values(MONSTERS).reduce((n, m) => n + ((m.drops || []).length), 0) + ':' +
-    (typeof MONSTER_CARD_DROPS !== 'undefined' ? Object.entries(MONSTER_CARD_DROPS).map(([k,v]) => `${k}:${v.card}:${v.chance}`).join('|') : '');
+  // 快取簽章涵蓋實際 ID／新增版本／掉落內容；只比筆數會漏掉「同筆數替換資料」。
+  const poolSignature = [
+    MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|'),
+    Object.entries(MONSTERS).map(([id,m]) => `${id}:${(m.drops || []).map(d => d && `${d.item || ''}:${d.chance ?? ''}`).join(',')}`).join('|'),
+    Object.entries(ITEMS).map(([id,d]) => `${id}:${d.addedVersion || ''}:${d.codexInclude ? 1 : 0}:${d.name || ''}`).join('|'),
+    Object.entries(CARDS).map(([id,d]) => `${id}:${d.addedVersion || ''}:${d.name || ''}`).join('|'),
+    typeof MONSTER_CARD_DROPS !== 'undefined'
+      ? Object.entries(MONSTER_CARD_DROPS).map(([k,v]) => `${k}:${v.card}:${v.chance}`).join('|') : ''
+  ].join('::');
   if (_codexPoolCache && _codexPoolSignature === poolSignature) return _codexPoolCache;
   _codexPoolSignature = poolSignature;
   _codexPoolCache = null;
@@ -8027,10 +8043,13 @@ function getCodexPool() {
     typeof getMonsterMaps === 'function' && getMonsterMaps(id).length > 0
   ));
 
-  // 道具只收錄可驗證的取得來源：正式可農怪物掉落、卡片掉落表、
-  // 遊戲箱池、NPC 商店或本作實際鍛造配方。避免整包官方／外部資料
-  // 裡未翻譯、未實裝、無來源的道具全部灌進圖鑑。
-  const itemSet = new Set();
+  // 道具先收錄可驗證的取得來源；另外，明確標記為新增版本或 codexInclude
+  // 的正式新增內容也必須進圖鑑，避免「資料已新增但尚未接上掉落」時完全搜尋不到。
+  // 無來源項目仍會顯示，來源欄由 UI 標示待補，不偽造取得方式。
+  const itemSet = new Set(Object.keys(ITEMS).filter(id => {
+    const d = ITEMS[id] || {};
+    return !CARDS[id] && (d.codexInclude === true || !!d.addedVersion || d.type === 'weapon' || d.type === 'armor');
+  }));
   const sourceMonsterIds = [...monSet];
   sourceMonsterIds.forEach(monId => {
     (MONSTERS[monId].drops || []).forEach(d => { if (d && d.item && ITEMS[d.item] && !CARDS[d.item]) itemSet.add(d.item); });
@@ -8053,8 +8072,10 @@ function getCodexPool() {
 
   _codexPoolCache = {
     monsters: [...monSet].sort((a, b) => (MONSTERS[a].level || 0) - (MONSTERS[b].level || 0)),
-    items: [...itemSet].filter(id => !CARDS[id]),
-    cards: [...cardSet]
+    items: [...itemSet].filter(id => !CARDS[id]).sort((a,b) =>
+      (ITEMS[a].name || a).localeCompare(ITEMS[b].name || b, 'zh-Hant')),
+    cards: [...cardSet].sort((a,b) =>
+      (CARDS[a].name || a).localeCompare(CARDS[b].name || b, 'zh-Hant'))
   };
   return _codexPoolCache;
 }
@@ -10340,7 +10361,7 @@ function castSkillInner(skillId, opts) {
   }
 
   const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time' || sk.type === 'cardinal_heal';
-  const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
+  const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_recognizedspell', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
   const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
   /* 易燃之網對 BOSS 無效（官方）。**要擋在扣 SP 之前**——寫在 case 裡用 break
@@ -11758,6 +11779,13 @@ function castSkillInner(skillId, opts) {
       const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
       state.buffs.push({ type: 'maxroll', mult: 1, msRemaining: dur * 1000 });
       logMsg(`⚒️ 「${sk.name}」Lv${lv} 發動，武器傷害浮動值最大化！`);
+      break;
+    }
+    case 'buff_recognizedspell': {
+      const dur = Array.isArray(sk.duration) ? sk.duration[lv - 1] : sk.duration;
+      state.buffs = (state.buffs || []).filter(b => b.type !== 'recognizedspell');
+      state.buffs.push({ type: 'recognizedspell', mult: 1, spCostPct: 25, msRemaining: dur * 1000, skillId: sk.id });
+      logMsg(`✨ 「${sk.name}」Lv${lv} 發動，魔法傷害固定取最高值；效果期間技能 SP 消耗 +25%，持續 ${dur} 秒！`, 'skill');
       break;
     }
     case 'damage_multihit': {
@@ -13673,8 +13701,9 @@ function skillSpCost(sk, lv) {
     ? (sk.spCost[lv - 1] ?? sk.spCost[sk.spCost.length - 1] ?? 0)
     : (sk.spCost || 0);
   // 卡片的增減與魔力減免（#64，一律是負值）相加後一起套用
+  const recognizedSpellPct = (state && state.buffs && state.buffs.some(b => b.type === 'recognizedspell')) ? 25 : 0;
   const pct = ((state && state.cardSpCostPct) || 0) + ((state && state.skillSpCostPct) || 0)
-    + buffMult('spcost').flatBonus;   // 為您服務／臨機應變（#68）
+    + buffMult('spcost').flatBonus + recognizedSpellPct;   // 魔法省悟 +25% SP；與其他減免效果合併結算
   const flat = sk ? (getCardBonus('spCost_' + sk.id) || 0) : 0;
   if (!pct && !flat) return base;
   return Math.max(0, Math.round(base * (1 + pct / 100) + flat));

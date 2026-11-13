@@ -9134,7 +9134,7 @@ const ITEMS = {
   "sagittarius_diademk": {"id":"sagittarius_diademk","imgId":400061,"name":"精準射手冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":0,"weight":10,"sell":20,"buyPrice":40,"desc":"代表黃道第9宮人馬座的寶冠。鑲嵌著誕生石鋯石。 改造為適合OS武器。 精煉每+2時，ATK+20。 精煉+7時，變動詠唱-15%。 精煉+9時，遠程物理傷害+15%。 精煉+11時，對小型、中型敵人的物理傷害+15%，固定詠唱-0.2秒。 與燃燒指虎-OS同時裝備時，爆氣散彈技能冷卻時間-1秒，武器精煉每+2時，遠程物理傷害+3%。 與藍寶石之錘-OS同時裝備時，變動詠唱-10%，武器精煉每+2時，強酸火煙瓶投擲的傷害+3%。 與HR-S55-OS同時裝備時，遠程物理傷害+5%，武器精煉每+2時，天神憤怒傷害+3%。 系列: 頭盔 防禦: 0 位置: 頭上 重量: 10 要求等級: 130 裝備: 所有職業","slots":1,"reqLevel":130,"per2Refine":{"atk":20},"condBonus":[{when:{withAnyItem:["burning_knuckle_os"]},bonus:{rangedDmgPct:3}},{when:{withAnyItem:["saphir_hall_os"]},bonus:{skillCdFlat:-1}},{when:{withAnyItem:["hr_s55_os"]},bonus:{rangedDmgPct:5}}]},
   "bioweapon_helm_rk": {"id":"bioweapon_helm_rk","imgId":400078,"name":"生體研究白羊頭冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":10,"weight":10,"sell":40,"buyPrice":80,"desc":"為特定實驗體製作的曲角和白鬃毛，再用紅寶石裝飾而成的王冠。 精煉每+2時，ATK+20。 精煉+7時，攻速增加(攻擊後延遲-10%)。 精煉+9時，遠程物理傷害+15%。 精煉+11時，對全體型敵人的物理傷害+10%。 搭配絕地黑光劍時， 暴擊傷害+10%，武器精煉每+1時，致命爆裂傷害+12%。 搭配絕地雙刃劍時， 技能後延遲-10%，武器精煉每+1時，音速衝擊波傷害+10%。 搭配複合金十字槍時， 百矛穿刺冷卻時間-0.5秒，武器精煉每+1時，百矛穿刺傷害+10%。 系列: 頭盔 防禦: 10 位置: 頭上 重量: 10 要求等級: 170 裝備: 符文騎士系列","slots":1,"reqLevel":170,"reqJob":["knight"],"per2Refine":{"atk":20},"condBonus":[{when:{withAnyItem:["volar"]},bonus:{critDmgPct:10}},{when:{withAnyItem:["vernan"]},bonus:{skillCdFlat:-1}}]},
   "bioweapon_helm_lg": {"id":"bioweapon_helm_lg","imgId":400079,"name":"生體研究天秤頭冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":10,"weight":10,"sell":40,"buyPrice":80,"desc":"為特定實驗體製作的獨特彎曲形狀的王冠，上面鑲著綠寶石。 精煉每+2時，ATK+20、MATK+20。 精煉+7時，攻速增加(攻擊後延遲-10%)。 精煉+9時，ATK+15%，聖屬性魔法傷害+15%。 精煉+11時，對全體型敵人的物理/魔法傷害+10%，固定詠唱-0.2秒。 搭配創世之劍時， 變動詠唱-15%，武器精煉每+1時，神之威壓/創世之光傷害+10%。 搭配黃金戰矛時， 重壓盾擊技能冷卻時間-1秒，武器精煉每+1時，重壓盾擊傷害+10%。 搭配疾風短戟時， 加農炮攻擊技能冷卻時間-0.5秒，武器精煉每+1時，加農炮攻擊傷害+12%。 系列: 頭盔 防禦: 10 位置: 頭上 重量: 10 要求等級: 170 裝備: 皇家衛士系列","slots":1,"reqLevel":170,"matk":20,"per2Refine":{"atk":20},"condBonus":[{when:{withAnyItem:["farthezan"]},bonus:{skillCdFlat:-1.5}}]},
-  "2020maypay_05": {"id":"2020maypay_05","imgId":400087,"name":"潛能激發冒險帽 [1]","type":"armor","icon":"👑","armorType":"headgear","def":20,"perRefine":{"atk":10,"matk":10,"hp":1000},"weight":20,"sell":80,"buyPrice":160,"desc":"精煉每+1時，ATK+10、MATK+10、MaxHP+1000。 精煉每+3時，無視一般階級的物理/魔法防禦力5%。 精煉+7時，對全體型對象的物理/魔法傷害+7%。 精煉+9時，火屬性/暗屬性魔法傷害+40%。 精煉+11時， 近距離物理攻擊時，以一定概率觸發風暴衝擊Lv1， 怒雷強擊冷卻時間-4秒， 暴風雪冷卻時間-5秒。 精煉+12時， 可使用魔法省悟Lv1， 可使用極限攻擊Lv3， 技能後延遲-20%。 系列: 頭盔 防禦: 20 位置: 頭上 重量: 20 要求等級: 100 裝備: 初心者系列","slots":1,"reqLevel":100,"reqJob":["novice"],"condBonus":[{when:{refineMin:7},bonus:{sizeDmg_small:7,sizeDmg_medium:7,sizeDmg_large:7}},{when:{refineMin:9},bonus:{eleDmg_fire:40,eleDmg_shadow:40}},{when:{refineMin:11},bonus:{skillCdFlat_lordofvermillion:-4,skillCdFlat_stormgust:-5}},{when:{refineMin:12},bonus:{skillCdFlat:-0.5}}]},
+  "2020maypay_05": {"id":"2020maypay_05","imgId":400087,"name":"潛能激發冒險帽 [1]","type":"armor","icon":"👑","armorType":"headgear","def":20,"perRefine":{"atk":10,"matk":10,"hp":1000},"weight":20,"sell":80,"buyPrice":160,"desc":"精煉每+1時，ATK+10、MATK+10、MaxHP+1000。 精煉每+3時，無視一般階級的物理/魔法防禦力5%。 精煉+7時，對全體型對象的物理/魔法傷害+7%。 精煉+9時，火屬性/暗屬性魔法傷害+40%。 精煉+11時， 近距離物理攻擊時，以一定概率觸發風暴衝擊Lv1， 怒雷強擊冷卻時間-4秒， 暴風雪冷卻時間-5秒。 精煉+12時， 可使用魔法省悟Lv1， 可使用極限攻擊Lv3， 技能後延遲-20%。 系列: 頭盔 防禦: 20 位置: 頭上 重量: 20 要求等級: 100 裝備: 初心者系列","slots":1,"reqLevel":100,"reqJob":["novice"],"condBonus":[{when:{refineMin:7},bonus:{sizeDmg_small:7,sizeDmg_medium:7,sizeDmg_large:7}},{when:{refineMin:9},bonus:{eleDmg_fire:40,eleDmg_shadow:40}},{when:{refineMin:11},bonus:{skillCdFlat_lordofvermillion:-4,skillCdFlat_stormgust:-5}},]},
   "bioweapon_helm_wl": {"id":"bioweapon_helm_wl","imgId":400094,"name":"生體研究寶瓶頭冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":10,"weight":10,"sell":40,"buyPrice":80,"desc":"專為特定實驗體製作的王冠。 鑲嵌翡翠的王冠上掛著粉紅蕾絲。據說能夠提高魔力。 精煉每+2時，MATK+2%，SP恢復力+6%。 精煉+7時，All State+3。 精煉+9時，MATK+4%。 精煉+11時，無屬性、火屬性、念屬性魔法傷害+20%。 與碧血玫瑰魔杖同時裝備時， 碧血隕石冷卻時間-1秒，武器精煉每+1時，碧血隕石傷害+3%。 與天降奇蹟法杖同時裝備時， 念屬性魔法傷害+3%，武器精煉每+1時，靈魂爆炸傷害+3%。 與萬有引力法杖同時裝備時， 無屬性魔法傷害+3%，武器精煉每+1時，重力原野、毀滅彗星傷害+3%。 系列: 頭盔 防禦: 10 位置: 頭上 重量: 10 要求等級: 170 裝備: 大法師系列","slots":1,"reqLevel":170,"matk":2,"str":3,"agi":3,"vit":3,"int":3,"dex":3,"luk":3,"per2Refine":{"atk":2},"condBonus":[{when:{withAnyItem:["staff_of_miracle"]},bonus:{eleDmg_ghost:3}},{when:{withAnyItem:["gravitation_staff"]},bonus:{eleDmg_none:3}}]},
   "bioweapon_helm_so": {"id":"bioweapon_helm_so","imgId":400095,"name":"生體研究水瓶頭冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":10,"weight":10,"sell":40,"buyPrice":80,"desc":"為特定實驗體製作的王冠，鑲嵌著象徵希望的藍色尖晶石。 精煉每+2時，MATK+2%、SP恢復力+6%。 精煉+7時，All+3。 精煉+9時，變動詠唱-10%。 精煉+11時，無、地、水屬性魔法傷害+20%。 搭配元素泉源魔法書時， MATK+2%，武器精煉每+1時，火箭術、冰箭術、雷擊術傷害+3%。 搭配通靈權杖時， 無、風屬性魔法傷害+3%，武器精煉每+1時，聖槍刺擊傷害+3%。 搭配黃泉星塵權杖時， 地、水屬性魔法傷害+3%，武器精煉每+1時，鑽石星塵傷害+3%。 系列: 頭盔 防禦: 10 位置: 頭上 重量: 10 要求等級: 170 裝備: 元素使系列","slots":1,"reqLevel":170,"matk":2,"per2Refine":{"atk":2},"condBonus":[{when:{withAnyItem:["boltigin"]},bonus:{matkPct:2}},{when:{withAnyItem:["psychic_spear_rod"]},bonus:{eleDmg_wind:3}},{when:{withAnyItem:["dust_grave"]},bonus:{eleDmg_water:3}}]},
   "bioweapon_helm_nc": {"id":"bioweapon_helm_nc","imgId":400098,"name":"生體研究金牛頭冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":10,"weight":10,"sell":40,"buyPrice":80,"desc":"專為特定實驗體製作的王冠。 綠寶石和堅韌的犄角給佩戴者增添了威嚴的感覺。 精煉每+2時，ATK+20。 精煉+7時，攻速增加(攻擊後延遲-10%)。 精煉+9時，遠程物理傷害+15%。 精煉+11時，對所有體型敵人的物理傷害+10%。 與黃金專業扳手同時裝備時， 對所有體型敵人的物理傷害+10%，武器精煉每+1時，揮斧重擊傷害+10%。 與引擎衝擊錐同時裝備時， 遠程物理傷害+10%，武器精煉每+1時，加農炮傷害+10%。 與奪命連環扳手同時裝備時， 對所有體型敵人的物理傷害+10%，武器精煉每+1時，戰斧颶風傷害+10%。 系列: 頭盔 防禦: 10 位置: 頭上 重量: 10 要求等級: 170 裝備: 機匠系列","slots":1,"reqLevel":170,"per2Refine":{"atk":20},"condBonus":[{when:{withAnyItem:["engine_pilebuncker"]},bonus:{rangedDmgPct:10}}]},
@@ -9147,7 +9147,7 @@ const ITEMS = {
   "bioweapon_helm_gc": {"id":"bioweapon_helm_gc","imgId":400121,"name":"生體研究雙子頭冠 [1]","type":"armor","icon":"👑","armorType":"headgear","def":10,"weight":10,"sell":40,"buyPrice":80,"desc":"專為特定實驗體製作的王冠， 雙胞胎的臉蛋裝飾在兩側的王冠。 精煉每+2時，ATK+20。 精煉+7時，攻擊速度增加(攻擊後延遲-10%)。 精煉+9時，遠程物理傷害+15%。 精煉+11時，對全體型敵人的物理傷害+10%。 搭配審判斬魂劍、懺悔斬魂劍時， 暴擊傷害+20%，武器精煉值總和每+2時，近距離/遠程物理傷害+5%。 搭配死神絕命拳刃時， 十字斬傷害+20%，武器精煉每+1時，近距離物理傷害+5%。 搭配死神十字拳刃時， 遠程物理傷害+20%，武器精煉每+1時，迴旋十字斬傷害+10%。 系列: 頭盔 防禦: 10 位置: 頭上 重量: 10 要求等級: 170 裝備: 十字切割者系列","slots":1,"reqLevel":170,"per2Refine":{"atk":20},"condBonus":[{when:{withItems:["judgement_slasher","repent_slasher"]},bonus:{critDmgPct:20}},{when:{withAnyItem:["reaper_cross"]},bonus:{rangedDmgPct:20}}]},
   "ep18_mini_elly": {"id":"ep18_mini_elly","imgId":400127,"name":"懶洋洋愛麗人偶帽","type":"armor","icon":"👑","armorType":"headgear","def":0,"weight":0,"sell":20,"buyPrice":40,"desc":"霸肋門德大宅管理員之一聰明的愛麗的偽裝形態，雖然性能略遜於主體，但能做情報分析及與管理員α進行通信。 系列: 頭盔 防禦: 0 位置: 頭上 重量: 0 要求等級: 1 裝備: 所有職業","slots":0,"reqLevel":1},
   "smoky_transformhat_lt": {"id":"smoky_transformhat_lt","imgId":400152,"name":"狸貓變身樹葉-LT [1]","type":"armor","icon":"👑","armorType":"headgear","def":7,"weight":60,"sell":28,"buyPrice":56,"reqLevel":150,"hit":50,"matk":2,"perBaseLv210_atk":2,"perBaseLv210_matk":2,"perRefine":{"allEleDmg":1},"per3Refine":{"matk":2},"per5Refine":{"aspdFlat":1},"bonus":{"matk":100,"hit":50},"condBonus":[{"when":{"refineMin":7},"bonus":{"matk":50,"hit":25}},{"when":{"refineMin":1},"bonus":{"autoSpell_cloudKill":5}},{"when":{"refineMin":9},"bonus":{"autoSpell_hellfire":5}},{"when":{"refineMin":10},"bonus":{"autoSpell_chainLightning":2}},{"when":{"refineMin":11,"itemGradeMin":"D","withItems":["smoky_transformhat_lt"]},"bonus":{"autoSpell_fireball":3}},{"when":{"baseLevelMin":210},"bonus":{"pAtk":2,"sMatk":2}}],"desc":"將狸貓使用的變身樹葉改良的版本。 BaseLv210以上時，P.ATK+2，S.MATK+2。 精煉每+1時，全屬性魔法傷害+1%。 精煉每+3時，MATK+2%。 精煉每+5時，ASPD+1。 物理攻擊時，有機率變身為狸貓10秒。 _ 變身為狸貓時，會觸發以下效果。 MATK+100，HIT+50。 一般近距離物理攻擊時，有5%機率觸發雲殺Lv.3(若習得更高等級時以高等級觸發)。 精煉+7時，MATK再+50，HIT再+25。 精煉+9時，一般近距離物理攻擊時，有5%機率觸發地獄火焰Lv.3。 精煉+10時，一般近距離物理攻擊時，有2%機率觸發連鎖電擊Lv.3。 _ [各階級追加能力] [D階級]精煉+11時，魔法攻擊時，有3%機率觸發火球術Lv.9。 [C階級]P.ATK+2，S.MATK+2。 [B階級]精煉+12時，固定詠唱-0.5秒。 _ 系列: 頭盔 防禦: 7 位置: 頭上 重量: 60 防具等級: 2 要求等級: 150 裝備: 所有職業","slots":1},
-  "2023seppay_06": {"id":"2023seppay_06","imgId":400551,"name":"潛能激發冒險帽-LT [1]","type":"armor","icon":"👑","armorType":"headgear","def":20,"weight":10,"sell":80,"buyPrice":160,"desc":"精煉每+2時，ATK、MATK+20，MaxHP+2000。 精煉每+3時，對一般階級的物理/魔法傷害+7%，無視一般階級的物理/魔法防禦力5%。 精煉+7時，ATK、MATK+10%，攻擊速度增加(攻擊後延遲-10%)。 精煉+9時，對全體型對象的物理/魔法傷害+10%。 精煉+11時，近/遠距離物理傷害、全屬性魔法傷害+15%，怒雷強擊冷卻時間-4秒，暴風雪冷卻時間-5秒，近距離物理攻擊時以2%機率觸發風暴衝擊Lv1。 精煉+12時，可使用魔法省悟Lv3、武器值最大化Lv5，技能後延遲-20%。 _ [各階級追加能力] [D階級]精煉每+3時，對一般階級的物理/魔法傷害再+4%。 [C階級]可使用致命爆裂、碧血隕石Lv5，精煉每+2時，致命爆裂、碧血隕石傷害+15%。 [B階級]P.ATK、S.MATK+7。 [A階級]對全種族對象的物理/魔法傷害+10%，致命爆裂冷卻時間-1秒，碧血隕石冷卻時間-3秒。 _ 於TE攻城戰地圖內能力會消失。 _ 系列: 頭盔 防禦: 20 位置: 頭上 重量: 10 防具等級: 2 要求等級: 130 裝備: 初心者系列","slots":1,"reqLevel":130,"reqJob":["novice"],"per2Refine":{"atk":20,"matk":20,"hp":2000},"condBonus":[{when:{refineMin:7},bonus:{atkPct:10,matkPct:10}},{when:{refineMin:9},bonus:{sizeDmg_small:10,sizeDmg_medium:10,sizeDmg_large:10}},{when:{refineMin:11},bonus:{allTargetDmgPct:15,allEleDmg:15,skillCdFlat_lordofvermillion:-4,skillCdFlat_stormgust:-5}},{when:{refineMin:12},bonus:{skillCdFlat:-0.5}}],"grantSkill":[{id:"maximize",lv:5}]},
+  "2023seppay_06": {"id":"2023seppay_06","imgId":400551,"name":"潛能激發冒險帽-LT [1]","type":"armor","icon":"👑","armorType":"headgear","def":20,"weight":10,"sell":80,"buyPrice":160,"desc":"精煉每+2時，ATK、MATK+20，MaxHP+2000。 精煉每+3時，對一般階級的物理/魔法傷害+7%，無視一般階級的物理/魔法防禦力5%。 精煉+7時，ATK、MATK+10%，攻擊速度增加(攻擊後延遲-10%)。 精煉+9時，對全體型對象的物理/魔法傷害+10%。 精煉+11時，近/遠距離物理傷害、全屬性魔法傷害+15%，怒雷強擊冷卻時間-4秒，暴風雪冷卻時間-5秒，近距離物理攻擊時以2%機率觸發風暴衝擊Lv1。 精煉+12時，可使用魔法省悟Lv3、武器值最大化Lv5，技能後延遲-20%。 _ [各階級追加能力] [D階級]精煉每+3時，對一般階級的物理/魔法傷害再+4%。 [C階級]可使用致命爆裂、碧血隕石Lv5，精煉每+2時，致命爆裂、碧血隕石傷害+15%。 [B階級]P.ATK、S.MATK+7。 [A階級]對全種族對象的物理/魔法傷害+10%，致命爆裂冷卻時間-1秒，碧血隕石冷卻時間-3秒。 _ 於TE攻城戰地圖內能力會消失。 _ 系列: 頭盔 防禦: 20 位置: 頭上 重量: 10 防具等級: 2 要求等級: 130 裝備: 初心者系列","slots":1,"reqLevel":130,"reqJob":["novice"],"per2Refine":{"atk":20,"matk":20,"hp":2000},"condBonus":[{when:{refineMin:7},bonus:{atkPct:10,matkPct:10}},{when:{refineMin:9},bonus:{sizeDmg_small:10,sizeDmg_medium:10,sizeDmg_large:10}},{when:{refineMin:11},bonus:{allTargetDmgPct:15,allEleDmg:15,skillCdFlat_lordofvermillion:-4,skillCdFlat_stormgust:-5}},],"grantSkillWhen":[{"when":{"refineMin":12},"skills":[{"id":"recognizedspell","lv":3},{"id":"maximize","lv":5}]}]},
   "battle_processor_": {"id":"battle_processor_","imgId":410017,"name":"戰鬥核心處理器 [1]","type":"armor","icon":"👑","armorType":"headgear","def":0,"weight":0,"sell":20,"buyPrice":40,"desc":"專門用於提升戰鬥功能的處理器。 ATK+10，MATK+10。 可通過戰鬥器超頻激活附加能力。 系列: 頭盔 防禦: 0 位置: 頭中 重量: 0 要求等級: 1 裝備: 所有職業","slots":1,"reqLevel":1,"matk":10},
   "booster_mask_a": {"id":"booster_mask_a","imgId":410018,"name":"成長假面A型 [1]","type":"armor","icon":"👑","armorType":"headgear","def":0,"weight":0,"sell":20,"buyPrice":40,"desc":"無法交易、存倉。 為了幫助冒險家成長而準備的假面。 紅色的羽毛裝飾獨具魅力。 _ 技能後延遲-8%。 _ 系列: 頭盔 防禦: 0 位置: 頭中 重量: 0 要求等級: 130 裝備: 所有職業","slots":1,"reqLevel":130},
   "booster_mask_b": {"id":"booster_mask_b","imgId":410019,"name":"成長假面B型 [1]","type":"armor","icon":"👑","armorType":"headgear","def":0,"weight":0,"sell":20,"buyPrice":40,"desc":"無法交易、存倉。 為了幫助冒險家成長而準備的假面。 藍色的羽毛裝飾獨具魅力。 _ 變動詠唱-8%。 _ 系列: 頭盔 防禦: 0 位置: 頭中 重量: 0 要求等級: 130 裝備: 所有職業","slots":1,"reqLevel":130},
@@ -20939,11 +20939,11 @@ const ITEMS = {
   "ghost_wolf_card": {id:"ghost_wolf_card",imgId:300223,name:"幽靈灰狼卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"近距離物理傷害+6%。系列: 卡片 裝備: 飾品 重量: 1"},
 
  
-  "grey_wolf_card": {id:"grey_wolf_card",imgId:300220,name:"灰狼卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"近距離物理傷害+6%；搭配幽靈灰狼卡片時，近距離物理傷害再+8%。系列: 卡片 裝備: 飾品(左) 重量: 1"},
-  "aferde_card": {id:"aferde_card",imgId:300447,name:"艾佩勒蜈蚣卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"遠距離物理傷害+6%；搭配紫樹精卡片時，遠距離物理傷害再+8%。系列: 卡片 裝備: 飾品(左) 重量: 1"},
-  "timbers_card": {id:"timbers_card",imgId:300449,name:"紫樹精卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"遠距離物理傷害+6%。系列: 卡片 裝備: 飾品(右) 重量: 1"},
-  "lowest_rgan_card": {id:"lowest_rgan_card",imgId:300366,name:"最下級蠕蟲卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"CRI+6、C.Rate+1。搭配中級蠕蟲卡片時，暴擊傷害+10%。系列: 卡片 裝備: 飾品(右) 重量: 1"},
-  "middle_g_rgan_card": {id:"middle_g_rgan_card",imgId:300368,name:"中級蠕蟲卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"CRI+6、C.Rate+1。搭配最下級蠕蟲卡片時，暴擊傷害+10%。系列: 卡片 裝備: 飾品(左) 重量: 1"},
+  "grey_wolf_card": {id:"grey_wolf_card",imgId:300220,name:"灰狼卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"近距離物理傷害+6%；搭配幽靈灰狼卡片時，近距離物理傷害再+8%。掉落：灰狼叢林灰狼（0.01%）。系列: 卡片 裝備: 飾品(左) 重量: 1"},
+  "aferde_card": {id:"aferde_card",imgId:300447,name:"艾佩勒蜈蚣卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"遠距離物理傷害+6%；搭配紫樹精卡片時，遠距離物理傷害再+8%。系列: 卡片 裝備: 飾品(左) 重量: 1","addedVersion":"v2.5.372"},
+  "timbers_card": {id:"timbers_card",imgId:300449,name:"紫樹精卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"遠距離物理傷害+6%。系列: 卡片 裝備: 飾品(右) 重量: 1","addedVersion":"v2.5.372"},
+  "lowest_rgan_card": {id:"lowest_rgan_card",imgId:300366,name:"最下級蠕蟲卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"CRI+6、C.Rate+1。搭配中級蠕蟲卡片時，暴擊傷害+10%。系列: 卡片 裝備: 飾品(右) 重量: 1","addedVersion":"v2.5.372"},
+  "middle_g_rgan_card": {id:"middle_g_rgan_card",imgId:300368,name:"中級蠕蟲卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"CRI+6、C.Rate+1。搭配最下級蠕蟲卡片時，暴擊傷害+10%。系列: 卡片 裝備: 飾品(左) 重量: 1","addedVersion":"v2.5.372"},
 
 };
 
@@ -23492,6 +23492,13 @@ const MONSTERS = {
   poison_spore: {id:'poison_spore',imgId:1077,name:'毒魔菇',icon:'🌿',level:26,hp:456,atk:23,def:40,defSoft:20,mdef:8,mdefSoft:16,element:'poison',elementResistance:{none:100,water:100,earth:100,fire:100,wind:100,poison:0,holy:100,shadow:50,ghost:100,undead:50},race:'plant',size:'medium',isBoss:false,exp:225,jobExp:169,hit:236,flee:184,atkInterval:1.672,drops:[{item:'poison_spore',chance:0.9},{item:'mushroom_spore',chance:0.1201},{item:'green_herb',chance:0.0551},{item:'blue_herb',chance:0.0061},{item:'karvodailnirol',chance:0.0051},{item:'hat_',chance:0.0021},{item:'zargon',chance:0.001},{item:'poison_spore_card',chance:0.001}],hitReq:236,fleeReq:184,mobStr:19,mobInt:5},
   test_poring: {id:'test_poring',imgId:1002,name:'測試波利',icon:'🎯',level:1,hp:1000000,atk:1,def:2,defSoft:1,mdef:5,element:'none',elementResistance:{none:100,water:100,earth:100,fire:100,wind:100,poison:100,holy:100,shadow:100,ghost:100,undead:100},race:'formless',size:'medium',isBoss:false,exp:0,jobExp:0,hit:0,flee:0,atkInterval:1.872,drops:[{item:'jellopy',chance:0.7},{item:'empty_bottle',chance:0.3001},{item:'apple',chance:0.1001},{item:'sticky_mucus',chance:0.0401},{item:'knife_',chance:0.0101},{item:'unripe_apple',chance:0.0021},{item:'poring_card',chance:0.0005}],hitReq:1,fleeReq:1,mobStr:6,mobInt:0},
   ep21_corrupted_tan: {id:'ep21_corrupted_tan',imgId:1001855,name:'被侵蝕的坦',icon:'👹',level:220,hp:2500000000,atk:28000,def:520,defSoft:320,mdef:420,mdefSoft:260,element:'shadow',elementResistance:{none:100,water:100,earth:100,fire:100,wind:100,poison:50,holy:125,shadow:0,ghost:75,undead:0},race:'demon',size:'large',isBoss:true,isMvp:false,exp:50000000,jobExp:40000000,hit:900,flee:700,atkInterval:0.85,drops:[],hitReq:850,fleeReq:720,mobStr:320,mobInt:260},
+
+  // v2.5.372：補齊四張卡片的 twRO 正式掉落魔物（只填入已查證的資料）
+  ep19_aferde: {id:'ep19_aferde',imgId:21952,name:'艾佩勒蜈蚣',icon:'🐛',level:264,hp:46254911,atk:11986,def:478,mdef:275,element:'wind',race:'insect',size:'large',isBoss:false,exp:0,jobExp:0,hit:677,flee:587,drops:[{item:'short_leg',chance:0.2668},{item:'slicky_fluid',chance:0.225},{item:'zargon',chance:0.06},{item:'shadowdecon_ore',chance:0.015},{item:'zelunium_ore',chance:0.015},{item:'shadowdecon',chance:0.0025},{item:'zelunium',chance:0.0025}],mobStr:271,mobInt:271},
+  ep19_timbers: {id:'ep19_timbers',imgId:21954,name:'紫樹精',icon:'🌿',level:265,hp:47189684,atk:12304,def:472,mdef:271,element:'none',race:'plant',size:'medium',isBoss:false,exp:0,jobExp:0,hit:669,flee:581,drops:[{item:'whittling',chance:0.225},{item:'resin',chance:0.2},{item:'wooden_block',chance:0.15},{item:'shadowdecon_ore',chance:0.015},{item:'zelunium_ore',chance:0.015},{item:'shadowdecon',chance:0.0025},{item:'zelunium',chance:0.0025}],mobStr:262,mobInt:262},
+  ep19_lowest_rgan: {id:'ep19_lowest_rgan',imgId:21527,name:'最下級蠕蟲',icon:'🐛',level:212,hp:13446600,atk:5391,def:323,mdef:139,element:'earth',race:'formless',size:'medium',isBoss:false,exp:0,jobExp:0,hit:457,flee:388,drops:[{item:'ep19_rgan_core_f',chance:0.15},{item:'ep19_shell_of_rgan',chance:0.15},{item:'ep19_unknown_cell',chance:0.15}],mobStr:79,mobInt:93},
+  ep19_middle_rgan: {id:'ep19_middle_rgan',imgId:21529,name:'中級蠕蟲',icon:'🐛',level:215,hp:14268460,atk:7579,def:276,mdef:105,element:'water',race:'formless',size:'medium',isBoss:false,exp:0,jobExp:0,hit:471,flee:418,drops:[{item:'ep19_shell_of_rgan',chance:0.1875},{item:'ep19_unknown_cell',chance:0.15},{item:'ep19_rgan_core_f',chance:0.1125}],mobStr:124,mobInt:79},
+
 };
 
 /* ---------------- 怪物卡片系統 ---------------- */
@@ -24234,14 +24241,14 @@ const CARDS = {
   captain_ferlock_card: {id:'captain_ferlock_card',monsterId:'captain_ferlock',name:'船長裴陸卡片',icon:'🃏',slot:'weapon',bonus:{atk:30},desc:'ATK+30。毀滅重擊、天神憤怒為反叛者專屬技能；本作沒有反叛者職業，因此不套用其技能增傷。',searchTerms:'Captain Ferlock Felock Card 27182 船長裴陸'},
 
   as_ragged_golem_card_j: {id:'as_ragged_golem_card_j',monsterId:'as_ragged_golem',name:'歐內斯特・斯特凡・傑克卡片',icon:'🃏',slot:'footgear',bonus:{},desc:'靴子卡片。物理攻擊3%機率FLEE+200持續10秒；魔法攻擊2.5%機率增加移動速度持續10秒；受物理攻擊3.5%機率自動施展火焰步Lv.5；受魔法攻擊8%機率自動施展電流步Lv.5。搭配王城魔戒效果由裝備條件處理。',searchTerms:'歐內斯特 斯特凡 傑克 史蒂芬傑克厄尼斯特狼 Stephen Jack Ernest Wolf As Ragged Golem Card 31026'},
-  'ghost_wolf_card': {id:'ghost_wolf_card',monsterId:null,name:'幽靈灰狼卡片',icon:'🃏',slot:'accessory',bonus:{meleeDmgPct:6},desc:'近距離物理傷害+6%。飾品卡片；官方資料可搭配奇蹟鬥氣石觸發套裝效果。幽靈灰狼怪物掉落來源尚未加入，暫以卡冊收錄途徑處理。',ep:'EP18',addedVersion:'v2.5.366'},
+  'ghost_wolf_card': {id:'ghost_wolf_card',monsterId:null,name:'幽靈灰狼卡片',icon:'🃏',slot:'accessory',bonus:{meleeDmgPct:6},desc:'近距離物理傷害+6%。飾品卡片；搭配幽靈灰狼卡片再增加近距離物理傷害+8%。灰狼叢林灰狼掉落（0.01%）；亦可由卡冊取得。',ep:'EP18',addedVersion:'v2.5.366'},
 
  
-  'grey_wolf_card': {id:'grey_wolf_card',monsterId:null,name:'灰狼卡片',icon:'🃏',slot:'accessory',bonus:{meleeDmgPct:6},condBonus:[{when:{withCards:['ghost_wolf_card']},bonus:{meleeDmgPct:8}}],desc:'近距離物理傷害+6%；搭配幽靈灰狼卡片時，近距離物理傷害再+8%。官方掉落：灰狼（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP18',addedVersion:'v2.5.368'},
-  'aferde_card': {id:'aferde_card',monsterId:null,name:'艾佩勒蜈蚣卡片',icon:'🃏',slot:'accessory',bonus:{rangedDmgPct:6},condBonus:[{when:{withCards:['timbers_card']},bonus:{rangedDmgPct:8}}],desc:'遠距離物理傷害+6%；搭配紫樹精卡片時，遠距離物理傷害再+8%。官方掉落：艾佩勒蜈蚣（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
-  'timbers_card': {id:'timbers_card',monsterId:null,name:'紫樹精卡片',icon:'🃏',slot:'accessory',bonus:{rangedDmgPct:6},desc:'遠距離物理傷害+6%。官方掉落：紫樹精（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
-  'lowest_rgan_card': {id:'lowest_rgan_card',monsterId:null,name:'最下級蠕蟲卡片',icon:'🃏',slot:'accessory',bonus:{crit:6,critRate:1},condBonus:[{when:{withCards:['middle_g_rgan_card']},bonus:{critDmgPct:10}}],desc:'CRI+6、C.Rate+1；搭配中級蠕蟲卡片時，暴擊傷害+10%。官方掉落：最下級蠕蟲（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
-  'middle_g_rgan_card': {id:'middle_g_rgan_card',monsterId:null,name:'中級蠕蟲卡片',icon:'🃏',slot:'accessory',bonus:{crit:6,critRate:1},condBonus:[{when:{withCards:['lowest_rgan_card']},bonus:{critDmgPct:10}}],desc:'CRI+6、C.Rate+1；搭配最下級蠕蟲卡片時，暴擊傷害+10%。官方掉落：中級蠕蟲（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
+  'grey_wolf_card': {id:'grey_wolf_card',monsterId:'ep18_grey_wolf',name:'灰狼卡片',icon:'🃏',slot:'accessory',bonus:{meleeDmgPct:6},condBonus:[{when:{withCards:['ghost_wolf_card']},bonus:{meleeDmgPct:8}}],desc:'近距離物理傷害+6%；搭配幽靈灰狼卡片時，近距離物理傷害再+8%。官方掉落：灰狼（0.01%）；灰狼叢林灰狼掉落（0.01%）。',ep:'EP18',addedVersion:'v2.5.372'},
+  'aferde_card': {id:'aferde_card',monsterId:'ep19_aferde',name:'艾佩勒蜈蚣卡片',icon:'🃏',slot:'accessory',bonus:{rangedDmgPct:6},condBonus:[{when:{withCards:['timbers_card']},bonus:{rangedDmgPct:8}}],desc:'遠距離物理傷害+6%；搭配紫樹精卡片時，遠距離物理傷害再+8%。官方掉落：艾佩勒蜈蚣（0.01%）；妙勒尼地下密穴（0.01%）。',ep:'EP19',addedVersion:'v2.5.372'},
+  'timbers_card': {id:'timbers_card',monsterId:'ep19_timbers',name:'紫樹精卡片',icon:'🃏',slot:'accessory',bonus:{rangedDmgPct:6},desc:'遠距離物理傷害+6%。官方掉落：紫樹精（0.01%）；妙勒尼地下密穴（0.01%）。',ep:'EP19',addedVersion:'v2.5.372'},
+  'lowest_rgan_card': {id:'lowest_rgan_card',monsterId:'ep19_lowest_rgan',name:'最下級蠕蟲卡片',icon:'🃏',slot:'accessory',bonus:{crit:6,critRate:1},condBonus:[{when:{withCards:['middle_g_rgan_card']},bonus:{critDmgPct:10}}],desc:'CRI+6、C.Rate+1；搭配中級蠕蟲卡片時，暴擊傷害+10%。官方掉落：最下級蠕蟲（0.01%）；蛇神的吐息2樓（0.01%）。',ep:'EP19',addedVersion:'v2.5.372'},
+  'middle_g_rgan_card': {id:'middle_g_rgan_card',monsterId:'ep19_middle_rgan',name:'中級蠕蟲卡片',icon:'🃏',slot:'accessory',bonus:{crit:6,critRate:1},condBonus:[{when:{withCards:['lowest_rgan_card']},bonus:{critDmgPct:10}}],desc:'CRI+6、C.Rate+1；搭配最下級蠕蟲卡片時，暴擊傷害+10%。官方掉落：中級蠕蟲（0.01%）；蛇神的吐息2樓（0.01%）。',ep:'EP19',addedVersion:'v2.5.372'},
 
 };
 
@@ -24252,6 +24259,11 @@ const MONSTER_CARD_DROPS = {
   dame_of_sentinel: { card: 'observation_card', chance: 0.0001 }, // Dame of Sentinel Card 0.01%
   mysteltainn: { card: 'mysteltainn_card', chance: 0.0005 }, // 弒神者卡片 0.05%
   poring: { card: 'poring_card', chance: 0.0005 },
+  ep18_grey_wolf: { card: 'grey_wolf_card', chance: 0.0001 }, // twRO 灰狼卡片 0.01%
+  ep19_aferde: { card: 'aferde_card', chance: 0.0001 }, // twRO 艾佩勒蜈蚣卡片 0.01%
+  ep19_timbers: { card: 'timbers_card', chance: 0.0001 }, // twRO 紫樹精卡片 0.01%
+  ep19_lowest_rgan: { card: 'lowest_rgan_card', chance: 0.0001 }, // twRO 最下級蠕蟲卡片 0.01%
+  ep19_middle_rgan: { card: 'middle_g_rgan_card', chance: 0.0001 }, // twRO 中級蠕蟲卡片 0.01%
   boiled_rice: { card: 'lucky_riceball_c', chance: 0.0005 },
   fabre: { card: 'fabre_card', chance: 0.0005 },
   pupa: { card: 'pupa_card', chance: 0.0005 },
@@ -25766,8 +25778,10 @@ const MAPS = [
   },
   {
     id: 'mjo_wst01', imgId: 5204, name: '妙勒尼地下密穴',
-    monsters: [{ id: 'argiope', weight: 30 }, { id: 'mandragora', weight: 30 }, { id: 'giearth', weight: 25 }, { id: 'argos', weight: 15 }],
-    bg: 'map-dungeon'
+    // 本作目前先列入已建檔、且已接通卡片掉落的正式魔物；其餘三種出沒魔物待補齊資料後加入。
+    monsters: [{ id: 'ep19_aferde', weight: 90 }, { id: 'ep19_timbers', weight: 90 }],
+    bg: 'map-dungeon',
+    desc: 'twRO 妙勒尼地下密穴卡片狩獵區：艾佩勒蜈蚣、紫樹精。其餘出沒魔物資料待補。'
   },
   {
     id: 'anthell01', imgId: 5205, name: '螞蟻地獄01',
@@ -27060,6 +27074,24 @@ const MAPS = [
   { id: 'illusion_sea_deep', imgId: 5270, name: '幻影海底深層', monsters: [{ id: 'ill_sedora', weight: 1 }, { id: 'ill_sword_fish', weight: 2 }, { id: 'ill_strouf', weight: 2 }, { id: 'ill_phen', weight: 2 }, { id: 'ill_king_dramoh', weight: 1 }], bg: 'map-dungeon', desc: '本作擴充高等狩場；收錄 5 種既有高等魔物。' },
   { id: 'illusion_castle_deep', imgId: 5270, name: '幻影古城深層', monsters: [{ id: 'disguiser', weight: 1 }, { id: 'brutal_murderer', weight: 2 }, { id: 'ghost_cube', weight: 2 }, { id: 'lude_gal', weight: 2 }, { id: 'bluemoon_loli_ruri', weight: 1 }, { id: 'grote', weight: 2 }, { id: 'pierrotzoist', weight: 2 }, { id: 'death_witch', weight: 2 }], bg: 'map-dungeon', desc: '本作擴充高等狩場；收錄 8 種既有高等魔物。' },
   { id: 'varmundt_chimera_lab', imgId: 5270, name: '巴爾蒙特奇美拉研究區', monsters: [{ id: 'chimera_lava', weight: 1 }, { id: 'chimera_fulgor', weight: 2 }, { id: 'chimera_napeo', weight: 2 }, { id: 'chimera_galensis', weight: 2 }, { id: 'chimera_amitera', weight: 1 }, { id: 'chimera_litus', weight: 2 }, { id: 'chimera_fillia', weight: 2 }, { id: 'chimera_vanilaqus', weight: 2 }, { id: 'chimera_theone', weight: 1 }], bg: 'map-dungeon', desc: '本作擴充高等狩場；收錄 9 種既有高等魔物。' },
+
+  {
+    id: 'jor_dun02', imgId: 5270, name: '蛇神的吐息2樓',
+    // 本作目前先列入已建檔、且已接通卡片掉落的正式魔物；下級蠕蟲與邪心獵人AT待補。
+    monsters: [{ id: 'ep19_lowest_rgan', weight: 60 }, { id: 'ep19_middle_rgan', weight: 15 }],
+    bg: 'map-dungeon',
+    desc: 'twRO 蛇神的吐息2樓卡片狩獵區：最下級蠕蟲、中級蠕蟲。其餘出沒魔物資料待補。'
+  },
+  {
+    id: 'gw_fild01', imgId: 5270, name: '灰狼叢林',
+    monsters: [
+      { id: 'ep18_ashring', weight: 70 },
+      { id: 'ep18_ashhopper', weight: 50 },
+      { id: 'ep18_grey_wolf', weight: 35 }
+    ],
+    bg: 'map-field',
+    desc: 'EP18 灰狼叢林。收錄灰燼波利、灰燼蝗蟲與灰狼；灰狼卡片依 twRO 資料設定 0.01% 掉率。'
+  },
 ];
 
 
@@ -27069,7 +27101,7 @@ const KINGDOMS = [
     regions: ['r_novice', 'r_ep21', 'r_prontera', 'r_geffen', 'r_payon', 'r_morroc', 'r_izlude', 'r_alberta', 'r_aldebaran', 'r_comodo', 'r_umbala', 'r_nifflheim', 'r_lutie', 'r_glast_heim', 'r_mjolnir', 'r_turtle_island'] },
   { id: 'k_schwartzvald', name: '修發茲共和國', icon: '⚙️', regions: ['r_juno', 'r_einbroch', 'r_hugel', 'r_lighthalzen'] },
   { id: 'k_arunafeltz', name: '阿盧納貝茲教國', icon: '☀️', regions: ['r_rachel', 'r_veins'] },
-  { id: 'k_new_world', name: '異世界', icon: '🌀', regions: ['r_new_world'] },
+  { id: 'k_new_world', name: '異世界', icon: '🌀', regions: ['r_new_world', 'r_issgard'] },
   { id: 'k_foreign', name: '海外地區', icon: '🌍', regions: ['r_foreign'] },
   { id: 'k_thor', name: '托爾火山', icon: '🌋', regions: ['r_thor'] },
 ];
@@ -27153,6 +27185,11 @@ const REGIONS = [
   {
     id: 'r_new_world', name: '異世界', subtitle: '超越沙漠彼端的新大陸', icon: '🌀',
     maps: ['manuk', 'man_fild01', 'man_fild02', 'man_dun01', 'splendide', 'spl_fild01', 'spl_fild02', 'spl_dun01', 'mid_camp', 'man_fild03', 'spl_fild03', 'bif_fild02', 'mora', 'nameless_n', 'e_tower', 'cave', 'dic_fild01', 'dic_dun01', 'dic_dun02', 'dic_dun03', 'dicastes01', 'dicastes02', 'nyd_dun01', 'nyd_dun02', 'schg_dun01', 'arug_dun01', 'high_exp_208']
+  },
+  {
+    id: 'r_issgard', name: '伊斯加爾特',
+    subtitle: 'EP19 冰雪花之地與蛇神的吐息', icon: '❄️',
+    maps: ['jor_dun02']
   },
   {
     id: 'r_foreign', name: '海外地區', subtitle: '世界各地的異國風情', icon: '🌍',

@@ -816,7 +816,7 @@ function updateBuffCountdown() {
     el.innerHTML = '';
     return;
   }
-  const buffNames = { aspd: '攻速', atk: '攻擊', def: '防禦', flee: '迴避', gold: '金錢', crit: '暴擊', hit: '命中', block: '格擋',
+  const buffNames = { aspd: '攻速', atk: '攻擊', def: '防禦', flee: '迴避', gold: '金錢', crit: '暴擊', hit: '命中', recognizedspell: '魔法省悟（SP消耗+25%）', block: '格擋',
     weaponatk: '裝備ATK', eledmg_poison: '毒傷害', meltdown: '野蠻凶砍', spawnspeed: '生怪加速',
     reflect: '反射', providence: '神祐之光',
     perfectdodge: '完全迴避', critdmg: '暴擊傷害', maxhppct: '最大HP', maxsppct: '最大SP',
@@ -2034,16 +2034,71 @@ function renderLogNow() {
   Object.keys(LOG_PANES).forEach(lane => {
     const el = document.getElementById(LOG_PANES[lane]);
     if (!el) return;
-    const rows = (combatLogLanes[lane] || []).slice(-30);
-    el.innerHTML = rows.map(m => {
+    const fullRows = combatLogLanes[lane] || [];
+    const startIndex = Math.max(0, fullRows.length - 30);
+    const rows = fullRows.slice(-30);
+    el.innerHTML = rows.map((m, rowIndex) => {
       const raw = String(m || '');
       const tone = /失敗|警告|無法|不足|被擊敗|死亡/.test(raw) ? 'warning'
         : /恢復|治癒|治療|獲得|掉落|成功/.test(raw) ? 'success'
         : /造成 [0-9,]+ 點傷害|暴擊/.test(raw) ? 'combat' : 'normal';
-      return `<div class="log-line log-${tone}">${raw}</div>`;
+      const idx = startIndex + rowIndex;
+      return `<div class="log-line log-${tone}" role="button" tabindex="0" title="點擊查看詳細紀錄" onclick="openCombatLogDetail('${lane}',${idx})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCombatLogDetail('${lane}',${idx})}">${raw}</div>`;
     }).join('');
     el.scrollTop = el.scrollHeight;
   });
+}
+
+/* 戰鬥／技能／隊友紀錄詳細檢視：保留每類最近 300 筆，列表只顯示最新 30 筆。 */
+const COMBAT_LOG_LANE_NAMES = { main: '戰鬥紀錄', skill: '技能紀錄', ally: '隊友紀錄' };
+function combatLogPlainText(raw) {
+  const box = document.createElement('div');
+  box.innerHTML = String(raw || '');
+  return box.textContent || box.innerText || '';
+}
+function openCombatLogDetail(lane, index) {
+  const list = combatLogLanes && combatLogLanes[lane];
+  if (!Array.isArray(list) || !list[index]) return;
+  const modal = document.getElementById('combat-log-detail-modal');
+  const body = document.getElementById('combat-log-detail-body');
+  const title = document.getElementById('combat-log-detail-title');
+  if (!modal || !body || !title) return;
+  title.textContent = `${COMBAT_LOG_LANE_NAMES[lane] || '戰鬥紀錄'} · 第 ${index + 1} 筆`;
+  body.textContent = combatLogPlainText(list[index]);
+  modal.dataset.lane = lane;
+  modal.dataset.index = String(index);
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+function openCombatLogHistory(lane) {
+  const list = combatLogLanes && combatLogLanes[lane];
+  if (!Array.isArray(list)) return;
+  const modal = document.getElementById('combat-log-detail-modal');
+  const body = document.getElementById('combat-log-detail-body');
+  const title = document.getElementById('combat-log-detail-title');
+  if (!modal || !body || !title) return;
+  title.textContent = `${COMBAT_LOG_LANE_NAMES[lane] || '戰鬥紀錄'}（最近 ${list.length} 筆）`;
+  body.innerHTML = list.map((row, i) =>
+    `<button type="button" class="combat-log-history-row" onclick="openCombatLogDetail('${lane}',${i})">${lootEscapeHtml(combatLogPlainText(row))}</button>`
+  ).join('') || '<div class="dim">目前沒有紀錄。</div>';
+  modal.dataset.lane = lane;
+  modal.dataset.index = '';
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+function closeCombatLogDetail() {
+  const modal = document.getElementById('combat-log-detail-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+function clearCombatLogHistory(lane) {
+  if (!combatLogLanes || !combatLogLanes[lane]) return;
+  if (!confirm(`確定清除${COMBAT_LOG_LANE_NAMES[lane] || '紀錄'}？`)) return;
+  combatLogLanes[lane].length = 0;
+  if (lane === 'main') combatLogBuf.length = 0;
+  renderLog();
+  closeCombatLogDetail();
 }
 
 /* ---------------- 地圖分頁 ---------------- */
@@ -3646,7 +3701,7 @@ function codexItemCell(r, book) {
     (typeof window.getItemDisplayName === 'function' ? window.getItemDisplayName(r.id) : '') || r.id;
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${got ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
     <img class="codex-icon" src="${itemImgSrc(r.id)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
-    <div class="codex-cell-name">${displayName}${cardDef && cardDef.addedVersion ? ` <span style="display:inline-block;margin-left:3px;padding:1px 4px;border:1px solid #d8b34a;border-radius:5px;color:#f2cf65;font-size:10px;white-space:nowrap;">新 ${cardDef.addedVersion.replace('v2.5.','')}</span>` : ''}</div>
+    <div class="codex-cell-name">${displayName}${(cardDef || d).addedVersion ? ` <span style="display:inline-block;margin-left:3px;padding:1px 4px;border:1px solid #d8b34a;border-radius:5px;color:#f2cf65;font-size:10px;white-space:nowrap;">新 ${(cardDef || d).addedVersion.replace('v2.5.','')}</span>` : ''}</div>
     <div class="codex-cell-sub">${sub}</div>
     <div class="codex-cell-count ${got ? '' : 'zero'}">${got ? '×' + got : '未取得'}</div>
   </div>`;
@@ -3968,7 +4023,7 @@ function renderCodexDetail(id) {
     ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${itemDescriptionHtml((card && card.desc) || d.desc)}</div>` : ''}
     ${unimpl}
     <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
-    <div class="codex-spots">${relicRows}${shopRows}${craftRows}${boxRows}${albumRows}${srcRows || (relicRows || shopRows || craftRows || boxRows || albumRows ? '' : '<div class="dim">沒有可驗證的取得來源；此項目不應視為可取得</div>')}</div>
+    <div class="codex-spots">${relicRows}${shopRows}${craftRows}${boxRows}${albumRows}${srcRows || (relicRows || shopRows || craftRows || boxRows || albumRows ? '' : ((d.addedVersion || d.codexInclude) ? '<div class="dim">已收錄於圖鑑；正式掉落／商店／合成來源尚待接入，請勿視為已可取得。</div>' : '<div class="dim">目前沒有可驗證的取得來源。</div>'))}</div>
   </div>`;
 }
 

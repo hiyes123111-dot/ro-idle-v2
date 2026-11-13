@@ -2047,3 +2047,18 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .log-line.log-success{color:#9fe0b2}
 .log-line.log-combat{color:#f2d58a}
 .log-line{overflow-wrap:anywhere}
+
+/* v2.5.371：可點擊戰鬥日誌與歷史詳細視窗 */
+.log-line { cursor: pointer; }
+.log-line:focus-visible { outline: 2px solid var(--gold, #d8b34a); outline-offset: 2px; }
+.log-pane-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.log-pane-head button { border:1px solid rgba(216,179,74,.45); background:transparent; color:var(--ink-dim,#c8b88c); border-radius:5px; padding:1px 6px; font-size:11px; }
+.combat-log-detail-modal { display:none; position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,.78); align-items:center; justify-content:center; padding:16px; }
+.combat-log-detail-modal.open { display:flex; }
+.combat-log-detail-card { width:min(620px,96vw); max-height:82vh; display:flex; flex-direction:column; background:#241016; color:#f4e6c9; border:1px solid #8d6737; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.55); overflow:hidden; }
+.combat-log-detail-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid rgba(216,179,74,.3); }
+.combat-log-detail-head button,.combat-log-detail-actions button { background:#421923; color:#f4e6c9; border:1px solid #8d6737; border-radius:7px; padding:7px 10px; }
+.combat-log-detail-body { padding:12px 14px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.65; min-height:80px; }
+.combat-log-history-row { display:block; width:100%; text-align:left; white-space:normal; overflow-wrap:anywhere; background:transparent; color:inherit; border:0; border-bottom:1px solid rgba(216,179,74,.18); padding:9px 2px; }
+.combat-log-history-row:active { background:rgba(216,179,74,.12); }
+.combat-log-detail-actions { display:flex; justify-content:flex-end; gap:8px; padding:10px 14px; border-top:1px solid rgba(216,179,74,.3); }
