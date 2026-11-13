@@ -20929,6 +20929,22 @@ const ITEMS = {
 
   "captain_ferlock_card": {"id":"captain_ferlock_card","imgId":27182,"name":"船長裴陸卡片","type":"material","icon":"🃏","weight":1,"sell":10,"buyPrice":20,"desc":"ATK+30。毀滅重擊、天神憤怒追加傷害效果屬反叛者專屬技能；本作目前沒有反叛者職業，因此不套用這兩項技能增傷。系列:卡片；武器卡片。"},
 
+  "miracle_aura_stone": {id:"miracle_aura_stone",imgId:491101,name:"奇蹟鬥氣石 [1]",type:"armor",icon:"💠",armorType:"accessory",def:0,mdef:10,weight:10,sell:0,buyPrice:0,slots:1,reqLevel:130,desc:"MDEF+10、暴擊傷害+15%、近／遠距離物理傷害+10%、技能後延遲-5%。搭配灰狼卡片、幽靈灰狼卡片、艾佩勒蜈蚣卡片、紫樹精卡片、最下級蠕蟲卡片、中級蠕蟲卡片、天使冰蛞蝓卡片或冰雪兔蛞蝓卡片時，POW、CON、CRT+5，對全階級對象的物理傷害+15%。命中物理傷害+10%目前尚未納入本作傷害計算。系列: 飾品 裝備: 全職業 要求等級: 130",bonus:{critDmgPct:15,meleeDmgPct:10,rangedDmgPct:10,skillAfterDelayPct:5},condBonus:[{when:{withCards:["ghost_wolf_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},{when:{withCards:["angel_iceslug_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},{when:{withCards:["rabbit_iceslug_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},
+{when:{withCards:["grey_wolf_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},
+{when:{withCards:["aferde_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},
+{when:{withCards:["timbers_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},
+{when:{withCards:["lowest_rgan_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}},
+{when:{withCards:["middle_g_rgan_card"]},bonus:{pow:5,con:5,crt:5,allClassDmgPct:15}}]},
+
+  "ghost_wolf_card": {id:"ghost_wolf_card",imgId:300223,name:"幽靈灰狼卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"近距離物理傷害+6%。系列: 卡片 裝備: 飾品 重量: 1"},
+
+ 
+  "grey_wolf_card": {id:"grey_wolf_card",imgId:300220,name:"灰狼卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"近距離物理傷害+6%；搭配幽靈灰狼卡片時，近距離物理傷害再+8%。系列: 卡片 裝備: 飾品(左) 重量: 1"},
+  "aferde_card": {id:"aferde_card",imgId:300447,name:"艾佩勒蜈蚣卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"遠距離物理傷害+6%；搭配紫樹精卡片時，遠距離物理傷害再+8%。系列: 卡片 裝備: 飾品(左) 重量: 1"},
+  "timbers_card": {id:"timbers_card",imgId:300449,name:"紫樹精卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"遠距離物理傷害+6%。系列: 卡片 裝備: 飾品(右) 重量: 1"},
+  "lowest_rgan_card": {id:"lowest_rgan_card",imgId:300366,name:"最下級蠕蟲卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"CRI+6、C.Rate+1。搭配中級蠕蟲卡片時，暴擊傷害+10%。系列: 卡片 裝備: 飾品(右) 重量: 1"},
+  "middle_g_rgan_card": {id:"middle_g_rgan_card",imgId:300368,name:"中級蠕蟲卡片",type:"material",icon:"🃏",weight:1,sell:10,buyPrice:20,desc:"CRI+6、C.Rate+1。搭配最下級蠕蟲卡片時，暴擊傷害+10%。系列: 卡片 裝備: 飾品(左) 重量: 1"},
+
 };
 
 const MONSTERS = {
@@ -24218,6 +24234,14 @@ const CARDS = {
   captain_ferlock_card: {id:'captain_ferlock_card',monsterId:'captain_ferlock',name:'船長裴陸卡片',icon:'🃏',slot:'weapon',bonus:{atk:30},desc:'ATK+30。毀滅重擊、天神憤怒為反叛者專屬技能；本作沒有反叛者職業，因此不套用其技能增傷。',searchTerms:'Captain Ferlock Felock Card 27182 船長裴陸'},
 
   as_ragged_golem_card_j: {id:'as_ragged_golem_card_j',monsterId:'as_ragged_golem',name:'歐內斯特・斯特凡・傑克卡片',icon:'🃏',slot:'footgear',bonus:{},desc:'靴子卡片。物理攻擊3%機率FLEE+200持續10秒；魔法攻擊2.5%機率增加移動速度持續10秒；受物理攻擊3.5%機率自動施展火焰步Lv.5；受魔法攻擊8%機率自動施展電流步Lv.5。搭配王城魔戒效果由裝備條件處理。',searchTerms:'歐內斯特 斯特凡 傑克 史蒂芬傑克厄尼斯特狼 Stephen Jack Ernest Wolf As Ragged Golem Card 31026'},
+  'ghost_wolf_card': {id:'ghost_wolf_card',monsterId:null,name:'幽靈灰狼卡片',icon:'🃏',slot:'accessory',bonus:{meleeDmgPct:6},desc:'近距離物理傷害+6%。飾品卡片；官方資料可搭配奇蹟鬥氣石觸發套裝效果。幽靈灰狼怪物掉落來源尚未加入，暫以卡冊收錄途徑處理。',ep:'EP18',addedVersion:'v2.5.366'},
+
+ 
+  'grey_wolf_card': {id:'grey_wolf_card',monsterId:null,name:'灰狼卡片',icon:'🃏',slot:'accessory',bonus:{meleeDmgPct:6},condBonus:[{when:{withCards:['ghost_wolf_card']},bonus:{meleeDmgPct:8}}],desc:'近距離物理傷害+6%；搭配幽靈灰狼卡片時，近距離物理傷害再+8%。官方掉落：灰狼（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP18',addedVersion:'v2.5.368'},
+  'aferde_card': {id:'aferde_card',monsterId:null,name:'艾佩勒蜈蚣卡片',icon:'🃏',slot:'accessory',bonus:{rangedDmgPct:6},condBonus:[{when:{withCards:['timbers_card']},bonus:{rangedDmgPct:8}}],desc:'遠距離物理傷害+6%；搭配紫樹精卡片時，遠距離物理傷害再+8%。官方掉落：艾佩勒蜈蚣（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
+  'timbers_card': {id:'timbers_card',monsterId:null,name:'紫樹精卡片',icon:'🃏',slot:'accessory',bonus:{rangedDmgPct:6},desc:'遠距離物理傷害+6%。官方掉落：紫樹精（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
+  'lowest_rgan_card': {id:'lowest_rgan_card',monsterId:null,name:'最下級蠕蟲卡片',icon:'🃏',slot:'accessory',bonus:{crit:6,critRate:1},condBonus:[{when:{withCards:['middle_g_rgan_card']},bonus:{critDmgPct:10}}],desc:'CRI+6、C.Rate+1；搭配中級蠕蟲卡片時，暴擊傷害+10%。官方掉落：最下級蠕蟲（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
+  'middle_g_rgan_card': {id:'middle_g_rgan_card',monsterId:null,name:'中級蠕蟲卡片',icon:'🃏',slot:'accessory',bonus:{crit:6,critRate:1},condBonus:[{when:{withCards:['lowest_rgan_card']},bonus:{critDmgPct:10}}],desc:'CRI+6、C.Rate+1；搭配最下級蠕蟲卡片時，暴擊傷害+10%。官方掉落：中級蠕蟲（0.01%）；本作尚未收錄該怪物，暫由卡冊取得。',ep:'EP19',addedVersion:'v2.5.368'},
 
 };
 
