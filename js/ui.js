@@ -1956,6 +1956,19 @@ let _lootFeedCollapsed = true; // 預設收合，避免戰鬥畫面被獲得紀�
 function lootEscapeHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+// 物品說明是外部資料匯入內容：保留可讀文字與換行，但一律移除 HTML 標籤／超連結，
+// 再跳脫文字，避免背包、倉庫、圖鑑與提示框把資料來源網址渲染成可點擊連結。
+function itemDescriptionHtml(value) {
+  let text = String(value == null ? '' : value);
+  text = text.replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/\s*p\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'");
+  return lootEscapeHtml(text).replace(/\r?\n/g, '<br>');
+}
 function renderLootNotices() {
   const el = document.getElementById('loot-notice-feed');
   if (!el) return;
@@ -3904,7 +3917,7 @@ function renderCodexDetail(id) {
     ${illustration}
     ${bonusBits.length ? `<div class="codex-detail-stats">${bonusBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
     ${!card && statBits.length ? `<div class="codex-detail-stats">${statBits.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
-    ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${(card && card.desc) || d.desc}</div>` : ''}
+    ${(card && card.desc) || d.desc ? `<div class="codex-detail-desc">${itemDescriptionHtml((card && card.desc) || d.desc)}</div>` : ''}
     ${unimpl}
     <div class="codex-detail-sec">取得方式<span class="codex-sec-hint">怪物掉落依出現率排序；箱子列出目前抽選池與單件機率</span></div>
     <div class="codex-spots">${relicRows}${shopRows}${craftRows}${boxRows}${albumRows}${srcRows || (relicRows || shopRows || craftRows || boxRows || albumRows ? '' : '<div class="dim">沒有可驗證的取得來源；此項目不應視為可取得</div>')}</div>
@@ -4776,7 +4789,7 @@ function relicTooltipHtml(itemId, hint) {
   const n = relicSetCounts()[set.id] || 0;
   let html = `<div class="tt-name">${set.icon} ${d.name}</div>`;
   html += `<div class="tt-type">${RELIC_SLOT_NAMES[d.relicSlot]}　<b class="tt-relic-count ${relicGlowClass(n)}">身上 ${n} / ${RELIC_SLOTS.length} 件</b></div>`;
-  html += `<div class="tt-desc">${set.desc}</div>`;
+  html += `<div class="tt-desc">${itemDescriptionHtml(set.desc)}</div>`;
   set.tiers.forEach(tier => {
     const on = n >= tier.need;
     html += `<div class="tt-relic-tier ${on ? 'on' : 'off'}">
@@ -5189,7 +5202,7 @@ function renderInventoryTab() {
             <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
             <div class="inv-info">
               <div class="inv-name">${iLocked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${refTag}${displayName}${((def.slots || 0) + (inst.extraSlots || 0)) ? ` <span class="inv-slots">[${(def.slots || 0) + (inst.extraSlots || 0)}]</span>` : ''}${elemTag}</div>
-              <div class="inv-desc">${def.desc || ''}</div>
+              <div class="inv-desc">${itemDescriptionHtml(def.desc || '')}</div>
               ${cardsHtml}
               ${renderCompareBadge(row.item, inst.refine, row.instanceId)}
             </div>
@@ -5223,7 +5236,7 @@ function renderInventoryTab() {
           <div class="inv-icon"><img src="${itemImgSrc(row.item)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(def))}'"></div>
           <div class="inv-info">
             <div class="inv-name">${locked ? '<span class="inv-lock-tag">🔒</span> ' : ''}${displayName} x${row.qty}${slotTag}${elemTag}</div>
-            <div class="inv-desc">${cardBonus || def.desc || ''}</div>
+            <div class="inv-desc">${itemDescriptionHtml(cardBonus || def.desc || '')}</div>
             ${isCard ? `<div class="inv-cardslot">插槽：${cardSlotLabel(CARDS[row.item])}</div>` : ''}
             ${compareHtml}
           </div>
@@ -5335,7 +5348,7 @@ function showEquipTooltip(event, slotKey) {
 
   let html = `<div class="tt-name">${window.getItemDisplayName(itemId)}${refLevel > 0 ? ` <span class="tt-refine">+${refLevel}</span>` : ''}</div>`;
   html += `<div class="tt-type">${item.type === 'weapon' ? '武器' : '防具'}${item.element ? ' · ' + ELEMENT_ICONS[item.element] + ELEMENT_NAMES[item.element] : ''}</div>`;
-  if (item.desc) html += `<div class="tt-desc">${item.desc}</div>`;
+  if (item.desc) html += `<div class="tt-desc">${itemDescriptionHtml(item.desc)}</div>`;
   // 顯示數值
   const stats = [];
   if (item.atk) stats.push(`<span>ATK +${item.atk}</span>`);
@@ -7312,7 +7325,7 @@ function showCardSelect(slotKey) {
           <span class="card-icon">${c.icon}</span>
           <div class="card-details">
             <span class="card-name">${c.name}</span>
-            <span class="card-desc">${c.desc}</span>
+            <span class="card-desc">${itemDescriptionHtml(c.desc || '')}</span>
           </div>
         </div>
       </div>`;
@@ -7333,7 +7346,7 @@ function showCardSelect(slotKey) {
           <span class="card-icon">${c.card.icon}</span>
           <div class="card-details">
             <span class="card-name">${c.card.name} x${c.qty}</span>
-            <span class="card-desc">${c.card.desc}</span>
+            <span class="card-desc">${itemDescriptionHtml(c.card.desc || '')}</span>
           </div>
         </div>
         <button class="btn-small" onclick="insertCard('${slotKey}','${c.cardId}');showCardSelect('${slotKey}');">插卡</button>

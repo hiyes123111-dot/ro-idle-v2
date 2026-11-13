@@ -2788,7 +2788,7 @@ function cardTargetDmgMult(monDef) {
   // 天秤座寶冠的 allClassDmg 明確是「物理傷害」，不可併入 allTargetDmgPct，
   // 因為後者同時被魔法傷害公式使用。
   if (state.cardAllTargetDmgPct) bonus += state.cardAllTargetDmgPct / 100;
-  const allClassPhysical = getCardBonus('allClassDmg');
+  const allClassPhysical = getCardBonus('allClassDmg') + getCardBonus('allClassDmgPct');
   if (allClassPhysical) bonus += allClassPhysical / 100;
   // 古代夢羅克貴族首飾：對所有屬性目標的物理傷害，與魔法端共用同一條專用詞條。
   if (getCardBonus('allPropertyDmgPct')) bonus += getCardBonus('allPropertyDmgPct') / 100;
@@ -6929,6 +6929,8 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
        則與物理共用。 */
     let targetPct = 0;
     if (monDef && monDef.size) targetPct += getCardBonus('magicSizeDmg_' + monDef.size);
+    // 全體型魔法傷害：新舊資料鍵統一讀取；不與物理 allSizeDmgPct 混用。
+    targetPct += getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicSizeDmg_all');
     if (monDef && monDef.race) {
       targetPct += getCardBonus('magicRaceDmg_' + monDef.race);
       // 舊裝備官方詞條使用 demihuman；本專案魔物種族值使用 humanoid。
@@ -6940,9 +6942,11 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     // 讓主動施法、自動念咒、受擊反制與場地／持續傷害都能吃到，避免只在主動施法乘區生效。
     const magicElement = (sk && sk.element) || 'none';
     targetPct += getCardBonus('magicEleDmg_' + magicElement);
-    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('allSizeMagicDmgPct') + getCardBonus('magicAllDmgPct');
+    targetPct += getCardBonus('allRaceDmgPct') + getCardBonus('allTargetDmgPct') + getCardBonus('magicAllDmgPct');
     // 古代夢羅克貴族首飾：全屬性目標的魔法傷害，與物理端使用相同專用詞條，避免雙重計算。
     targetPct += getCardBonus('allPropertyDmgPct');
+    // 所有階級魔法傷害是獨立詞條；不得把物理 allClassDmg 誤套到魔法。
+    targetPct += getCardBonus('allClassMagicDmg') + getCardBonus('allClassDmgMagic') + getCardBonus('magicAllClassDmgPct');
     if (monDef && monDef.isBoss) targetPct += getCardBonus('bossDmgPct');
     // 米德加爾特大太陽神頭盔：全屬性魔法傷害加成，與物理近／遠距離乘區分開。
     // 全屬性魔法傷害（裝備 allEleDmg）：獨立於指定屬性、種族與體型的通用魔法增傷。
@@ -13996,7 +14000,7 @@ function effectiveGearBonuses() {
        裝備說明與資料有數值，但 getCardBonus() 的戰鬥消費端會讀到 0。
        atk/matk/str/def/hp 等基礎欄位仍由既有流程處理，避免重複計算。 */
     const directBonusKeys = [
-      'atkPct', 'matkPct', 'aspdFlat', 'meleeDmgPct', 'rangedDmgPct',
+      'atkPct', 'matkPct', 'pAtk', 'sMatk', 'patk', 'smatk', 'aspdFlat', 'meleeDmgPct', 'rangedDmgPct',
       'rangedPhysDmgPct', 'allEleDmg', 'allTargetDmgPct', 'allClassDmg',
       'allPropertyDmgPct', 'allRaceDmgPct', 'allSizeDmgPct',
       'allSizeMagicDmgPct', 'allElePhysDmgPct', 'bossDmgPct', 'magicDmgPct', 'magicAllDmgPct',
