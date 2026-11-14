@@ -27,7 +27,7 @@ const ui=fs.readFileSync(path.join(root,'js/ui.js'),'utf8');
 const engine=fs.readFileSync(path.join(root,'js/engine.js'),'utf8');
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const logChecks=[
- ['三分類日誌各保留 300 筆',engine.includes('buf.length > 300')],
+ ['三分類日誌各保留最近 1000 筆',engine.includes('buf.length > 1000')],
  ['單筆紀錄可點擊開啟詳細視窗',ui.includes('openCombatLogDetail') && ui.includes('onclick=')],
  ['三分類均有完整歷史入口',index.includes("openCombatLogHistory('main')") && index.includes("openCombatLogHistory('skill')") && index.includes("openCombatLogHistory('ally')")],
  ['紀錄詳細視窗已加入頁面',index.includes('combat-log-detail-modal')]

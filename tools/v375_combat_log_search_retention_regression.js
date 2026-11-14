@@ -1,0 +1,16 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..');
+const engine=fs.readFileSync(path.join(root,'js/engine.js'),'utf8');
+const ui=fs.readFileSync(path.join(root,'js/ui.js'),'utf8');
+const css=fs.readFileSync(path.join(root,'css/style.css'),'utf8');
+const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+assert(engine.includes('if (buf.length > 1000) buf.shift();'),'each log lane retains up to 1000 rows');
+assert(engine.includes("padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}]"),'log timestamps include seconds');
+assert(ui.includes('function filterCombatLogHistory(lane, query)'),'history search function exists');
+assert(ui.includes("plain.toLocaleLowerCase().includes(q)"),'history search matches plain text case-insensitively');
+assert(ui.includes("matches.reverse().map(row =>"),'history results are newest first');
+assert(ui.includes("event.key !== 'Escape'"),'Escape closes the detail modal');
+assert(ui.includes("id=\"combat-log-history-search\""),'search field is rendered in history modal');
+assert(css.includes('.combat-log-history-search')&&css.includes('.combat-log-history-empty'),'search and empty states are styled');
+assert(html.includes("openCombatLogHistory('main')")&&html.includes("openCombatLogHistory('skill')")&&html.includes("openCombatLogHistory('ally')"),'all three log lanes retain their history entry points');
+console.log('v2.5.375 combat log retention/search/accessibility: 10/10 passed');

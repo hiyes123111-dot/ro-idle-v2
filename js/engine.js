@@ -244,6 +244,54 @@ let combatLogBuf = [];
    三個緩衝各留 40 則。`combatLogBuf` 照舊保留全部，既有呼叫端不受影響。 */
 const combatLogLanes = { main: [], skill: [], ally: [] };
 let _lastLogLane = 'main';
+/* 戰鬥紀錄跨重新整理保存：依角色名稱分開，最多每分類 1000 筆。
+   使用 debounce 避免每次攻擊都同步寫入 localStorage；儲存失敗不影響戰鬥。 */
+let _combatLogHistoryLoadedKey = null;
+let _combatLogPersistTimer = null;
+function combatLogStorageKey() {
+  const character = (typeof state !== 'undefined' && state && state.name) ? String(state.name) : 'default';
+  return 'game_combat_log_history_v1:' + character.slice(0, 40);
+}
+function loadCombatLogHistory() {
+  const key = combatLogStorageKey();
+  if (_combatLogHistoryLoadedKey === key) return;
+  _combatLogHistoryLoadedKey = key;
+  ['main', 'skill', 'ally'].forEach(lane => { combatLogLanes[lane].length = 0; });
+  combatLogBuf.length = 0;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    ['main', 'skill', 'ally'].forEach(lane => {
+      const rows = saved && Array.isArray(saved[lane]) ? saved[lane] : [];
+      combatLogLanes[lane].length = 0;
+      combatLogLanes[lane].push(...rows.slice(-1000).filter(x => typeof x === 'string'));
+    });
+    combatLogBuf.length = 0;
+    combatLogBuf.push(...combatLogLanes.main.slice(-900));
+  } catch (err) {
+    /* 瀏覽器停用儲存或資料損壞時，保留本次記憶體紀錄即可。 */
+  }
+}
+function saveCombatLogHistory() {
+  try {
+    const snapshot = {
+      main: combatLogLanes.main.slice(-1000),
+      skill: combatLogLanes.skill.slice(-1000),
+      ally: combatLogLanes.ally.slice(-1000)
+    };
+    localStorage.setItem(combatLogStorageKey(), JSON.stringify(snapshot));
+  } catch (err) {
+    /* QuotaExceededError 不得中斷遊戲流程。 */
+  }
+}
+function scheduleCombatLogHistorySave() {
+  if (_combatLogPersistTimer) clearTimeout(_combatLogPersistTimer);
+  _combatLogPersistTimer = setTimeout(() => {
+    _combatLogPersistTimer = null;
+    saveCombatLogHistory();
+  }, 500);
+}
 /* 技能欄靠**呼叫端明確標記**，不靠猜。
    第一版用「訊息帶「」括號就是技能」來認，結果轉職訊息（恭喜你轉職成為「騎士」）
    跟換地圖（前往「新手訓練場」）全跑進技能欄——「」在這份資料裡到處都是。 */
@@ -260,6 +308,7 @@ function logLaneOf(text, lane) {
   return _logLaneOverride || 'main';
 }
 function pushCombatLog(text, lane) {
+  loadCombatLogHistory();
   const ln = logLaneOf(text, lane);
   _lastLogLane = ln;
   /* 隊友走的是同一支 playerAttack()，訊息開頭一律是「你」——
@@ -268,13 +317,14 @@ function pushCombatLog(text, lane) {
     text = text.split('你').join(_allyActing._allyName);
   }
   const now = new Date();
-  const stamp = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}]`;
+  const stamp = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}]`;
   const displayText = `<span class="log-time">${stamp}</span> ${text}`;
   combatLogBuf.push(displayText);
   if (combatLogBuf.length > 900) combatLogBuf.shift();
   const buf = combatLogLanes[ln];
   buf.push(displayText);
-  if (buf.length > 300) buf.shift();
+  if (buf.length > 1000) buf.shift();
+  scheduleCombatLogHistorySave();
 }
 
 /* ---------------- 建立新角色 ---------------- */
@@ -667,10 +717,17 @@ function cardGrantedSkills() {
       add(item.grantSkill);
       const inst = getEquipInstance(slot);
       const refine = Number(inst && inst.refine || 0);
+      const loadout = typeof buildLoadout === 'function' ? buildLoadout() : null;
+      const host = { itemId, refine, grade: inst && (inst.grade || inst.itemGrade) || null };
       (item.grantSkillWhen || []).forEach(rule => {
+        if (!rule) return;
         const when = rule.when || {};
-        if (when.refineMin != null && refine < when.refineMin) return;
-        if (when.refineMax != null && refine > when.refineMax) return;
+        if (typeof condMet === 'function' && loadout) {
+          if (!condMet(when, host, loadout)) return;
+        } else {
+          if (when.refineMin != null && refine < when.refineMin) return;
+          if (when.refineMax != null && refine > when.refineMax) return;
+        }
         add(rule.skills);
       });
     });
@@ -2562,6 +2619,10 @@ function recomputeDerived(fullHeal) {
         'smoky_transform_hat_lt:autoSpell_fireball': { skill: 'fireball', lv: 9, trigger: 'magic' },
         'changeable_magic_cape:autoSpell_thunderstorm': { skill: 'thunderstorm', lv: 5, melee: true },
         'changeable_magic_cape:autoSpell_heavensdrive': { skill: 'heavensdrive', lv: 5, melee: true },
+        'changeable_magic_cape:autoSpell_hellinferno': { skill: 'hellinferno', lv: 3, melee: true },
+        'changeable_magic_cape:autoSpell_diamonddust': { skill: 'so_diamonddust', lv: 3, melee: true },
+        'changeable_magic_cape:autoSpell_earthgrave': { skill: 'so_earthgrave', lv: 3, melee: true },
+        'changeable_magic_cape:autoSpell_chainlightning': { skill: 'wl_chainlightning', lv: 3, melee: true },
         'magic_sword_lt:autoSpell_meteorstorm': { skill: 'meteorstorm', lv: 7, melee: true },
         'magic_sword_lt:autoSpell_psychicwave': { skill: 'so_psychicwave', lv: 5, melee: true },
         'oriental_sword_lt:autoSpell_sonicwave': { skill: 'rk_sonicwave', lv: 2, melee: true },
@@ -5728,17 +5789,32 @@ function tickFieldEffects() {
           });
           if (healed.length) pushCombatLog(`  → 「${f.name}」也治療了 ${partyMateNames(healed)}。`, 'ally');
         }
-      } else if (f.kind === 'aoe_holydmg') {
-        if (state.monsters && state.monsters.length > 0) {
-          state.monsters.forEach(mon => {
+      } else if (f.kind === 'field_magic_aoe' || f.kind === 'aoe_holydmg') {
+        /* 範圍魔法場域（包含卡片自動念咒的暴風雪）：
+           施放時記錄場上所有存活目標 ID，每一跳逐一結算；怪物死亡／離場後自然略過，
+           同一跳每隻怪只結算一次。舊 aoe_holydmg 保留相容。 */
+        const liveMonsters = (state.monsters || []).filter(mon =>
+          mon && mon.hp > 0 && (!Array.isArray(f.targetIds) || f.targetIds.includes(mon.id))
+        );
+        if (liveMonsters.length > 0) {
+          liveMonsters.forEach(mon => {
             const monDef = MONSTERS[mon.defId];
+            if (!monDef) return;
             const elemMult = getElementMultiplierVsMonster(f.element || 'holy', monDef, mon);
-            const dmg = mitigateDamage(state.matk * f.mult * elemMult, ...defOf(monDef, 1, true)) * (f.ticksThisRound || 1);
+            // 場域魔法沿用主動魔法技能的完整傷害鏈；f.mult 已含技能專屬增傷，避免重複套用。
+            const fieldSkill = SKILLS[f.skillId] || null;
+            const magicBase = fieldSkill
+              ? skillBaseDamage(true, monDef, elemMult, fieldSkill)
+              : state.matk * elemMult;
+            const dmg = Math.max(0, Math.floor(mitigateDamage(
+              magicBase * f.mult * elementDmgMult(f.element || 'none')
+                * cardTargetDmgMult(monDef) * ailDmgTakenMult(mon) * (f.targetDmgMult || 1),
+              ...defOf(monDef, 1, true, mon)
+            ) * (f.ticksThisRound || 1)));
             mon.hp -= dmg;
             wakeIfFrozen(mon);
             if (f.stunChance && Math.random() * 100 < f.stunChance) applyStun(mon, f.stunSec || 1, true);
             pushCombatLog(`  → 「${f.name}」對 ${monDef.name} 造成 ${dmg} 點傷害！`);
-            // 場地魔法（隕石術、十字驅魔…）每一跳也照屬性上色
             if (typeof showDamageFloatAt === 'function') showDamageFloatAt(mon.id, '-' + dmg, 'normal', f.element || 'holy');
           });
           for (let i = state.monsters.length - 1; i >= 0; i--) {
@@ -6983,8 +7059,8 @@ function skillBaseDamage(useMag, monDef, elemMult, sk) {
     // 全屬性魔法傷害（裝備 allEleDmg）：獨立於指定屬性、種族與體型的通用魔法增傷。
     targetPct += getCardBonus('allEleDmg');
     targetPct += getCardBonus('magicDmgPct');
-    // 魔法技能一律視為遠距離：遠距離增傷與魔法增傷是兩個獨立乘區，必須同時生效。
-    targetPct += getCardBonus('rangedDmgPct');
+    // 法術技能屬於魔法傷害，不吃遠距離「物理」增傷；施法距離不改變傷害類型。
+    // rangedDmgPct 僅由遠距離物理普攻／物理技能的距離判定流程讀取。
     return state.matk * buffMult('matk').mult * elemMult * (1 + dragon / 100) * (1 + sMatkPct / 100) * (1 + targetPct / 100);
   }
   return weaponChainDamage(monDef, elemMult, state.buffs.some(b => b.type === 'maxroll'), sk);
@@ -10362,7 +10438,7 @@ function castSkillInner(skillId, opts) {
 
   const isHeal = sk.type === 'heal' || sk.type === 'heal_over_time' || sk.type === 'cardinal_heal';
   const isBuff = ['buff_atk', 'buff_auraflat', 'buff_meltdown', 'buff_windwalk', 'buff_sight', 'buff_matk', 'buff_basilica', 'buff_assumptio', 'buff_reflect', 'buff_providence', 'buff_spearquicken', 'buff_song', 'buff_ensemble', 'encore', 'debuff_aspd_aoe', 'debuff_def_aoe', 'buff_block', 'buff_def', 'buff_aspd', 'buff_flee', 'buff_gold', 'buff_crit', 'buff_maxroll', 'buff_recognizedspell', 'buff_blessing', 'buff_shield', 'buff_sprate', 'buff_lukflat', 'buff_holyweapon', 'buff_elearmor', 'buff_ailimmune', 'buff_angelus', 'buff_elementweapon', 'buff_elementfield', 'buff_chemical', 'debuff_def', 'debuff'].includes(sk.type);
-  const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web'].includes(sk.type);
+  const needsMonster = ['damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot', 'damage_multihit', 'damage_multi', 'debuff_def', 'debuff', 'poison_proc', 'stun_field', 'multi_dot_stun', 'debuff_web', 'field_aoe_magic'].includes(sk.type);
   if (needsMonster && (!state.monsters || state.monsters.length === 0)) return false;
   /* 易燃之網對 BOSS 無效（官方）。**要擋在扣 SP 之前**——寫在 case 裡用 break
      只是跳出 switch，SP 已經扣掉了而且函式還是回傳 true。 */
@@ -11290,8 +11366,16 @@ function castSkillInner(skillId, opts) {
       const stunChance = Array.isArray(sk.stunChance) ? sk.stunChance[lv - 1] : sk.stunChance;
       const stunSec = Array.isArray(sk.stunSec) ? sk.stunSec[lv - 1] : sk.stunSec;
       if (!state.activeFieldEffects) state.activeFieldEffects = [];
-      state.activeFieldEffects.push({ kind: 'aoe_holydmg', name: sk.name, mult, element: skElement || 'holy', stunChance, stunSec, tickIntervalSec: tickSec, nextTickAt: Date.now(), endsAt: Date.now() + dur * 1000 });
-      logMsg(`✨ 「${sk.name}」Lv${lv} 發動！`);
+      const fieldTargetIds = state.monsters.filter(mon => mon && mon.hp > 0).map(mon => mon.id);
+      state.activeFieldEffects.push({
+        kind: 'field_magic_aoe', skillId: sk.id, skillLv: lv,
+        targetIds: fieldTargetIds, name: sk.name, mult,
+        element: skElement || sk.element || 'holy',
+        stunChance, stunSec, tickIntervalSec: tickSec,
+        nextTickAt: Date.now() - 1, endsAt: Date.now() + dur * 1000
+      });
+      logMsg(`✨ 「${sk.name}」Lv${lv} 發動！範圍內 ${fieldTargetIds.length} 隻敵人進入攻擊判定。`);
+      tickFieldEffects();
       break;
     }
     case 'multi_dot_stun': {
@@ -13772,6 +13856,18 @@ function condMet(when, host, lo) {
   if (!when) return true;
   if (when.refineMin != null && !(host && host.refine >= when.refineMin)) return false;
   if (when.refineMax != null && !(host && host.refine <= when.refineMax)) return false;
+  // 卡片官方條件：插入裝備的防具等級（Lv.1／Lv.2）。
+  // 優先讀結構化欄位；舊資料沒有欄位時，從道具描述的「防具等級: N」讀取。
+  if (when.armorLevelMin != null) {
+    const hostItem = host && ITEMS && ITEMS[host.itemId];
+    const desc = String((hostItem && hostItem.desc) || '');
+    const descMatch = desc.match(/防具等級\s*[:：]?\s*(?:Lv)?\s*(\d+)/i);
+    const armorLevel = Number(
+      (hostItem && (hostItem.armorLevel != null ? hostItem.armorLevel : hostItem.armorLv)) ??
+      (descMatch ? descMatch[1] : 0)
+    ) || 0;
+    if (!hostItem || armorLevel < when.armorLevelMin) return false;
+  }
   // 卡片官方條件：插槽宿主武器等級達指定門檻（例如武器等級 Lv.5）。
   if (when.weaponLvMin != null) {
     const hostItem = host && ITEMS && ITEMS[host.itemId];
@@ -13789,6 +13885,7 @@ function condMet(when, host, lo) {
   /* `jobIs` 看的是**目前的職業本身**，不是血脈。官方有一批卡片寫「初學者或超級初學者
      裝備時」，用 jobLine 判斷會永遠成立——每個職業的血脈都從初學者開始。 */
   if (when.jobIs && !(Array.isArray(when.jobIs) ? when.jobIs.includes(state.jobId) : state.jobId === when.jobIs)) return false;
+  if (when.jobNot && (Array.isArray(when.jobNot) ? when.jobNot.includes(state.jobId) : state.jobId === when.jobNot)) return false;
   if (when.weaponReq && !weaponReqMet(when.weaponReq)) return false;
   if (when.withCards && !when.withCards.every(c => lo.cards.has(c))) return false;
   // withItems 可引用實際裝備 ID，也可引用裝備實例上的附魔 ID。
@@ -13910,7 +14007,10 @@ function getSkillDamageBonus(sk) {
     heavyearthquake: 'heavensdrive', // 機匠「戰斧颶風」裝備舊鍵，對應既有龍捲風斧技能
     hundredspear: 'rk_hundredspear', // 百矛穿刺，對應盧恩騎士技能資料
     // 龍騎士裝備／影子裝備使用的官方技能短名，對應本作內部 dk_ ID。
-    servantweapon: 'dk_servantphantom', // 僕從武裝攻擊本體（幻影／破壞共用技能系）
+    rollingcutter: 'gx_rollingcutter', // 迴旋刃，對應十字斬首者技能資料
+    windcutter: 'rk_windcutter', // 風刃，對應盧恩騎士技能資料
+    // 龍騎士舊裝備詞條保留為預留映射；只有實際出現 skillDmg_<key> 時才會參與加成。
+    servantweapon: 'dk_servantphantom',
     servant_weapon: 'dk_servantphantom',
     servant_weapon_phantom: 'dk_servantphantom',
     servant_weapon_demolition: 'dk_servantdemolition',
@@ -13928,8 +14028,6 @@ function getSkillDamageBonus(sk) {
     charging_pierce: 'dk_chargingpierce',
     twohanddef: 'dk_twohanddef',
     two_handed_defense: 'dk_twohanddef',
-    rollingcutter: 'gx_rollingcutter', // 迴旋刃，對應十字斬首者技能資料
-    windcutter: 'rk_windcutter', // 風刃，對應盧恩騎士技能資料
   };
   // 舊資料鍵指向目前技能 ID；必須讀取舊鍵本身，而不是錯讀成 skillDmg_<目標ID>。
   // 同一技能可能有多個歷史短名（例如 axe_tornado、me_axe_tornado），全部加總。
@@ -13938,7 +14036,7 @@ function getSkillDamageBonus(sk) {
     legacySkillAliases[key] === sk.id && typeof SKILLS !== 'undefined' && SKILLS[sk.id]
   );
   const legacyTotal = legacyKeys.reduce((sum, key) => sum + getCardBonus('skillDmg_' + key), 0);
-  // 「Servant Weapon」通用詞條同時強化幻影與破壞兩種攻擊分支。
+  // 龍騎士通用僕從武裝詞條若由卡片／裝備資料提供，會同時強化幻影與破壞分支。
   const servantGeneric = (sk.id === 'dk_servantphantom' || sk.id === 'dk_servantdemolition')
     ? getCardBonus('skillDmg_servantweapon') + getCardBonus('skillDmg_servant_weapon') : 0;
   return legacyTotal + servantGeneric;

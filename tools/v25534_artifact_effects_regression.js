@@ -4,11 +4,11 @@ const engine = fs.readFileSync('js/engine.js', 'utf8');
 const checks = [
   ['Brynhild declares BaseLv ×20 MHP and ×5 MSP as executable bonuses', /"brynhild"[\s\S]*?"bonus":\{"perBaseLv1_hp":20,"perBaseLv1_sp":5,"physDmgPct":10,"matkPct":10\}/.test(data)],
   ['BaseLv-per-level bonuses are consumed by getCardBonus for HP and SP', /perBaseLv1_/.test(engine) && /state\.maxHp \+= getCardBonus\('hp'\)/.test(engine) && /state\.maxSp \+= getCardBonus\('sp'\)/.test(engine)],
-  ['Brynhild physical damage bonus enters the shared physical damage multiplier', /state\.physDmgPct = getCardBonus\('physDmgPct'\)/.test(engine) && /const physPct = 1 \+ \(\(state\.physDmgPct \|\| 0\) \+ \(typeof getCardBonus === 'function' \? getCardBonus\('allSizeDmgPct'\) : 0\)\) \/ 100/.test(engine)],
+  ['Brynhild physical damage bonus enters the shared physical damage multiplier', /state\.physDmgPct = getCardBonus\('physDmgPct'\)/.test(engine) && /const physPct = 1 \+ \(\(state\.physDmgPct \|\| 0\) \+ allSizeBonus \+ masteryPct/.test(engine)],
   ['Sealed Brynhild executable BaseLv HP/SP and listed combat bonuses', /"half_brynhild"[\s\S]*?"bonus":\{"perBaseLv1_hp":20,"perBaseLv1_sp":5,"physDmgPct":5,"matkPct":5\}/.test(data)],
   ['Sealed Asprika executable 15% physical damage taken reduction', /"half_asprika"[\s\S]*?"bonus":\{"physDmgTakenPct":15\}/.test(data)],
   ['Asprika declares 30% physical damage taken reduction', /"asprika"[\s\S]*?"bonus":\{"physDmgTakenPct":30\}/.test(data)],
-  ['Asprika physical reduction is consumed by both incoming skill and normal attack paths', /state\.physDmgTakenPct = getCardBonus\('physDmgTakenPct'\)/.test(engine) && /!sk\.magic && state\.physDmgTakenPct/.test(engine) && /if \(state\.physDmgTakenPct\) raw \*=/.test(engine)],
+  ['Asprika physical reduction is consumed by both incoming skill and normal attack paths', /state\.physDmgTakenPct = getCardBonus\('physDmgTakenPct'\)/.test(engine) && /if \(!sk\.magic\) \{ raw = applyDKTwoHandDefense\(raw, monDef\); if \(state\.physDmgTakenPct\)/.test(engine) && /if \(state\.physDmgTakenPct\) raw \*=/.test(engine)],
   ['Meginjard +10% boss damage is conditional on pure STR 120', /"magingiorde"[\s\S]*?"statMin":\{"str":120\}[\s\S]*?"bossDmgPct":10/.test(data)],
   ['Sun God helm +35% boss damage is conditional on Meginjard equipped', /"helm_of_mid_sol_god"[\s\S]*?"withItems":\["magingiorde"\][\s\S]*?"bossDmgPct":35/.test(data)],
   ['Titan Shield has no unconditional perfect dodge bonus', !/"reqLevel":1,"perfectDodge":20/.test(data)],

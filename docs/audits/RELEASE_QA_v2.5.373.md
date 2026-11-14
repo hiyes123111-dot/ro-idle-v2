@@ -1,0 +1,132 @@
+# v2.5.373 發版驗證紀錄
+
+## 本輪完成
+- 60 個缺失圖片引用已補上明確標示的通用佔位圖。
+- 圖鑑搜尋快取擴充至道具、卡片、怪物的名稱／別名／分類資訊。
+- HTML 資源快取引用：26 個，版本分布：{'2.5.373': 26}。
+- HTML 本機資源缺漏：0。
+- JavaScript 語法：210 個檔案，錯誤 0 個。
+- 專項測試：v373 搜尋與圖片、v372 EP19 卡片地圖連動、v371 戰鬥紀錄與精煉技能均通過。
+
+## 全專案歷史回歸測試
+- 結果：136/183 通過，47 項失敗。
+- 失敗清單包含歷史版本固定版本號、舊 UI 結構、舊技能效果與舊資料筆數等斷言；其中不能僅憑測試名稱判定全部都是過時測試。
+- 因此本版不宣稱全專案回歸測試全數通過；需逐項釐清這 47 項後，才能宣稱完整回歸無誤。
+
+## 主要限制
+- 本輪未修改戰鬥傷害公式、職業平衡、掉落率及存檔格式，避免在缺少逐項驗證時改動既有遊戲經濟與角色資料。
+- 佔位圖用來消除破圖，並非官方原始圖片。
+- 圖鑑搜尋快取依靜態資料 ID 建立；若未來新增執行期間動態道具，需在新增資料流程同步失效快取。
+
+## 歷史回歸失敗項目
+- `test_codex_grouping_v2.5.272.js`
+- `test_windhawk_sharpshooting_v2.5.270.js`
+- `v25104_loot_notice_regression.js`
+- `single chest/card-book open records the received item`
+- `bulk opening records aggregated quantities`
+- `source distinguishes card books from ordinary treasure boxes`
+- `clicking a reward opens its detail panel`
+- `v25105_sun_god_helm_damage_regression.js`
+- `ranged damage bonus is read in shared physical weapon chain`
+- `melee and ranged bonuses are mutually exclusive by weapon category`
+- `v25109_after_cast_delay_regression.js`
+- `consumer reads afterCastDelayPct`
+- `after-cast delay multiplier applied`
+- `v25113_ranged_resist_regression.js`
+- `階級增傷仍明確列為未接線，不冒用 BOSS 判定`
+- `v25116_resist_exp_regression.js`
+- `階級增傷未誤用BOSS標記`
+- `v25117_legacy_all_size_damage_regression.js`
+- `全體型加成仍位於物理武器鏈`
+- `v25122_battle_item_detail_panel_regression.js`
+- `面板放在戰鬥紀錄之後`
+- `詳細資料區有獨立內容容器`
+- `背包物品可點擊顯示詳細資料`
+- `有物品詳細資料渲染函式`
+- `顯示物品描述與基本數值`
+- `樣式支援收合與捲動`
+- `v25123_codex_battle_detail_link_regression.js`
+- `圖鑑詳情有同步到戰場面板按鈕`
+- `圖鑑按鈕阻止外層點擊事件`
+- `戰場面板會讀取卡片實際效果`
+- `卡片效果摘要加入面板內容`
+- `v25124_rift_runtime_regression.js`
+- `HTML 腳本快取版本已更新`
+- `v25127_trait_equipment_regression.js`
+- `CON P.ATK`
+- `CON S.MATK`
+- `v25130_equipment_cond_refine_regression.js`
+- `perNRefine 正規表示式`
+- `v25132_baselevel_weapon_growth_regression.js`
+- `metal weapon growth starts at BaseLv20 and caps at 120`
+- `v25135_holy_skogul_regression.js`
+- `heal bonus consumed by heal output`
+- `v25136_thanos_dagger_refine_regression.js`
+- `v25143_trait_panel_regression.js`
+- `v25148_trait_panel_loot_collapse_regression.js`
+- `version`
+- `six traits adjacent to basic stats`
+- `derived trait values`
+- `trait panel styling`
+- `asset cache version`
+- `v25192_hero_token_skill_key_regression.js`
+- `v25193_hero_pendant_coverage_regression.js`
+- `v25208_elemental_sp_upkeep_regression.js`
+- `summoning stores the selected level upkeep cost and next drain time`
+- `v25219_weapon_skill_bonus_regression.js`
+- `Release version is 2.5.221`
+- `HTML cache references updated`
+- `v25220_level200_weapon_skill_id_regression.js`
+- `Release version is 2.5.221`
+- `All HTML cache refs use 2.5.221`
+- `v25221_level210_weapon_skill_id_regression.js`
+- `Version is 2.5.221`
+- `All HTML cache refs use 2.5.221`
+- `v25222_cardinal_charging_regression.js`
+- `神聖權能使用 P.ATK／S.MATK 固定增益與官方持續時間`
+- `v25225_level230_weapon_skill_id_regression.js`
+- `release version is 2.5.225`
+- `all HTML cache refs use 2.5.225`
+- `v25229_inventory_headgear_position_regression.js`
+- `頭飾依位置拆分為頭上／頭中／頭下`
+- `v25229_release_regression.js`
+- `VERSION.txt is 2.5.231`
+- `all 22 HTML asset cache references use 2.5.231`
+- `v25232_conflict_regression.js`
+- `release version is 2.5.232`
+- `all 22 HTML cache references match release version`
+- `v25516_skill_description_regression.js`
+- `v25517_ranger_proc_stats_regression.js`
+- `new characters initialize per-skill ranger proc stats`
+- `stats helper records actual skill proc counters`
+- `ranger passives count eligible attacks and cooldown skips`
+- `ranger passives count actual chance rolls and successful procs`
+- `traps count deterministic/probability checks and successful procs`
+- `UI displays eligible checks, proc count, measured rate and cooldown skips`
+- `deterministic traps are labelled fixed-trigger rather than showing a misleading 100% rate`
+- `UI updates live while auto battle tab is open`
+- `stats can be reset and saved`
+- `responsive stats table styling exists`
+- `v25519_fourth_job_passive_audit.js`
+- `v25521_skill_weapon_formula_regression.js`
+- `size-dependent multi attack passes skill metadata`
+- `v25534_artifact_effects_regression.js`
+- `Brynhild physical damage bonus enters the shared physical damage multiplier`
+- `Asprika physical reduction is consumed by both incoming skill and normal attack paths`
+- `v25542_blacksmith_cleanup_regression.js`
+- `圖鑑全裝備掃描排除舊 crafted_ 道具`
+- `v25546_archer_refine_regression.js`
+- `v2558_ranger_regression.js`
+- `v2559_ranger_passive_regression.js`
+- `v255_skill_bonus_audit_regression.js`
+- `v255_skill_bonus_coverage.js`
+- `v274_ep21_card_effect_regression.js`
+- `ep21_ylze_card 每精煉+1對應技能各+1%`
+- `v279_ep21_card_skill_audit.js`
+- `伊爾澤卡片三項效果連結到元素支配者四轉技能`
+- `v295_ep21_skill_runtime_regression.js`
+- `v297_windhawk_progressive_stack_reset_regression.js`
+- `最後一隻怪物擊敗後將漸進射擊層數歸零`
+- `v2_regression.js`
+- `v316_ep21_magic_circlet_and_missing_cards_regression.js`
+- `v322_ep21_official_effect_audit_regression.js`

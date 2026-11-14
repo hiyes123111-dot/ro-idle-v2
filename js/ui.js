@@ -2049,7 +2049,7 @@ function renderLogNow() {
   });
 }
 
-/* 戰鬥／技能／隊友紀錄詳細檢視：保留每類最近 300 筆，列表只顯示最新 30 筆。 */
+/* 戰鬥／技能／隊友紀錄詳細檢視：保留每類最近 1000 筆，列表只顯示最新 30 筆。 */
 const COMBAT_LOG_LANE_NAMES = { main: '戰鬥紀錄', skill: '技能紀錄', ally: '隊友紀錄' };
 function combatLogPlainText(raw) {
   const box = document.createElement('div');
@@ -2078,13 +2078,28 @@ function openCombatLogHistory(lane) {
   const title = document.getElementById('combat-log-detail-title');
   if (!modal || !body || !title) return;
   title.textContent = `${COMBAT_LOG_LANE_NAMES[lane] || '戰鬥紀錄'}（最近 ${list.length} 筆）`;
-  body.innerHTML = list.map((row, i) =>
-    `<button type="button" class="combat-log-history-row" onclick="openCombatLogDetail('${lane}',${i})">${lootEscapeHtml(combatLogPlainText(row))}</button>`
-  ).join('') || '<div class="dim">目前沒有紀錄。</div>';
+  body.innerHTML = `<input id="combat-log-history-search" class="combat-log-history-search" type="search" autocomplete="off" placeholder="搜尋這個分類的紀錄…" aria-label="搜尋戰鬥紀錄" oninput="filterCombatLogHistory('${lane}',this.value)"><div id="combat-log-history-list"></div>`;
   modal.dataset.lane = lane;
   modal.dataset.index = '';
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
+  filterCombatLogHistory(lane, '');
+  const search = document.getElementById('combat-log-history-search');
+  if (search) search.focus();
+}
+function filterCombatLogHistory(lane, query) {
+  const list = combatLogLanes && combatLogLanes[lane];
+  const target = document.getElementById('combat-log-history-list');
+  if (!Array.isArray(list) || !target) return;
+  const q = String(query || '').trim().toLocaleLowerCase();
+  const matches = [];
+  for (let i = 0; i < list.length; i++) {
+    const plain = combatLogPlainText(list[i]);
+    if (!q || plain.toLocaleLowerCase().includes(q)) matches.push({ index: i, text: plain });
+  }
+  target.innerHTML = matches.length
+    ? matches.reverse().map(row => `<button type="button" class="combat-log-history-row" onclick="openCombatLogDetail('${lane}',${row.index})">${lootEscapeHtml(row.text)}</button>`).join('')
+    : '<div class="dim combat-log-history-empty">沒有符合的紀錄。</div>';
 }
 function closeCombatLogDetail() {
   const modal = document.getElementById('combat-log-detail-modal');
@@ -2092,11 +2107,17 @@ function closeCombatLogDetail() {
   modal.classList.remove('open');
   modal.setAttribute('aria-hidden', 'true');
 }
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  const modal = document.getElementById('combat-log-detail-modal');
+  if (modal && modal.classList.contains('open')) closeCombatLogDetail();
+});
 function clearCombatLogHistory(lane) {
   if (!combatLogLanes || !combatLogLanes[lane]) return;
   if (!confirm(`確定清除${COMBAT_LOG_LANE_NAMES[lane] || '紀錄'}？`)) return;
   combatLogLanes[lane].length = 0;
   if (lane === 'main') combatLogBuf.length = 0;
+  if (typeof saveCombatLogHistory === 'function') saveCombatLogHistory();
   renderLog();
   closeCombatLogDetail();
 }
@@ -3292,6 +3313,24 @@ let codexFilter = 'all';    // all | found | missing | recent
 let codexSearch = '';
 let codexPage = 0;
 let codexOpenId = null;
+/* 搜尋索引快取：道具／卡片／怪物資料量大，避免每次輸入都重組同一筆完整搜尋字串。 */
+const CODEX_SEARCH_TEXT_CACHE = Object.create(null);
+function getCodexSearchText(row) {
+  const id = row && row.id;
+  if (!id) return '';
+  if (CODEX_SEARCH_TEXT_CACHE[id] !== undefined) return CODEX_SEARCH_TEXT_CACHE[id];
+  const item = ITEMS[id] || {};
+  const card = CARDS[id] || {};
+  const monster = MONSTERS[id] || {};
+  const text = [
+    row.name, item.name, item.searchTerms, item.type, item.armorType,
+    card.name, card.searchTerms, card.slot,
+    monster.name, monster.searchTerms, monster.race, monster.element,
+    id
+  ].filter(Boolean).join(' ').toLocaleLowerCase();
+  CODEX_SEARCH_TEXT_CACHE[id] = text;
+  return text;
+}
 let codexJobFilter = false;  // 只顯示本職業裝得上的裝備
 let codexSetOpenId = null;
 
@@ -3598,7 +3637,7 @@ function renderCodexTab() {
   /* 搜尋不再限制「已發現」（使用者 2026-08-15 指定全開放）。
      舊規則是為了不讓玩家用搜尋框偷看還沒遇到的內容，但圖鑑的定位已經
      從「收集紀錄」改成「查東西在哪打」——查不到還沒發現的東西就等於沒用。 */
-  if (codexSearch) rows = rows.filter(r => { const d = ITEMS[r.id] || {}; const c = CARDS[r.id] || {}; const hay = [r.name, d.name, d.searchTerms, c.name, c.searchTerms, r.id].filter(Boolean).join(' ').toLowerCase(); return hay.includes(codexSearch); });
+  if (codexSearch) rows = rows.filter(r => getCodexSearchText(r).includes(codexSearch));
 
   /* 職業篩選（使用者 2026-08-22 指定）：武器/防具分頁可只顯示本職業裝得上的裝備 */
   if (codexView === 'item' && codexJobFilter) {

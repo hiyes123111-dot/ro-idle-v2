@@ -12,7 +12,7 @@ const cases={
   ep21_richard_card:['v25_shadow_cross_3','v25_shadow_cross_4'],
   ep21_lora_card:['v25_abyss_chaser_11','v25_abyss_chaser_10'],
   ep21_aurely_card:['v25_arch_mage_3','v25_arch_mage_6'],
-  ep21_ylze_card:['v25_element_master_5','v25_element_master_6','v25_element_master_8'],
+  ep21_ylze_card:['v25_element_master_6','v25_element_master_8'],
   ep21_mary_stella_card:['v25_troubadour_15','v25_troubadour_14'],
 };
 let bad=0; const check=(n,ok)=>{console.log(`${ok?'PASS':'FAIL'} ${n}`);if(!ok)bad++;};

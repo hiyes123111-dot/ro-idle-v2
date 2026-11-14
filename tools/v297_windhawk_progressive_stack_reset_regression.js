@@ -12,7 +12,7 @@ const killBody = killStart >= 0 && killEnd > killStart ? engine.slice(killStart,
 const clearIndex = killBody.indexOf('field.windhawkProgressiveStacks = 0;');
 const filterIndex = killBody.indexOf('field.monsters = field.monsters.filter');
 check('擊殺流程先移除怪物，再檢查戰場是否清空', filterIndex >= 0 && clearIndex > filterIndex);
-check('最後一隻怪物擊敗後將漸進射擊層數歸零', /if\s*\(!field\.monsters\s*\|\|\s*field\.monsters\.length\s*===\s*0\)\s*\{\s*field\.windhawkProgressiveStacks\s*=\s*0;\s*\}/.test(killBody));
+check('最後一隻怪物擊敗後將漸進射擊層數歸零', /if\s*\(!field\.monsters\s*\|\|\s*field\.monsters\.length\s*===\s*0\)\s*\{\s*field\.windhawkProgressiveStacks\s*=\s*0;\s*field\.windhawkProgressiveLastCastAt\s*=\s*0;\s*\}/.test(killBody));
 check('隊員代打時重置使用 allyOwnerState 的角色狀態', /const field = allyOwnerState\(\)/.test(killBody) && /field\.windhawkProgressiveStacks = 0/.test(killBody));
 check('玩家死亡清空怪物時同步清除漸進射擊層數', /function onPlayerDown\(\)[\s\S]*?state\.monsters = \[\];\s*state\.windhawkProgressiveStacks = 0;/.test(engine));
 check('漸進射擊仍限制最多 3 層', /sk\.progressiveShotMaxStacks\s*=\s*3/.test(content));

@@ -11,8 +11,8 @@ const helm = data.match(/"helm_of_mid_sol_god"\s*:\s*\{[\s\S]*?\n\s*"helm_of_sun
 check('Sun God helm data exists', !!helm);
 check('refine +7 has melee, ranged and magic +15%', !!helm && /refineMin["']?\s*:\s*7/.test(helm[0]) && /rangedDmgPct["']?\s*:\s*15/.test(helm[0]) && /meleeDmgPct["']?\s*:\s*15/.test(helm[0]) && /magicDmgPct["']?\s*:\s*15/.test(helm[0]));
 check('melee damage bonus is read in shared physical weapon chain', /getCardBonus\('meleeDmgPct'\)/.test(engine) && /meleePct \+ rangedPct/.test(engine));
-check('ranged damage bonus is read in shared physical weapon chain', /getCardBonus\('rangedDmgPct'\)/.test(engine) && /rangedWeapon && typeof getCardBonus/.test(engine));
-check('melee and ranged bonuses are mutually exclusive by weapon category', /!rangedWeapon[\s\S]{0,100}getCardBonus\('meleeDmgPct'\)/.test(engine) && /rangedWeapon && typeof getCardBonus/.test(engine));
+check('ranged damage bonus is read in shared physical weapon chain', /getCardBonus\('rangedDmgPct'\)/.test(engine) && /const isRangedAttack = sk[\s\S]{0,160}sk\.rangeType === 'ranged'[\s\S]{0,100}isBowWeapon\(wId\)/.test(engine));
+check('melee and ranged bonuses are mutually exclusive by weapon category', /!isRangedAttack[\s\S]{0,120}getCardBonus\('meleeDmgPct'\)/.test(engine) && /isRangedAttack && typeof getCardBonus/.test(engine));
 check('physical bonuses are applied in shared chain for normal and skill attacks', /return \(wpn \* variance[\s\S]*?meleePct \+ rangedPct/.test(engine));
 check('magic damage bonus is read in shared magic skill base', /targetPct \+= getCardBonus\('magicDmgPct'\)/.test(engine));
 check('ranged bonus is no longer double-applied in playerAttack', !/state\.cardRangedDmgPct && isBowWeapon\(atkWeaponId\)/.test(engine));

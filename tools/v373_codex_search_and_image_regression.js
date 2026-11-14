@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..');
+const ui=fs.readFileSync(path.join(root,'js/ui.js'),'utf8');
+assert(ui.includes('const CODEX_SEARCH_TEXT_CACHE = Object.create(null);'),'search cache exists');
+const match=ui.match(/const CODEX_SEARCH_TEXT_CACHE = Object\.create\(null\);\s*function getCodexSearchText\(row\) \{[\s\S]*?\n\}/);
+assert(match,'search text helper can be isolated');
+const ctx={ITEMS:{sword:{name:'測試武器',searchTerms:'試作 劍',type:'weapon',armorType:'weapon'}},CARDS:{},MONSTERS:{wolf:{name:'灰狼',searchTerms:'森林 狼',race:'animal',element:'earth'}}};
+vm.createContext(ctx);vm.runInContext(match[0],ctx);
+const item=vm.runInContext("getCodexSearchText({id:'sword',name:'武器'})",ctx);
+const mob=vm.runInContext("getCodexSearchText({id:'wolf',name:'狼'})",ctx);
+assert(item.includes('試作')&&item.includes('weapon'),'item aliases and type indexed');
+assert(mob.includes('森林')&&mob.includes('animal')&&mob.includes('earth'),'monster aliases, race and element indexed');
+assert.strictEqual(vm.runInContext("getCodexSearchText({id:'wolf',name:'different'})",ctx),mob,'per-id search text cached');
+const audit=require('child_process').spawnSync(process.execPath,[path.join(__dirname,'v321_image_path_completeness_regression.js')],{cwd:root,encoding:'utf8'});
+assert.strictEqual(audit.status,0,audit.stdout+audit.stderr);
+console.log('v2.5.373 codex search + image fallback: PASS (search fields cached; all item/monster/card paths exist)');

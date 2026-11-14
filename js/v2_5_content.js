@@ -195,7 +195,7 @@
           '自然親和': {
             type:'buff_flee', element:'neutral', spCost:Array(5).fill(30), cooldown:Array(5).fill(35),
             mult:[1.4,1.5,1.6,1.7,1.8], duration:[20,25,30,35,40],
-            desc:'與自然融為一體，迴避提升 40%～80%，持續 20～40 秒。'
+            desc:'與自然融為一體，技能倍率 140%～180%；迴避提升 40%～80%，持續 20～40 秒。'
           },
           '風之印記': {
             type:'passive', passiveStat:'atkFlat', spCost:[0], cooldown:[0], mult:[15,30,45,60,75],
@@ -216,7 +216,7 @@
           '災厄疾風': {
             type:'buff_atk', element:'neutral', spCost:Array(5).fill(80), cooldown:Array(5).fill(90),
             mult:[1.15,1.2125,1.275,1.3375,1.4], duration:[30,40,50,60,70],
-            desc:'引動災厄之風，攻擊力提升 15%～40%，持續 30～70 秒。'
+            desc:'引動災厄之風，技能倍率 115%～140%；攻擊力提升 15%～40%，持續 30～70 秒。'
           },
           '進階陷阱研究': {
             type:'passive', passiveStat:'atkFlat', spCost:[0], cooldown:[0], mult:[3,6,9,12,15],

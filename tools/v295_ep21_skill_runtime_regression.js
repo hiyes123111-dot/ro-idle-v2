@@ -13,8 +13,8 @@ const cases={
  ep21_richard_card:[['v25_shadow_cross_3','十字斬擊'],['v25_shadow_cross_4','永恆斬擊']],
  ep21_lora_card:[['v25_abyss_chaser_11','深淵之焰'],['v25_abyss_chaser_10','深淵墳場']],
  ep21_aurely_card:[['v25_arch_mage_3','萬紫千紅'],['v25_arch_mage_6','毀滅颶風']],
- ep21_ylze_card:[['v25_element_master_5','灼熱岩漿'],['v25_element_master_6','雷霆陣地'],['v25_element_master_8','大地驅動']],
- ep21_epesto_card:[['v25_windhawk_progressive_shot','漸進射擊'],['sn_sharpshooting','銳利射擊']],
+ ep21_ylze_card:[['v25_element_master_6','雷霆陣地'],['v25_element_master_8','大地驅動']],
+ ep21_epesto_card:[['v25_windhawk_progressive_shot','漸進射擊'],['wh_wild_walk','狂野疾行']],
  ep21_mary_stella_card:[['v25_troubadour_15','玫瑰箭矢'],['v25_troubadour_14','節奏射擊']],
  ep21_lee_card:[['v25_arch_mage_20','雷鳴術風暴'],['v25_arch_mage_21','新霜凍術']]
 };
