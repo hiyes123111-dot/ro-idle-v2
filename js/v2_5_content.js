@@ -22,7 +22,7 @@
       ['雙手杖使用熟練度',10,'passive','matkFlat'],['魔力巔峰',5,'passive','matkFlat'],['靈魂連擊',5,'magic','ghost'],['神秘幻滅',5,'magic_aoe','ghost'],['致命放射',5,'magic','neutral'],['星際突襲',10,'magic_aoe','neutral'],['能量轉化',5,'passive','maxSpMult'],['雷鳴術風暴',5,'magic_aoe','wind'],['新霜凍術',5,'magic_aoe','water']
     ],
     element_master: [
-      ['魔法書精熟',10,'passive','matkFlat'],['咒力賦予',5,'passive','matkFlat'],['能量燃燼',5,'magic','fire'],['能量轉換',5,'passive','maxSpMult'],['灼熱岩漿',5,'magic_aoe','fire'],['雷霆陣地',5,'magic_aoe','wind'],['鑽石風暴',5,'magic_aoe','water'],['大地驅動',5,'magic_aoe','earth'],['毒液沼澤',5,'magic_aoe','poison'],['心靈波流',5,'magic_aoe','ghost'],['元素鬥志精熟',10,'passive','matkFlat'],
+      ['魔法書精熟',10,'passive','magicBookMastery'],['咒力賦予',5,'passive','matkFlat'],['能量燃燼',5,'magic','fire'],['能量轉換',5,'passive','maxSpMult'],['灼熱岩漿',5,'magic_aoe','fire'],['雷霆陣地',5,'magic_aoe','wind'],['鑽石風暴',5,'magic_aoe','water'],['大地驅動',5,'magic_aoe','earth'],['毒液沼澤',5,'magic_aoe','poison'],['心靈波流',5,'magic_aoe','ghost'],['元素鬥志精熟',10,'passive','matkFlat'],
       ['召喚元素：阿爾多雷',1,'elemental_summon','fire','em_summon_elemental_ardor'],['召喚元素：迪盧比奧',1,'elemental_summon','water','em_summon_elemental_diluvio'],['召喚元素：普羅賽拉',1,'elemental_summon','wind','em_summon_elemental_procella'],['召喚元素：泰雷莫圖斯',1,'elemental_summon','earth','em_summon_elemental_terremotus'],['召喚元素：塞爾彭斯',1,'elemental_summon','poison','em_summon_elemental_serpens'],['元素天幕',5,'passive','defFlat'],['元素破壞',10,'magic_aoe','neutral']
     ],
     wind_hawk: [
@@ -113,11 +113,11 @@
         cooldown: active ? Array.from({length:maxLv},()=>type.endsWith('_aoe')?7:5) : [0],
         // 四轉技能是終階輸出：物理／魔法倍率以三轉終階技能為基準再提高，避免四轉傷害低於一轉狂擊。
         // AOE 單段係數略低於單體，但以高階職業屬性、武器與技能等級共同放大。
-        mult: active ? Array.from({length:maxLv},(_,i)=>((type.endsWith('_aoe')?8.0:12.0)+(i*(type.endsWith('_aoe')?1.2:1.6)))) : Array.from({length:maxLv},(_,i)=> (stat === 'maxHpMult' || stat === 'maxSpMult') ? 1 + (i+1)*0.02 : (i+1)*5),
+        mult: active ? Array.from({length:maxLv},(_,i)=>((type.endsWith('_aoe')?8.0:12.0)+(i*(type.endsWith('_aoe')?1.2:1.6)))) : Array.from({length:maxLv},(_,i)=> (stat === 'maxHpMult' || stat === 'maxSpMult') ? 1 + (i+1)*0.02 : (stat === 'magicBookMastery' ? i+1 : (i+1)*5)),
         ...(active ? {} : {passiveStat:stat}),
         desc: active
           ? `${name}：${isMagic.has(type) ? 'MATK' : 'ATK'} ${Math.round((type.endsWith('_aoe') ? 8.0 : 12.0) * 100)}%～${Math.round(((type.endsWith('_aoe') ? 8.0 : 12.0) + (maxLv - 1) * (type.endsWith('_aoe') ? 1.2 : 1.6)) * 100)}%${type.endsWith('_aoe') ? '範圍' : '單體'}傷害；${type.endsWith('_aoe') ? '攻擊全體敵人' : '攻擊單一目標'}，${elem === 'neutral' ? '無屬性' : ({fire:'火',water:'水',earth:'地',wind:'風',poison:'毒',holy:'聖',shadow:'暗',ghost:'念',undead:'不死'}[elem] || elem) + '屬性'}。SP 消耗 ${isMagic.has(type) ? 32 : 25}～${(isMagic.has(type) ? 32 : 25) + (maxLv - 1) * 2}；冷卻 ${type.endsWith('_aoe') ? 7 : 5} 秒。`
-          : `${name}：被動技能，最高 Lv${maxLv}。本作實際效果：${({atkFlat:`每級 ATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,matkFlat:`每級 MATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,defFlat:`每級 DEF +5，Lv${maxLv} 時共 +${maxLv*5}。`,maxHpMult:`每級最大 HP +2%，Lv${maxLv} 時最大 HP +${maxLv*2}%。`,maxSpMult:`每級最大 SP +2%，Lv${maxLv} 時最大 SP +${maxLv*2}%。`,hitFlat:`每級 HIT +5，Lv${maxLv} 時共 +${maxLv*5} 命中。`,fleeFlat:`每級 FLEE +5，Lv${maxLv} 時共 +${maxLv*5} 迴避。`})[stat] || `被動效果：${stat}；目前需依戰鬥觸發條件判定。`}${(['召喚元素:阿爾多雷','召喚元素:普羅賽拉','召喚元素:迪盧比奧','召喚元素:泰雷莫圖斯','召喚元素:塞爾彭斯','召喚爬行者','召喚神木戰士','召喚神木妖精','召喚地獄樹'].includes(name) ? '（目前不會生成獨立召喚物；以此項常駐能力加成實裝。）' : '')}`
+          : `${name}：被動技能，最高 Lv${maxLv}。本作實際效果：${({atkFlat:`每級 ATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,matkFlat:`每級 MATK +5，Lv${maxLv} 時共 +${maxLv*5}。`,magicBookMastery:`裝備書籍系列武器時，水／風／地／火／毒屬性魔法傷害每級 +1%，Lv${maxLv} 時 +${maxLv}%。`,defFlat:`每級 DEF +5，Lv${maxLv} 時共 +${maxLv*5}。`,maxHpMult:`每級最大 HP +2%，Lv${maxLv} 時最大 HP +${maxLv*2}%。`,maxSpMult:`每級最大 SP +2%，Lv${maxLv} 時最大 SP +${maxLv*2}%。`,hitFlat:`每級 HIT +5，Lv${maxLv} 時共 +${maxLv*5} 命中。`,fleeFlat:`每級 FLEE +5，Lv${maxLv} 時共 +${maxLv*5} 迴避。`})[stat] || `被動效果：${stat}；目前需依戰鬥觸發條件判定。`}${(['召喚元素:阿爾多雷','召喚元素:普羅賽拉','召喚元素:迪盧比奧','召喚元素:泰雷莫圖斯','召喚元素:塞爾彭斯','召喚爬行者','召喚神木戰士','召喚神木妖精','召喚地獄樹'].includes(name) ? '（目前不會生成獨立召喚物；以此項常駐能力加成實裝。）' : '')}`
       };
       if (jobId === 'element_master' && type === 'elemental_summon') {
         const summonPrereq = {

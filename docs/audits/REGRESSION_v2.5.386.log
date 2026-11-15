@@ -1,0 +1,583 @@
+PASS test_codex_grouping_v2.5.272.js
+PASS test_equipment_delay_v2.5.261.js
+PASS test_exp_curve_v2.5.273.js
+PASS test_high_exp_codex_v2.5.271.js
+PASS test_official_aspd_cap_v2.5.262.js
+PASS test_windhawk_sharpshooting_v2.5.270.js
+PASS v25100_base_job_hp_sp_growth_regression.js
+PASS v25101_paradise_growth_regression.js
+PASS v25102_special_growth_regression.js
+PASS v25103_chung_e_transform_regression.js
+PASS v25104_loot_notice_regression.js
+PASS v25105_sun_god_helm_damage_regression.js
+PASS v25106_skill_cooldown_item_regression.js
+PASS v25107_artifact_npc_regression.js
+PASS v25108_artifact_material_drop_regression.js
+FAIL v25109_after_cast_delay_regression.js
+FAIL consumer reads afterCastDelayPct
+FAIL after-cast delay multiplier applied
+PASS minimum cooldown retained
+PASS real equipment data exists
+PASS v25110_after_cast_delay_deferred_regression.js
+PASS v25111_all_ele_magic_damage_regression.js
+PASS v25112_incoming_resist_regression.js
+FAIL v25113_ranged_resist_regression.js
+PASS 遠距離判定排除魔法技能
+PASS 遠距離物理技能採明確 ID 白名單
+PASS 怪物技能傷害路徑消費 rangedDmgResist
+PASS 城戰戰袍遠距離減傷資料保留
+PASS 城戰外袍遠距離減傷資料保留
+PASS 近衛兵帽子遠距離減傷資料保留
+FAIL 階級增傷仍明確列為未接線，不冒用 BOSS 判定
+6/7 passed
+PASS v25114_codex_material_sources_regression.js
+PASS v25115_inventory_quick_autosell_regression.js
+FAIL v25116_resist_exp_regression.js
+PASS 技能攻擊接通通用元素耐性
+PASS 普通攻擊接通通用元素耐性
+PASS 地屬性耐性有元素條件
+PASS 大型體型耐性有體型條件
+PASS 通用種族耐性接入技能與普攻
+PASS 通用體型耐性接入技能與普攻
+PASS expGainPct接入線上經驗
+PASS expGainPct資料存在
+FAIL 階級增傷未誤用BOSS標記
+8/9 passed
+PASS v25117_legacy_all_size_damage_regression.js
+PASS v25118_dark_element_alias_regression.js
+PASS v25119_race_name_alias_regression.js
+PASS v25120_ranged_taken_alias_regression.js
+PASS v25121_v2_rift_navigation_codex_regression.js
+FAIL v25122_battle_item_detail_panel_regression.js
+FAIL 面板放在戰鬥紀錄之後
+FAIL 詳細資料區有獨立內容容器
+FAIL 背包物品可點擊顯示詳細資料
+FAIL 有物品詳細資料渲染函式
+FAIL 顯示物品描述與基本數值
+PASS 支援顯示個體精煉與卡片
+PASS 有取得來源及地圖前往按鈕
+FAIL 樣式支援收合與捲動
+2/8 passed
+FAIL v25123_codex_battle_detail_link_regression.js
+FAIL 圖鑑詳情有同步到戰場面板按鈕
+FAIL 圖鑑按鈕阻止外層點擊事件
+FAIL 戰場面板會讀取卡片實際效果
+FAIL 卡片效果摘要加入面板內容
+PASS 原有怪物來源前往仍保留
+1/5 passed
+FAIL v25124_rift_runtime_regression.js
+PASS 兩張裂隙地圖已在執行階段註冊
+PASS 八種裂隙怪物均已註冊
+PASS 八種裂隙怪物均進入圖鑑怪物池
+PASS 裂隙地區已註冊
+PASS 裂隙王國已註冊
+PASS 裂隙卡片進入圖鑑卡片池
+PASS 八件裂隙遺物均已註冊
+PASS 裂隙核心材料進入圖鑑道具池
+FAIL HTML 腳本快取版本已更新
+8/9 passed
+{
+  "maps": [
+    "v2_abyss_rift_lower",
+    "v2_abyss_rift_core"
+  ],
+  "allMonstersRegistered": true,
+  "allMonstersInCodex": true,
+  "regionRegistered": true,
+  "kingdomRegistered": true,
+  "cardsInCodex": true,
+  "riftRelicsRegistered": true,
+  "coreMaterialInCodex": true
+}
+PASS v25126_hourglass_necklace_regression.js
+FAIL v25127_trait_equipment_regression.js
+PASS CON
+PASS STA
+PASS WIS
+PASS CRT
+PASS CON HIT
+PASS CON FLEE
+PASS STA RES
+PASS WIS MRES
+PASS CRT H.PLUS
+PASS CRT C.RATE
+FAIL CON P.ATK
+FAIL CON S.MATK
+PASS POW
+PASS SPL
+12/14 passed
+PASS v25128_trait_combat_regression.js
+PASS v25129_crate_critdamage_regression.js
+PASS v25130_equipment_cond_refine_regression.js
+PASS v25131_joblv5_flat_equipment_regression.js
+FAIL v25132_baselevel_weapon_growth_regression.js
+PASS metal weapon growth importer is registered
+FAIL metal weapon growth starts at BaseLv20 and caps at 120
+PASS probation weapon growth caps at BaseLv160
+PASS metal katar receives BaseLv ATK growth
+PASS metal foxtail receives BaseLv ATK and MATK growth
+PASS probation staff receives capped BaseLv MATK growth
+PASS probation dagger receives capped BaseLv ATK and MATK growth
+PASS upgrade katar receives BaseLv70+ ATK growth
+PASS scarlet huuma receives BaseLv70+ ATK growth
+8/9 checks passed
+PASS v25133_ifrit_autospell_fallback_regression.js
+PASS v25134_aspd_explicit_bonus_regression.js
+PASS v25135_holy_skogul_regression.js
+FAIL v25136_thanos_dagger_refine_regression.js
+/mnt/data/build386/tools/v25136_thanos_dagger_refine_regression.js:12
+if (bonus.atk !== 10 || bonus.matk !== 10) throw new Error(`expected atk=10 and matk=10, got ${JSON.stringify(bonus)}`);
+                                           ^
+
+Error: expected atk=10 and matk=10, got {"matk":10}
+    at Object.<anonymous> (/mnt/data/build386/tools/v25136_thanos_dagger_refine_regression.js:12:50)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+PASS v25137_post_attack_delay_not_aspd_regression.js
+PASS v25138_delay_not_aspd_regression.js
+PASS v25139_aspd_flat_equipment_regression.js
+PASS v25140_baselevel_matk_regression.js
+PASS v25140_level_bonus_alias_regression.js
+PASS v25142_base_lv_start20_regression.js
+FAIL v25143_trait_panel_regression.js
+/mnt/data/build386/tools/v25143_trait_panel_regression.js:24
+  if (!engine.includes(s)) throw new Error('Missing engine source: ' + s);
+                           ^
+
+Error: Missing engine source: state.pAtk = Math.floor(traitCON / 5)
+    at Object.<anonymous> (/mnt/data/build386/tools/v25143_trait_panel_regression.js:24:34)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+PASS v25144_old_moroc_acc_regression.js
+PASS v25145_lunar_e_armor_resistance_regression.js
+PASS v25146_equipment_skill_grants_regression.js
+PASS v25147_autospell_loadout_regression.js
+PASS v25148_character_trait_loot_ui_regression.js
+FAIL v25148_trait_panel_loot_collapse_regression.js
+FAIL version
+FAIL six traits adjacent to basic stats
+FAIL derived trait values
+PASS loot feed collapsed by default
+PASS loot feed still toggleable
+FAIL trait panel styling
+FAIL asset cache version
+PASS v25149_hit_autospell_range_regression.js
+PASS v25150_conditional_autospell_alias_regression.js
+PASS v25151_card_granted_skill_regression.js
+PASS v25152_equipment_skill_refresh_regression.js
+PASS v25153_chain_autospell_fallback_regression.js
+PASS v25154_autospell_data_audit_regression.js
+PASS v25155_passive_autospell_level_clamp_regression.js
+PASS v25156_autospell_active_field_guard_regression.js
+PASS v25157_equipment_cond_refine_parser_regression.js
+PASS v25158_refine_growth_boundary_regression.js
+PASS v25164_equipment_bonus_alias_regression.js
+PASS v25191_hero_token_shc_grade_regression.js
+FAIL v25192_hero_token_skill_key_regression.js
+PASS SHC refine bonus uses registered Savage Impact skill ID
+PASS SHC refine bonus uses registered Eternal Slash skill ID
+PASS obsolete unregistered SHC skill keys removed
+PASS registered SHC skill IDs exist in engine migration
+/mnt/data/build386/tools/v25192_hero_token_skill_key_regression.js:11
+function check(ok, msg) { if (!ok) throw new Error(msg); console.log("PASS", msg); }
+                                   ^
+
+Error: weapon grade selector includes S grade
+    at check (/mnt/data/build386/tools/v25192_hero_token_skill_key_regression.js:11:42)
+    at Object.<anonymous> (/mnt/data/build386/tools/v25192_hero_token_skill_key_regression.js:16:1)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+FAIL v25193_hero_pendant_coverage_regression.js
+PASS hero_token_ag record exists
+PASS hero_token_ag has refine +10 conditions
+PASS hero_token_ag has C-grade conditions
+PASS hero_token_ag references iron_staff_lt
+PASS hero_token_ag references blue_crystal_staff_lt
+PASS hero_token_wh record exists
+PASS hero_token_wh has refine +10 conditions
+PASS hero_token_wh has C-grade conditions
+PASS hero_token_wh references royal_bow_k_lt
+PASS hero_token_wh references scalet_dragon_l_bow_lt
+PASS hero_token_ig record exists
+PASS hero_token_ig has refine +10 conditions
+PASS hero_token_ig has C-grade conditions
+PASS hero_token_ig references undine_spear_k_lt
+PASS hero_token_ig references light_blade_lt
+PASS hero_token_cd record exists
+PASS hero_token_cd has refine +10 conditions
+PASS hero_token_cd has C-grade conditions
+PASS hero_token_cd references saint_hall_lt
+PASS hero_token_cd references demon_hunting_bible_lt
+PASS hero_token_abc record exists
+PASS hero_token_abc has refine +10 conditions
+PASS hero_token_abc has C-grade conditions
+PASS hero_token_abc references magic_sword_lt
+PASS hero_token_abc references fatalist_lt
+PASS hero_token_dk record exists
+PASS hero_token_dk has refine +10 conditions
+PASS hero_token_dk has C-grade conditions
+PASS hero_token_dk references dragonic_slayer_lt
+PASS hero_token_dk references oriental_sword_lt
+PASS hero_token_bo record exists
+PASS hero_token_bo has refine +10 conditions
+PASS hero_token_bo has C-grade conditions
+PASS hero_token_bo references sword_of_bluefire_lt
+PASS hero_token_bo references slate_sword_lt
+PASS hero_token_em record exists
+PASS hero_token_em has refine +10 conditions
+PASS hero_token_em has C-grade conditions
+PASS hero_token_em references freezing_rod_lt
+PASS hero_token_em references shadow_staff_k_lt
+PASS hero_token_tr record exists
+PASS hero_token_tr has refine +10 conditions
+PASS hero_token_tr has C-grade conditions
+PASS hero_token_tr references narcis_bow_lt
+PASS hero_token_tr references trumpet_shell_k_lt
+PASS hero_token_tr references barb_wire_k_lt
+PASS hero_token_mt record exists
+PASS hero_token_mt has refine +10 conditions
+PASS hero_token_mt has C-grade conditions
+PASS hero_token_mt references avenger_lt
+PASS hero_token_mt references meteor_striker_lt
+PASS hero_token_iq record exists
+PASS hero_token_iq has refine +10 conditions
+PASS hero_token_iq has C-grade conditions
+PASS hero_token_iq references iron_nail_k_lt
+PASS hero_token_iq references ray_knuckle_lt
+PASS Dragon Knight Oriental Sword reduction is wired for all sizes
+PASS magic all-size bonus has a dedicated calculation key
+PASS magic all-size bonus is consumed by magic damage formula
+PASS size damage reduction is routed to incoming damage calculation
+/mnt/data/build386/tools/v25193_hero_pendant_coverage_regression.js:22
+function check(ok, msg) { if (!ok) throw new Error(msg); console.log("PASS", msg); }
+                                   ^
+
+Error: grade selector supports D/C/B/A/S
+    at check (/mnt/data/build386/tools/v25193_hero_pendant_coverage_regression.js:22:42)
+    at Object.<anonymous> (/mnt/data/build386/tools/v25193_hero_pendant_coverage_regression.js:37:1)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+PASS v25194_thanos_dagger_ad_regression.js
+PASS v25195_mid_sol_god_trait_regression.js
+PASS v25196_bulk_trait_bonus_regression.js
+PASS v25197_hero_boots_resonance_grade_regression.js
+PASS v25198_equipment_proc_cooldown_regression.js
+PASS v25199_smoky_lt_skill_registry_regression.js
+PASS v25201_diamond_dust_skill_regression.js
+PASS v25202_sorcerer_elemental_regression.js
+PASS v25203_sorcerer_missing_skills_regression.js
+PASS v25204_sorcerer_insignia_regression.js
+PASS v25205_sage_sorcerer_correction_regression.js
+PASS v25206_hp_conversion_regression.js
+PASS v25207_striking_self_regression.js
+PASS v25208_elemental_sp_upkeep_regression.js
+PASS v25209_elemental_control_regression.js
+PASS v25210_elemental_modes_shield_regression.js
+PASS v25211_elemental_shield_skill_regression.js
+PASS v25212_sage_skill_completion_regression.js
+PASS v25213_cardinal_party_support_regression.js
+PASS v25215_dragon_knight_skill_alias_regression.js
+PASS v25216_dragon_knight_regression.js
+PASS v25217_old_card_album_mvp_rate_regression.js
+PASS v25218_level200_weapon_regression.js
+FAIL v25219_weapon_skill_bonus_regression.js
+PASS Arrow Storm skill ID exists
+PASS Level-200 Ether Bow uses the registered skill ID
+PASS Cardinal mace skill bonus remains skill-specific
+FAIL Release version is 2.5.221
+FAIL HTML cache references updated
+FAIL v25220_level200_weapon_skill_id_regression.js
+PASS Arrow Storm skill ID exists in current skill table
+PASS Level-200 Ether Bow uses the exact Arrow Storm skill ID
+PASS Level-200 Ether Bow no longer uses the invalid arrowstorm alias
+PASS Cardinal mace correction remains intact
+PASS HE equipment remains untouched by this targeted patch
+FAIL Release version is 2.5.221
+FAIL All HTML cache refs use 2.5.221
+FAIL v25221_level210_weapon_skill_id_regression.js
+PASS Cart Cannon maps to current Geneticist skill ID
+PASS Psychic Wave maps to current Sorcerer skill ID
+PASS Adoramus maps to current Archbishop skill ID
+PASS Fatal Menace maps to current Shadow Chaser skill ID
+PASS Arrow Storm maps to current Ranger skill ID
+PASS Aimed Bolt maps to current Ranger skill ID
+PASS Invalid legacy aliases removed from corrected weapons
+FAIL Version is 2.5.221
+FAIL All HTML cache refs use 2.5.221
+FAIL v25222_cardinal_charging_regression.js
+PASS 治癒誓言 helper 不再遞迴呼叫自身
+PASS 治癒誓言依目前 HP 比例計算
+PASS 玩家 tick 與隊友 tick 共用治癒誓言 helper
+PASS 充能貫穿範圍技能所有指定技能均累積一層
+PASS 充能貫穿仍只認四種指定技能
+PASS 樞機主教技能樹包含新增的鈍器＆書籍精熟（共17項）
+PASS 鈍器＆書籍精熟按武器類型與怪物體型套用
+FAIL 神聖權能使用 P.ATK／S.MATK 固定增益與官方持續時間
+PASS 樞機主教技能顯示名稱已校正
+
+8/9 passed
+PASS v25225_entry_scope_regression.js
+FAIL v25225_level230_weapon_skill_id_regression.js
+PASS 46 level-230 weapons are included in this audit
+PASS the current Arrow Storm skill ID exists
+PASS the Poenitentia precision bow uses the current Arrow Storm ID
+PASS the invalid legacy Arrow Storm alias is absent from the bow
+PASS all skillDmg keys on level-230 weapons resolve to current skill IDs
+FAIL release version is 2.5.225
+FAIL all HTML cache refs use 2.5.225
+PASS v25226_element_master_cardinal_regression.js
+PASS v25227_elemental_summon_cost_regression.js
+FAIL v25229_inventory_headgear_position_regression.js
+FAIL 頭飾依位置拆分為頭上／頭中／頭下
+PASS 背包防具頭飾子分類使用裝備描述位置欄位
+PASS 頭飾缺少位置標記時有安全預設分類
+PASS 原有防具分類仍保留鎧甲／盾牌／披風／鞋子／飾品
+v2.5.231 inventory headgear position: 3/4 passed
+FAIL v25229_release_regression.js
+FAIL VERSION.txt is 2.5.231
+FAIL all 22 HTML asset cache references use 2.5.231
+PASS no stale 2.5.228 cache reference remains in index.html
+v2.5.231 release: 1/3 passed
+PASS v25230_cardinal_sp_cost_regression.js
+FAIL v25232_conflict_regression.js
+FAIL release version is 2.5.232
+FAIL all 22 HTML cache references match release version
+PASS incorrect warehouse condition removed from backpack renderer
+PASS warehouse defines all three headgear filters when headgear exists
+PASS backpack retains all three headgear filters
+PASS head-top priority is preserved for compound headgear
+PASS cardinal heal is included in automatic heal classification
+PASS Competentia P.ATK and S.MATK use party-aware buff helper
+PASS SP cost definitions remain present
+v2.5.232 conflict regression: 7/9 passed
+PASS v2523_bonus_regression.js
+PASS v25342_acolyte_support_regression.js
+PASS v25345_trait_point_regression.js
+PASS v25379_knight_windstorm_aoe_regression.js
+PASS v25386_knight_windstorm_freeze_aoe_regression.js
+PASS v25510_lordknight_runeknight_regression.js
+PASS v25511_dragonknight_regression.js
+PASS v25512_loot_and_dragonbreath_regression.js
+PASS v25516_skill_description_regression.js
+FAIL v25517_ranger_proc_stats_regression.js
+FAIL new characters initialize per-skill ranger proc stats
+FAIL stats helper records actual skill proc counters
+FAIL ranger passives count eligible attacks and cooldown skips
+FAIL ranger passives count actual chance rolls and successful procs
+FAIL traps count deterministic/probability checks and successful procs
+FAIL UI displays eligible checks, proc count, measured rate and cooldown skips
+FAIL deterministic traps are labelled fixed-trigger rather than showing a misleading 100% rate
+PASS trap proc lookup is validated before stats or cooldown handling
+FAIL UI updates live while auto battle tab is open
+FAIL stats can be reset and saved
+FAIL responsive stats table styling exists
+FAIL v25519_fourth_job_passive_audit.js
+node:assert:95
+  throw new AssertionError(obj);
+  ^
+
+AssertionError [ERR_ASSERTION]: all summon-named passives are present
+
+4 !== 9
+
+    at Object.<anonymous> (/mnt/data/build386/tools/v25519_fourth_job_passive_audit.js:24:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 4,
+  expected: 9,
+  operator: 'strictEqual'
+}
+
+Node.js v22.16.0
+PASS v25520_proc_damage_regression.js
+FAIL v25521_skill_weapon_formula_regression.js
+PASS single-target physical/magic skills pass skill metadata into weapon damage chain
+PASS AOE skills pass skill metadata into weapon damage chain
+PASS DOT skills pass skill metadata into weapon damage chain
+PASS poison direct hit passes skill metadata into weapon damage chain
+PASS poison DOT base passes skill metadata into weapon damage chain
+PASS multi-hit first and second hits pass skill metadata
+FAIL size-dependent multi attack passes skill metadata
+PASS special charge passes skill metadata
+PASS v25522_passive_weapon_bonus_regression.js
+PASS v25523_proc_damage_coverage_regression.js
+PASS v25524_reactive_proc_damage_regression.js
+PASS v25526_remove_proc_stats_regression.js
+PASS v25534_artifact_effects_regression.js
+PASS v25539_mjolnir_regression.js
+FAIL v25542_blacksmith_cleanup_regression.js
+PASS 封印雷神腰帶已從裝備資料移除
+PASS 舊存檔會清除封印雷神腰帶背包／裝備／圖鑑資料
+PASS 36 件鐵匠四屬性鍛造武器已從 ITEMS 移除
+FAIL 圖鑑全裝備掃描排除舊 crafted_ 道具
+PASS 舊存檔遷移會清除背包、裝備個體及圖鑑中的 crafted_ 道具
+PASS 舊存檔已學習的武器製作技能會退還技能點
+PASS 鍛造視窗只保留原料製作，不再產生武器製作區
+PASS 鐵匠職業技能樹已移除六種武器製作技能
+PASS 武器研究仍保留 ATK/HIT 效果但不再影響鍛造成功率
+PASS 背包／裝備清單僅在完整重算模式呼叫 previewEquipDelta
+PASS 背包與裝備清單圖片採用 lazy loading
+FAIL v25546_archer_refine_regression.js
+/mnt/data/build386/tools/v25546_archer_refine_regression.js:10
+function assert(ok, msg) { if (!ok) throw new Error(msg); }
+                                    ^
+
+Error: modify_agi_boots_ per3Refine.aspdPct expected 3
+    at assert (/mnt/data/build386/tools/v25546_archer_refine_regression.js:10:43)
+    at Object.<anonymous> (/mnt/data/build386/tools/v25546_archer_refine_regression.js:40:46)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+PASS v25548_equipment_refine_regression.js
+FAIL v2558_ranger_regression.js
+/mnt/data/build386/tools/v2558_ranger_regression.js:4
+function ok(label,condition){if(!condition)throw new Error('FAIL '+label);console.log('PASS '+label)}
+                                           ^
+
+Error: FAIL Arrow Storm is configured as a passive proc
+    at ok (/mnt/data/build386/tools/v2558_ranger_regression.js:4:50)
+    at Object.<anonymous> (/mnt/data/build386/tools/v2558_ranger_regression.js:9:3)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+FAIL v2559_ranger_passive_regression.js
+/mnt/data/build386/tools/v2559_ranger_passive_regression.js:6
+function check(ok,msg){if(!ok)throw Error('FAIL '+msg);console.log('PASS '+msg)}
+                              ^
+
+Error: FAIL ra_arrowstorm is a Ranger passive proc
+    at check (/mnt/data/build386/tools/v2559_ranger_passive_regression.js:6:37)
+    at Object.<anonymous> (/mnt/data/build386/tools/v2559_ranger_passive_regression.js:9:44)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.16.0
+PASS v255_asset_regression.js
+PASS v255_cardinal_party_support_regression.js
+PASS v255_cardinal_partywide_target_regression.js
+PASS v255_skill_alias_regression.js
+PASS v255_skill_bonus_audit_regression.js
+PASS v255_skill_bonus_coverage.js
+PASS v273_ep21_level_album_regression.js
+PASS v274_ep21_card_data_regression.js
+PASS v274_ep21_card_effect_regression.js
+PASS v276_ranged_physical_skill_resist_regression.js
+PASS v279_ep21_card_skill_audit.js
+PASS v280_ep21_headgear_card_regression.js
+PASS v282_high_exp_drop_regression.js
+PASS v283_headgear_hp_sp_and_drop_regression.js
+PASS v284_ep21_card_skill_link_audit.js
+PASS v285_codex_obtainable_regression.js
+PASS v286_codex_acquisition_sources_regression.js
+PASS v295_ep21_exchange_regression.js
+PASS v295_ep21_exchange_runtime_regression.js
+PASS v295_ep21_skill_runtime_regression.js
+PASS v296_ep21_skill_bonus_consumption_regression.js
+PASS v297_windhawk_progressive_stack_reset_regression.js
+PASS v298_after_attack_delay_runtime_regression.js
+PASS v299_ep21_trial_regression.js
+PASS v2_5_381_physical_range_magic_damage_regression.js
+PASS v2_5_382_conditional_autospell_audit.js
+PASS v2_5_383_meteorstorm_field_damage_regression.js
+PASS v2_5_384_field_magic_target_gate_regression.js
+PASS v2_regression.js
+PASS v300_card_database_integrity_regression.js
+PASS v301_ep21_headgear_drop_regression.js
+PASS v302_abysmal_kraken_card_regression.js
+PASS v303_tower_memory_card_regression.js
+PASS v304_codex_dungeon_entry_regression.js
+PASS v305_ep21_codex_reward_regression.js
+PASS v306_ep21_continuous_trial_regression.js
+PASS v307_ep21_offline_trial_audit.js
+PASS v308_mysteltainn_card_source_regression.js
+PASS v309_windhawk_damage_and_codex_regression.js
+PASS v310_mvp_card_source_regression.js
+PASS v311_map_card_source_regression.js
+PASS v312_varmundt_biosphere_regression.js
+PASS v313_progressive_shot_lifecycle_regression.js
+PASS v314_progressive_shot_damage_regression.js
+PASS v315_ep21_reward_regression.js
+PASS v316_ep21_magic_circlet_and_missing_cards_regression.js
+PASS v317_yorscalp_equipment_family_regression.js
+PASS v318_ep21_drop_codex_regression.js
+PASS v319_yorscalp_acquisition_pool_regression.js
+PASS v320_yorscalp_reforge_regression.js
+PASS v321_ep21_drops_images_regression.js
+PASS v321_image_path_completeness_regression.js
+PASS v322_ep21_official_effect_audit_regression.js
+PASS v323_yorscalp_enchant_runtime_regression.js
+PASS v324_ep21_card_wild_walk_regression.js
+PASS v325_legacy_card_and_geffen_set_regression.js
+PASS v326_weapon_autospell_regression.js
+PASS v327_legacy_card_completion_regression.js
+PASS v371_combat_log_and_potential_hat_regression.js
+PASS v372_ep19_card_drop_map_regression.js
+PASS v373_codex_search_and_image_regression.js
+PASS v375_combat_log_search_retention_regression.js
+PASS v376_combat_log_persistence_regression.js
+PASS v376_equipment_skill_grant_audit_regression.js
+PASS v378_formula_consistency_regression.js
+PASS v380_ep19_secondary_armor_card_regression.js
+PASS v385_codex_recent_count_regression.js
+
+Regression result: 167/195 passed; 28 failed.

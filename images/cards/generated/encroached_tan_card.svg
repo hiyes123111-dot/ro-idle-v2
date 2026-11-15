@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="128" viewBox="0 0 96 128" role="img" aria-label="被侵蝕的坦卡片">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#281c35"/><stop offset="1" stop-color="#090b13"/></linearGradient><linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d7b7ff"/><stop offset="1" stop-color="#7650a8"/></linearGradient></defs>
+  <rect x="3" y="3" width="90" height="122" rx="7" fill="url(#bg)" stroke="url(#edge)" stroke-width="3"/>
+  <path d="M48 17 72 34 67 77 48 99 29 77 24 34Z" fill="#5c3b76" stroke="#d2b4ed" stroke-width="2"/>
+  <path d="M48 25 59 43 48 70 37 43Z" fill="#b48ad7" opacity=".85"/>
+  <path d="M29 55 17 71 30 83 40 69M67 55 79 71 66 83 56 69" fill="none" stroke="#a9d4dc" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="40" cy="48" r="3" fill="#f3e7ff"/><circle cx="56" cy="48" r="3" fill="#f3e7ff"/>
+  <text x="48" y="113" fill="#f5eaff" font-size="9" text-anchor="middle" font-family="sans-serif">TAN</text>
+</svg>
