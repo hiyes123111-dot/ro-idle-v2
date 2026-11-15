@@ -28,9 +28,9 @@ if (!/getCardBonus\(['"]rangedDmgPct['"]\)/.test(physical)) {
   throw new Error('Physical ranged damage bonus path is missing');
 }
 const versions = [...html.matchAll(/[?&]v=(2\.5\.\d+)/g)].map(m => m[1]);
-if (!versions.length || versions.some(v => v !== release)) {
-  throw new Error(`Expected every cache reference to use ${release}; found ${versions.length}`);
+if (versions.length !== 26 || versions.some(v => v !== release)) {
+  throw new Error(`Expected 26 cache references at ${release}; found ${versions.length}`);
 }
 console.log('PASS: magic skills exclude ranged physical bonus');
 console.log('PASS: physical melee/ranged bonuses remain connected');
-console.log(`PASS: all ${versions.length} cache references use v${release}`);
+console.log(`PASS: all 26 cache references use v${release}`);

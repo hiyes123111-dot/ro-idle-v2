@@ -13,5 +13,5 @@ ok(/field_aoe_magic/.test(s.slice(s.indexOf('stormgust:'),s.indexOf('stormgust:'
 ok(/field_aoe_magic/.test(s.slice(s.indexOf('heavensdrive:'),s.indexOf('heavensdrive:')+300)),'Heaven\'s Drive uses field AoE magic type');
 ok(/state\.sp -= spCost;/.test(e) && e.indexOf('if (needsMonster &&')<e.indexOf('state.sp -= spCost;'),'target gate runs before SP deduction');
 const versions=[...h.matchAll(/[?&]v=(2\.5\.\d+)/g)].map(m=>m[1]);
-ok(versions.length===34 && versions.every(x=>x===v),'all 34 HTML cache references match release version');
+ok(versions.length===26 && versions.every(x=>x===v),'all 26 HTML cache references match release version');
 console.log('SUMMARY: v2.5.384 field magic target-gate regression passed');

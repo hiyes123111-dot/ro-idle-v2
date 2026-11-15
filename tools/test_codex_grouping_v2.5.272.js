@@ -12,7 +12,7 @@ const KINGDOMS = vm.runInContext('KINGDOMS', ctx);
 const ui = fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8');
 function assert(ok, msg) { if (!ok) throw new Error(msg); }
 const expected = {
-  ill_kraken: '深淵海神',
+  ill_kraken: '深淵海王',
   ill_abysmal_witch: '深淵女巫',
   ep18_burning_fang: '燃燒之牙',
   r001_bestia: 'R001-Bestia'
@@ -26,7 +26,7 @@ for (const [id, name] of Object.entries(expected)) {
 }
 assert(REGIONS.some(r => r.id === 'r_new_world' && r.maps.includes('high_exp_208')), 'high-exp map must remain in New World region');
 assert(KINGDOMS.some(k => k.regions.includes('r_new_world')), 'New World region must remain assigned to a kingdom');
-assert(ui.includes('a.level - b.level') && ui.includes('a.name.localeCompare'), 'codex monster level/name sort order missing');
-assert(!ui.includes('codex-monster-group'), 'monster codex remains in the current flat list layout');
+assert(ui.includes('a.kingdomIndex - b.kingdomIndex') && ui.includes('a.mapIndex - b.mapIndex') && ui.includes('a.level - b.level'), 'codex sort order missing');
+assert(ui.includes('codex-monster-group') && ui.includes('未配置地圖'), 'codex group headers / unclassified fallback missing');
 assert(ui.includes('getMonsterMaps(id)'), 'monster detail must retain full map list');
 console.log(`PASS: ${map.monsters.length} new-map monsters, localized labels, region/map/level ordering, fallback group`);

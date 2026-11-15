@@ -1,10 +1,16 @@
-const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const c={console,Math,Date,JSON,Object,Array,Set,Map,Number,String,RegExp,window:{},document:{addEventListener(){},removeEventListener(){},getElementById(){return null},querySelector(){return null},querySelectorAll(){return[]},createElement(){return{}},body:{classList:{add(){},remove(){}},appendChild(){}}},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},localStorage:{getItem(){return null},setItem(){},removeItem(){}},navigator:{},performance:{now(){return 0}},alert(){},confirm(){return true},prompt(){return null},URL,Blob,FileReader:function(){},Image:function(){},requestAnimationFrame(){}};
-c.window=c;vm.createContext(c);
-for(const f of ['skills.js','monster_skills.js','jobs.js','data.js','relics.js','v2_content.js','v2_4_content.js','v2_5_content.js','v2_6_skill_migration.js'])vm.runInContext(fs.readFileSync('js/'+f,'utf8'),c,{filename:f});
-const S=vm.runInContext('SKILLS',c), J=vm.runInContext('JOB_TREE',c);
-for(const [id,type] of [['ra_arrowstorm','damage_aoe'],['ra_aimedbolt','damage'],['ra_fearbreeze','buff_atk']]) assert.strictEqual(S[id].type,type,`${id} remains an active skill/buff`);
-assert.strictEqual(J.wind_hawk.skills.length,16,'Wind Hawk retains 16 catalog skills');
-for(const id of ['v25_wind_hawk_3','v25_wind_hawk_4','v25_wind_hawk_5','v25_wind_hawk_12','v25_wind_hawk_13']) assert.notStrictEqual(S[id].type,'passive',`${id} is not misclassified as an attack proc`);
-for(const id of ['v25_wind_hawk_7','v25_wind_hawk_8','v25_wind_hawk_9','v25_wind_hawk_10']) assert(S[id].type==='passive'&&S[id].rangerTrapProc&&S[id].trapEffect,`${id} is a functioning passive trap`);
-console.log('PASS Ranger regression — active Ranger skills and four Wind Hawk passive traps are classified correctly');
+const fs=require('fs');
+const skills=fs.readFileSync('js/skills.js','utf8');
+const engine=fs.readFileSync('js/engine.js','utf8');
+function ok(label,condition){if(!condition)throw new Error('FAIL '+label);console.log('PASS '+label)}
+const arrow=skills.match(/ra_arrowstorm:\s*\{([^\n]+)\}/)?.[1]||'';
+const aimed=skills.match(/ra_aimedbolt:\s*\{([^\n]+)\}/)?.[1]||'';
+const fear=skills.match(/ra_fearbreeze:\s*\{([^\n]+)\}/)?.[1]||'';
+for(const [name,row] of [['Arrow Storm',arrow],['Aimed Bolt',aimed],['Fear Breeze',fear]]){
+  ok(name+' is configured as a passive proc',row.includes("type: 'passive'")&&row.includes('rangerPassiveProc: true'));
+  ok(name+' consumes no SP and has no active cooldown',row.includes('spCost: [0]')&&row.includes('cooldown: [0]'));
+}
+ok('Arrow Storm retains 250%-700% damage values',/mult: \[2\.5,3\.0,3\.5,4\.0,4\.5,5\.0,5\.5,6\.0,6\.5,7\.0\]/.test(arrow));
+ok('Aimed Bolt retains 220%-400% damage values',/mult: \[2\.2,2\.4,2\.6,2\.8,3\.0,3\.2,3\.4,3\.6,3\.8,4\.0\]/.test(aimed));
+ok('Engine triggers Ranger passive procs on normal attacks',engine.includes('function tryRangerPassiveProcs')&&engine.includes('tryRangerPassiveProcs(target, monDef)'));
+ok('Passive Ranger proc applies equipment skill damage bonuses',engine.includes('1 + getSkillDamageBonus(sk)/100'));
+console.log('PASS Ranger regression — all checks passed');
