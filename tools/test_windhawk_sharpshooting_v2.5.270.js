@@ -52,7 +52,7 @@ assert(conditional('grace_attack_manteau', x => x.when.refineMin === 7).bonus.sk
 assert(ITEMS.windhawk_snip_ring.bonus.skillAfterDelayPct === 5 && ITEMS.windhawk_snip_ring.bonus.rangedDmgPct === 6, 'Wind Hawk Sniper Ring base effects missing');
 
 // Generated build must only reference cards that exist in this version's database.
-const save = JSON.parse(fs.readFileSync(path.join(root, 'windhawk_sharp_build.json'), 'utf8'));
+const save = JSON.parse(fs.readFileSync(path.join(root, 'tools', 'config', 'windhawk_sharp_build.json'), 'utf8'));
 for (const [instanceId, inst] of Object.entries(save.instances || {})) {
   if (!Object.values(save.equip || {}).includes(instanceId)) continue;
   for (const cardId of (inst.cards || [])) assert(CARDS[cardId], `${instanceId} references missing card ${cardId}`);

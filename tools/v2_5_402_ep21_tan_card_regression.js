@@ -1,0 +1,24 @@
+const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..');
+const ctx={console,window:{},document:{addEventListener(){},getElementById(){return null},querySelector(){return null},querySelectorAll(){return[]}},Image:function(){},localStorage:{getItem(){return null},setItem(){},removeItem(){}},setTimeout(){return 0},clearTimeout(){},setInterval(){return 0},clearInterval(){},requestAnimationFrame(){return 0},performance:{now(){return 0}},Math,Date,Map,Set,Array,Object,Number,String,JSON,RegExp,Float64Array};ctx.window=ctx;vm.createContext(ctx);
+for(const f of ['data.js','img_alias.js','v321_ep21_drops_and_images.js','v2_5_400_ep21_card_completion.js','v2_5_402_ep21_encroached_tan_card.js','v2_5_395_card_set_codex.js','v2_5_396_card_set_codex.js','engine.js'])vm.runInContext(fs.readFileSync(path.join(root,'js',f),'utf8'),ctx,{timeout:60000});
+const id='encroached_tan_card';
+const extra=['ep21_yerk_cleric_card','ep21_yerk_servant_card','ep21_yortus_bishop_card'];
+assert(vm.runInContext(`CARDS['${id}'].slot==='armor' && CARDS['${id}'].monsterId==='ep21_corrupted_tan'`,ctx),'card catalog and monster source');
+assert(vm.runInContext(`ITEMS['${id}'].imgId===300533 && ITEMS['${id}'].codexInclude===true`,ctx),'item database and codex flag');
+const art=vm.runInContext(`CARD_ART_FALLBACKS['${id}']`,ctx);assert(art&&fs.existsSync(path.join(root,art)),'card artwork exists');
+assert(vm.runInContext(`MONSTERS.ep21_corrupted_tan.drops.some(d=>d.item==='${id}'&&d.chance===0.0001)`,ctx),'0.01% monster drop recorded');
+for(const cardId of extra){assert(vm.runInContext(`!!CARDS['${cardId}']&&!!ITEMS['${cardId}']&&ITEMS['${cardId}'].codexInclude===true`,ctx),`extra card catalog ${cardId}`);const p=vm.runInContext(`CARD_ART_FALLBACKS['${cardId}']`,ctx);assert(p&&fs.existsSync(path.join(root,p)),`extra card art ${cardId}`);}
+const codex=vm.runInContext('getCodexPool().cards',ctx);assert(codex.includes(id)&&extra.every(x=>codex.includes(x)),'codex card pool');
+const album=vm.runInContext("boxPool('card').ids",ctx);assert(album.includes(id)&&extra.every(x=>album.includes(x)),'card album pool');
+vm.runInContext(`state={equip:{armor:'testArmor'},instances:{testArmor:{item:'__test_armor',refine:10,cards:['${id}']}},stats:{str:100,agi:1,vit:1,int:100,dex:100,luk:1},baseLevel:220,jobLevel:60,jobId:'element_master',learnedSkills:{},traitAlloc:{spl:100}};ITEMS.__test_armor={id:'__test_armor',type:'armor',armorType:'armor',armorLevel:2};`,ctx);
+assert.equal(vm.runInContext("getCardBonus('allClassDmg')",ctx),30);
+assert.equal(vm.runInContext("getCardBonus('hpPct')",ctx),-15);
+assert.equal(vm.runInContext("getCardBonus('atkPct')",ctx),10);
+assert.equal(vm.runInContext("getCardBonus('pAtk')",ctx),10);
+vm.runInContext("ITEMS.__test_acc={id:'__test_acc',type:'accessory'};state={equip:{accessory1:'acc1'},instances:{acc1:{item:'__test_acc',refine:0,cards:['ep21_yerk_cleric_card','ep21_yerk_servant_card']}},stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},baseLevel:220,jobLevel:60,jobId:'element_master',learnedSkills:{},traitAlloc:{}};",ctx);
+assert.equal(vm.runInContext("getCardBonus('crit')",ctx),12);
+assert.equal(vm.runInContext("getCardBonus('critDmgPct')",ctx),12);
+vm.runInContext("ITEMS.__test_head={id:'__test_head',type:'headgear'};state={equip:{head_top:'head'},instances:{head:{item:'__test_head',refine:14,cards:['ep21_yortus_bishop_card']}},stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},baseLevel:220,jobLevel:60,jobId:'element_master',learnedSkills:{},traitAlloc:{}};",ctx);
+assert.equal(vm.runInContext("getCardBonus('hpPct')",ctx),12);
+console.log(JSON.stringify({version:'v2.5.402',added:[id,...extra],officialItemId:300533,slots:['armor','accessory','headgear','accessory'],codex:true,album:true,drop:'0.01% (被侵蝕的坦)',refine10:{atkPct:10,pAtk:10},tests:'passed'},null,2));

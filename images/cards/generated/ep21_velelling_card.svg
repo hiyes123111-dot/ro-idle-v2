@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="200" viewBox="0 0 160 200">
+<rect x="4" y="4" width="152" height="192" rx="12" fill="#17212b" stroke="#8da4b8" stroke-width="4"/>
+<rect x="14" y="14" width="132" height="132" rx="9" fill="#26394a"/>
+<path d="M80 34 C50 48 42 74 55 99 C64 117 96 117 105 99 C118 74 110 48 80 34Z" fill="#9ab2c6" opacity=".75"/>
+<circle cx="68" cy="76" r="6" fill="#fff"/><circle cx="92" cy="76" r="6" fill="#fff"/>
+<path d="M68 96 Q80 104 92 96" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+<text x="80" y="164" text-anchor="middle" font-size="12" fill="#fff">貝雷波利卡片</text>
+<text x="80" y="181" text-anchor="middle" font-size="10" fill="#aebdca">武器 · 300507</text></svg>

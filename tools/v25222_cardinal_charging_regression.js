@@ -12,7 +12,7 @@ const checks = [
   ['充能貫穿仍只認四種指定技能', /new Set\(\['pierce','lk_spiralpierce','rk_hundredspear','dk_madnesscrusher'\]\)/.test(engine)],
   ['樞機主教技能樹包含新增的鈍器＆書籍精熟（共17項）', /cd_mace_book_m/.test(skills) && /skills: \['cd_mace_book_m'/.test(jobs) && ((jobs.match(/skills: \['cd_mace_book_m'[^\n]+/) || [''])[0].match(/'cd_[^']+'/g) || []).length === 17],
   ['鈍器＆書籍精熟按武器類型與怪物體型套用', /function cardinalMaceBookMasteryPct\(monDef\)/.test(engine) && /cardinalMaceBookMasteryPct\(monDef\)/.test(engine) && /weaponReqMet\('mace_book'\)/.test(engine)],
-  ['神聖權能使用 P.ATK／S.MATK 固定增益與官方持續時間', /duration:\[180,210,240,270,300\]/.test(skills) && /push\('pAtk', 1, value\)/.test(engine) && /push\('sMatk', 1, value\)/.test(engine) && /buffMult\('pAtk'\)\.flatBonus/.test(engine) && /buffMult\('sMatk'\)\.flatBonus/.test(engine)],
+  ['神聖權能使用 P.ATK／S.MATK 固定增益與官方持續時間', /duration:\[180,210,240,270,300\]/.test(skills) && /pushParty\('pAtk', 1, value\)/.test(engine) && /pushParty\('sMatk', 1, value\)/.test(engine) && /buffMult\('pAtk'\)\.flatBonus/.test(engine) && /buffMult\('sMatk'\)\.flatBonus/.test(engine)],
   ['樞機主教技能顯示名稱已校正', /cd_petitio:[^\n]*name:'聖光打擊'/.test(skills) && /cd_arbitrium:[^\n]*name:'制裁謳歌'/.test(skills) && /cd_pneumaticus_procella:[^\n]*name:'驅魔風暴'/.test(skills)],
 ];
 let failed = 0;

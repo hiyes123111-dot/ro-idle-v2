@@ -477,7 +477,7 @@ const bonusFormulaKeys = vm.runInContext(`canonicalBonusKey('patk')==='pAtk' && 
 check(bonusFormulaKeys, 'V2.5.4 P.ATK / S.MATK aliases normalize to combat formula keys');
 const skillBonusAlias = vm.runInContext(`(() => { state={jobId:'ranger',stats:{str:1,agi:1,vit:1,int:1,dex:1,luk:1},equip:{weapon:'w1'},instances:{w1:{item:'fourth_bh_bow',refine:2,cards:[]}},relics:{},baseLevel:200,jobLevel:60,learnedSkills:{}}; _gearBonusCache=null; _gearBonusKey=''; return !!SKILLS.ra_arrowstorm && getSkillDamageBonus(SKILLS.ra_arrowstorm) === 5; })()`, context);
 check(skillBonusAlias, 'legacy skill bonus key resolves to prefixed skill ID');
-const aoeNoTargetGuard = fs.readFileSync(path.join(jsDir, 'engine.js'), 'utf8').includes("'damage', 'magic', 'damage_aoe', 'magic_aoe', 'dot'");
+const aoeNoTargetGuard = fs.readFileSync(path.join(jsDir, 'engine.js'), 'utf8').includes("'damage', 'magic', 'damage_aoe', 'magic_aoe', 'magic_multi', 'dot'");
 check(aoeNoTargetGuard, 'AOE attacks require a target before SP and cooldown are consumed');
 
 

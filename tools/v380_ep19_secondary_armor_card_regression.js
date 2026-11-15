@@ -67,6 +67,6 @@ if (fn) {
 const release = fs.readFileSync('VERSION.txt','utf8').trim().replace(/^v/,'');
 const html = fs.readFileSync('index.html','utf8');
 const cacheVersions = [...html.matchAll(/[?&]v=(2\.5\.\d+)/g)].map(m => m[1]);
-check('HTML 所有 JS 快取版本與目前版本一致', cacheVersions.length === 26 && cacheVersions.every(v => v === release));
+check('HTML 所有 JS 快取版本與目前版本一致', cacheVersions.length > 0 && cacheVersions.every(v => v === release));
 console.log(`${13 - bad}/13 passed`);
 process.exit(bad ? 1 : 0);

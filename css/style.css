@@ -2065,3 +2065,11 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .combat-log-history-row { display:block; width:100%; text-align:left; white-space:normal; overflow-wrap:anywhere; background:transparent; color:inherit; border:0; border-bottom:1px solid rgba(216,179,74,.18); padding:9px 2px; }
 .combat-log-history-row:active { background:rgba(216,179,74,.12); }
 .combat-log-detail-actions { display:flex; justify-content:flex-end; gap:8px; padding:10px 14px; border-top:1px solid rgba(216,179,74,.3); }
+
+/* 風鷹陷阱觸發統計 */
+.ab-proc-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ab-proc-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ab-proc-table{width:100%;min-width:560px;border-collapse:collapse;font-size:.82rem}
+.ab-proc-table th,.ab-proc-table td{padding:7px 8px;border-bottom:1px solid var(--border-color,rgba(128,128,128,.22));text-align:center;white-space:nowrap}
+.ab-proc-table th:first-child,.ab-proc-table td:first-child{text-align:left}
+.ab-proc-table td small{display:block;color:var(--text-muted,#888);font-size:.72rem;margin-top:2px}
