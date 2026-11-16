@@ -7,8 +7,10 @@ const jobs = fs.readFileSync(path.join(root, 'js/jobs.js'), 'utf8');
 const checks = [
   ['Two-handed Defense added', /dk_twohanddef/.test(migration)],
   ['Official Dragon Knight list includes Two-handed Defense', /dk\.push\(passive\('dk_twohanddef'/.test(migration)],
-  ['Storm Slash alias', /storm_slash:\s*'dk_stormslash'/.test(engine)],
-  ['Hack and Slash alias', /hack_and_slash:\s*'dk_hackandslasher'/.test(engine)],
+  ['Storm Slash alias uses canonical skill ID', /storm_slash:\s*'v25_dragon_knight_7'/.test(engine)],
+  ['Legacy Storm Slash equipment key maps to canonical skill', /dk_stormslash:\s*'v25_dragon_knight_7'/.test(engine)],
+  ['Hack and Slash alias uses canonical skill ID', /hack_and_slash:\s*'v25_dragon_knight_6'/.test(engine)],
+  ['Legacy Hack and Slasher equipment key maps to canonical skill', /dk_hackandslasher:\s*'v25_dragon_knight_6'/.test(engine)],
   ['Madness Crusher alias', /madness_crusher:\s*'dk_madnesscrusher'/.test(engine)],
   ['Servant Weapon Phantom alias', /servant_weapon_phantom:\s*'dk_servantphantom'/.test(engine)],
   ['Servant Weapon Demolition alias', /servant_weapon_demolition:\s*'dk_servantdemolition'/.test(engine)],

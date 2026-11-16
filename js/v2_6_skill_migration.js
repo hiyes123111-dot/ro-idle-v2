@@ -129,9 +129,16 @@
     Array(10).fill(90),lin(1.08,1.35,10),
     '燃燒生命力換取力量，攻擊力提升 8%～35%，持續 40～90 秒。',
     { duration: ints(40,90,10) }));
-  dk.push(put('dk_stormslash','風暴斬 Storm Slash',5,'damage','neutral',
-    ints(35,51,5),[2,2,2,2,2],lin(8,16,5),
-    '暴風般的連斬，造成 ATK 800%～1600% 傷害。'));
+  // 使用 v2.5 正式技能目錄的 canonical ID，避免技能樹與 EP21 卡片／裝備增傷指向不同技能。
+  // Storm Slash 的台灣正式名稱為「風暴斬擊」，且為單體近距離物理連斬。
+  const stormSlash = SKILLS['v25_dragon_knight_7'];
+  if (!stormSlash) throw new Error('[v2.5.446] 缺少龍騎士風暴斬擊技能資料');
+  stormSlash.name = '風暴斬擊';
+  stormSlash.type = 'damage';
+  stormSlash.element = 'neutral';
+  stormSlash.rangeType = 'melee';
+  stormSlash.desc = '龍騎士四轉單體近距離物理連斬，依技能等級造成 ATK 1,900%～2,100% 傷害；可依角色暴擊能力觸發暴擊。';
+  dk.push(stormSlash);
   dk.push(passive('dk_servantweapon','僕從武裝 Servant Weapon',5,'atkFlat',
     ints(20,100,5),'召喚環繞的僕從之刃，永久提升 ATK +20～100。'));
   dk.push(put('dk_servantphantom','僕從武裝－幻影 Servant Weapon: Phantom',5,'damage_aoe','neutral',
@@ -142,9 +149,15 @@
   dk.push(put('dk_servantdemolition','僕從武裝－破壞 Servant Weapon: Demolition',5,'damage_aoe','neutral',
     ints(40,56,5),[4,4,4,4,4],lin(7,13,5),
     '對場上全體敵人造成無屬性 ATK 700%～1300% 傷害。'));
-  dk.push(put('dk_hackandslasher','劈斬 Hack and Slasher',10,'damage_aoe','neutral',
-    ints(36,72,10),Array(10).fill(3),lin(7,21,10),
-    '連續劈斬周身敵人，對全體造成 ATK 700%～2100% 傷害。'));
+  // Hack and Slasher 的台灣正式名稱為「橫揮斬」；沿用既有四轉技能倍率與 ID。
+  const hackAndSlasher = SKILLS['v25_dragon_knight_6'];
+  if (!hackAndSlasher) throw new Error('[v2.5.446] 缺少龍騎士橫揮斬技能資料');
+  hackAndSlasher.name = '橫揮斬';
+  hackAndSlasher.type = 'damage_aoe';
+  hackAndSlasher.element = 'neutral';
+  hackAndSlasher.rangeType = 'melee';
+  hackAndSlasher.desc = '龍騎士四轉範圍物理攻擊，ATK 2,700%～5,400%。';
+  dk.push(hackAndSlasher);
   dk.push(put('dk_dragonicpierce','龍之貫穿 Dragonic Pierce',5,'damage','neutral',
     ints(40,56,5),[4,4,4,4,4],lin(7,13,5),
     '造成無屬性 ATK 700%～1300% 傷害。'));

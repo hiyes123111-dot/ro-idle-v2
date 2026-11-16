@@ -12574,49 +12574,40 @@ function tryAutoCastSkill() {
   if (!state.autoSkillConfig) state.autoSkillConfig = { skillId: null, mode: 'once', spThreshold: 30, skillId2: null, spThreshold2: 50, monsterCount2: 2 };
 
   const config = state.autoSkillConfig;
-  const spPct = (state.sp / state.maxSp) * 100;
-  const monsterCount = state.monsters ? state.monsters.length : 0;
+  // 舊存檔可能只有第一招欄位；補齊預設值，避免 undefined 讓 SP 條件永遠不成立。
+  const spThreshold1 = Math.max(0, Math.min(100, Number.isFinite(Number(config.spThreshold)) ? Number(config.spThreshold) : 30));
+  const spThreshold2 = Math.max(0, Math.min(100, Number.isFinite(Number(config.spThreshold2)) ? Number(config.spThreshold2) : 50));
+  const monsterThreshold2 = Math.max(1, Math.min(5, Number.isFinite(Number(config.monsterCount2)) ? Number(config.monsterCount2) : 2));
+  const maxSp = Math.max(1, Number(state.maxSp) || 1);
+  const spPct = (Number(state.sp) || 0) / maxSp * 100;
+  const monsterCount = state.monsters ? state.monsters.filter(m => m && m.hp > 0).length : 0;
 
-  /* 兩招都沒設定就什麼都不放（使用者 2026-08-15 指定）。
+  // 兩招都沒設定就不施放；明確設定的技能依序嘗試，第一招失敗時讓第二招接手。
+  if (!config.skillId && !config.skillId2) return false;
 
-     這裡本來有一條「沒設定就自動撈第一個能放的技能」的回退。#100 把它限制成只撈
-     攻擊技能，但使用者要的是**下拉選單選「不使用技能」就真的不要放**——
-     商人一路上場的金錢攻擊與手推車攻擊都是這條回退自己跑出來的。
-     技能一律以自動戰鬥頁面的設定為準，回退整條移除。 */
-  if (!config.skillId && !config.skillId2) return;
+  const slots = [
+    { id: config.skillId, spThreshold: spThreshold1, monsterThreshold: 1, label: '第一招' },
+    { id: config.skillId2, spThreshold: spThreshold2, monsterThreshold: monsterThreshold2, label: '第二招' }
+  ];
 
-  // 第一招：SP 達到門檻 + 有怪物就施放
-  if (config.skillId) {
-    const sk = findSkillForUse(config.skillId);
-    if (sk) {
-      const lv = skillLv(sk.id);
-      if (lv && skillReady(sk.id) && weaponReqMet(sk.requiresWeapon) && equipReqMet(sk.requiresEquip) && (!sk.requiresSkill || (state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) && (!sk.requiresSkill || (state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) && (!sk.requiresSkill || (state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0))) {
-        const spCost = skillSpCost(sk, lv);
-        const isAttack = skillNeedsMonster(sk);
-        if (state.sp >= spCost && spPct >= config.spThreshold && !wastesResourceInTown(sk, lv)) {
-          if (!isAttack || monsterCount > 0) {
-            castSkill(sk.id);
-            return;
-          }
-        }
-      }
-    }
+  for (const slot of slots) {
+    if (!slot.id) continue;
+    const sk = findSkillForUse(slot.id);
+    if (!sk) continue;
+    const lv = skillLv(sk.id);
+    if (!lv || !skillReady(sk.id)) continue;
+    if (!weaponReqMet(sk.requiresWeapon) || !equipReqMet(sk.requiresEquip)) continue;
+    if (sk.requiresSkill && !(state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) continue;
+    if (spPct < slot.spThreshold) continue;
+    if (skillNeedsMonster(sk) && monsterCount < slot.monsterThreshold) continue;
+    if (!skillNeedsMonster(sk) && slot.label === '第二招' && monsterCount < slot.monsterThreshold) continue;
+    if (state.sp < skillSpCost(sk, lv) || wastesResourceInTown(sk, lv)) continue;
+
+    // castSkill 可能因沉默、前置狀態、目標或技能內部條件回傳 false。
+    // 只有真正成功才結束本輪；失敗時繼續試下一個技能槽，避免第一招卡死第二招。
+    if (castSkill(sk.id)) return true;
   }
-
-  // 第二招：SP 達到門檻 + 怪物數量達到門檻才施放
-  if (config.skillId2) {
-    const sk2 = findSkillForUse(config.skillId2);
-    if (sk2) {
-      const lv2 = skillLv(sk2.id);
-      if (lv2 && skillReady(sk2.id) && weaponReqMet(sk2.requiresWeapon) && equipReqMet(sk2.requiresEquip) && (!sk2.requiresSkill || (state.learnedSkills && state.learnedSkills[sk2.requiresSkill] > 0)) && (!sk2.requiresSkill || (state.learnedSkills && state.learnedSkills[sk2.requiresSkill] > 0)) && (!sk2.requiresSkill || (state.learnedSkills && state.learnedSkills[sk2.requiresSkill] > 0))) {
-        const spCost2 = skillSpCost(sk2, lv2);
-        if (state.sp >= spCost2 && spPct >= config.spThreshold2 && monsterCount >= config.monsterCount2 && !wastesResourceInTown(sk2, lv2)) {
-          castSkill(sk2.id);
-          return;
-        }
-      }
-    }
-  }
+  return false;
 }
 
 // 自動施放輔助技能
@@ -14470,9 +14461,11 @@ function getSkillDamageBonus(sk) {
     servant_w_phantom: 'dk_servantphantom',
     servant_w_sign: 'dk_servantsign',
     servant_w: 'dk_servantweapon',
-    storm_slash: 'dk_stormslash',
-    hack_and_slash: 'dk_hackandslasher',
-    hackandslash: 'dk_hackandslasher',
+    storm_slash: 'v25_dragon_knight_7',
+    dk_stormslash: 'v25_dragon_knight_7',
+    hack_and_slash: 'v25_dragon_knight_6',
+    hackandslash: 'v25_dragon_knight_6',
+    dk_hackandslasher: 'v25_dragon_knight_6',
     madness_crusher: 'dk_madnesscrusher',
     dragonic_breath: 'dk_dragonicbreath',
     dragonic_aura: 'dk_dragonicaura',
@@ -15989,9 +15982,10 @@ function loadGame() {
     if (!state.achievements) state.achievements = { done: {}, points: 0 };
     if (!state.lockedItems) state.lockedItems = {};
     if (!state.autoSkillConfig) state.autoSkillConfig = { skillId: null, mode: 'once', spThreshold: 30, skillId2: null, spThreshold2: 50, monsterCount2: 2 };
+    if (state.autoSkillConfig.spThreshold == null || !Number.isFinite(Number(state.autoSkillConfig.spThreshold))) state.autoSkillConfig.spThreshold = 30;
     if (!state.autoSkillConfig.skillId2) state.autoSkillConfig.skillId2 = null;
-    if (!state.autoSkillConfig.spThreshold2) state.autoSkillConfig.spThreshold2 = 50;
-    if (!state.autoSkillConfig.monsterCount2) state.autoSkillConfig.monsterCount2 = 2;
+    if (state.autoSkillConfig.spThreshold2 == null || !Number.isFinite(Number(state.autoSkillConfig.spThreshold2))) state.autoSkillConfig.spThreshold2 = 50;
+    if (state.autoSkillConfig.monsterCount2 == null || !Number.isFinite(Number(state.autoSkillConfig.monsterCount2))) state.autoSkillConfig.monsterCount2 = 2;
     if (!state.autoSupportSkills) state.autoSupportSkills = {};
     if (!state.autoHealConfig) state.autoHealConfig = {};
     // 多怪物系統遷移
