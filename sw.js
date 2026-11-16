@@ -1,17 +1,24 @@
-/* 諸神放置錄 v2.5.441
- * Navigation + JS/CSS: network-first, so online clients do not stay on stale game code.
- * Other requests are left to the browser. LocalStorage is never read, modified or cleared.
+/* 諸神放置錄 v2.5.445
+ * Versioned runtime cache. New releases never reuse an older runtime cache.
+ * Navigation + JS/CSS are network-first; localStorage/player saves are untouched.
  */
 'use strict';
 
-var GAME_CACHE = 'ro-idle-runtime-v1';
+var GAME_CACHE = 'ro-idle-runtime-v2.5.445';
+var GAME_CACHE_PREFIX = 'ro-idle-runtime-';
 
 self.addEventListener('install', function (event) {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async function () {
+    var names = await caches.keys();
+    await Promise.all(names.filter(function (name) {
+      return name.indexOf(GAME_CACHE_PREFIX) === 0 && name !== GAME_CACHE;
+    }).map(function (name) { return caches.delete(name); }));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', function (event) {
@@ -19,11 +26,7 @@ self.addEventListener('fetch', function (event) {
   if (!request || request.method !== 'GET') return;
 
   var url;
-  try {
-    url = new URL(request.url);
-  } catch (e) {
-    return;
-  }
+  try { url = new URL(request.url); } catch (e) { return; }
   if (url.origin !== self.location.origin) return;
 
   var isNavigation = request.mode === 'navigate';
@@ -33,13 +36,10 @@ self.addEventListener('fetch', function (event) {
   event.respondWith((async function () {
     var cache = await caches.open(GAME_CACHE);
     try {
-      /* 明確略過 HTTP 快取，避免 Chrome 回傳舊版 HTML/JS/CSS。 */
       var fresh = await fetch(request, { cache: 'no-store' });
       if (fresh && fresh.ok && fresh.type === 'basic') {
-        try {
-          await cache.put(request, fresh.clone());
-        } catch (cacheError) {
-          /* 快取空間不足不應阻擋正常載入。 */
+        try { await cache.put(request, fresh.clone()); } catch (cacheError) {
+          /* Cache quota must not block gameplay or saving. */
         }
       }
       return fresh;

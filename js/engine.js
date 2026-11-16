@@ -14012,10 +14012,14 @@ const EQUIP_SLOT_NAMES = {
 };
 
 function cardFitsSlot(card, equipSlot) {
+  // 全欄位附魔卡不是一般裝備卡槽卡片；目前客戶端沒有附魔槽資料模型，
+  // 先允許圖鑑查詢，不可錯誤插入武器／防具的普通卡槽。
+  if (card && card.catalogCard === true && card.slot === 'all') return false;
   const targets = CARD_SLOT_TARGETS[card.slot] || CARD_SLOT_TARGETS.any;
   return targets.includes(equipSlot);
 }
 function cardSlotLabel(card) {
+  if (card && card.catalogCard === true && card.slot === 'all') return '全欄位附魔（附魔槽尚未支援）';
   const targets = CARD_SLOT_TARGETS[card.slot] || CARD_SLOT_TARGETS.any;
   if (card.slot === 'any') return '任意部位';
   return targets.map(t => EQUIP_SLOT_NAMES[t] || t).join('／');

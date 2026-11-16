@@ -1,0 +1,12 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..');
+const version=fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim();
+assert.strictEqual(version,'2.5.444');
+const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const refs=[...html.matchAll(/(?:src|href)="[^"]+\?v=([^"&]+)/g)].map(m=>m[1]);
+assert(refs.length>=58,'HTML resource refs are present');
+assert(refs.every(v=>v===version),'all HTML resources use release version');
+const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
+assert(sw.includes(`ro-idle-runtime-v${version}`),'service worker cache is versioned');
+assert(!sw.includes('ro-idle-runtime-v2.5.443'),'old runtime cache name is absent');
+console.log(`PASS ${refs.length} HTML resource refs, VERSION.txt and Service Worker all match ${version}`);

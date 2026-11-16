@@ -3393,11 +3393,12 @@ function getCodexSearchText(row) {
   const card = CARDS[id] || {};
   const monster = MONSTERS[id] || {};
   const text = [
-    row.name, item.name, item.searchTerms, item.type, item.armorType,
-    card.name, card.searchTerms, card.slot,
-    monster.name, monster.searchTerms, monster.race, monster.element,
+    row.name, row.imgId, row.itemId, row.cardId,
+    item.name, item.searchTerms, item.type, item.armorType, item.imgId,
+    card.name, card.searchTerms, card.slot, card.imgId, card.itemId,
+    monster.name, monster.searchTerms, monster.race, monster.element, monster.imgId,
     id
-  ].filter(Boolean).join(' ').toLocaleLowerCase();
+  ].filter(value => value !== undefined && value !== null && value !== '').join(' ').toLocaleLowerCase();
   if (CODEX_SEARCH_TEXT_CACHE.size >= CODEX_SEARCH_TEXT_CACHE_LIMIT) {
     CODEX_SEARCH_TEXT_CACHE.delete(CODEX_SEARCH_TEXT_CACHE.keys().next().value);
   }
@@ -7508,7 +7509,7 @@ function renderWarehouseInner() {
         <div class="wh-list">${listHtml(bagRows, 'bag')}</div>
       </div>
       <div class="wh-col">
-        <div class="wh-col-head">倉庫（點擊取出 ◀）　${whAll.length} 種</div>
+        <div class="wh-col-head">倉庫（點擊取出 ◀）　${whIndex.known.length} 種</div>
         <div class="wh-list">${listHtml(whRows, 'wh')}</div>
       </div>
     </div>`;
