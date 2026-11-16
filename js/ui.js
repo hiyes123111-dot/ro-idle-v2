@@ -2057,7 +2057,13 @@ let _logRafId = 0;
 function renderLog() {
   _logDirty = true;
   if (_logRafId) return;
-  _logRafId = requestAnimationFrame(() => { _logRafId = 0; renderLogNow(); });
+  // Android WebView／背景分頁若暫時沒有 requestAnimationFrame，改用短延遲刷新，
+  // 不讓戰鬥資料已寫入緩衝、但畫面一直空白。
+  if (typeof requestAnimationFrame === 'function') {
+    _logRafId = requestAnimationFrame(() => { _logRafId = 0; renderLogNow(); });
+  } else {
+    _logRafId = setTimeout(() => { _logRafId = 0; renderLogNow(); }, 16);
+  }
 }
 /* 真正動 DOM 的那半。分頁在背景時 rAF 不會跑，所以 onTickUI 也會來敲一次 */
 function renderLogNow() {
@@ -5448,9 +5454,11 @@ function setInvQuickFilter(filter) {
    只快取衍生索引，不改 state.inventory 或存檔資料。
    任何道具數量／列項目變動都由引擎呼叫 invalidateInventoryViewCache(owner)。 */
 const _inventoryViewCache = new WeakMap();
+const _autoSellBaseRowsCache = new WeakMap();
+const _autoSellNameCollator = new Intl.Collator('zh-Hant');
 function invalidateInventoryViewCache(owner) {
   const rows = owner && Array.isArray(owner.inventory) ? owner.inventory : null;
-  if (rows) _inventoryViewCache.delete(rows);
+  if (rows) { _inventoryViewCache.delete(rows); _autoSellBaseRowsCache.delete(rows); }
 }
 function getInventoryViewIndex(rows) {
   if (!Array.isArray(rows)) rows = [];
@@ -5650,7 +5658,7 @@ function renderInventoryTab() {
                 title="湊得滿的 ${times} 份一次合成完，除不盡的留在背包">全部合成(${times})</button>` : '');
           })()}
           ${canUse ? `<button class="btn-small" onclick="useItem('${row.item}');renderInventoryTab();">${def.type === 'consumable' ? '使用' : '裝備'}</button>` : ''}
-          ${def.boxOpen && row.qty > 1 ? `<button class="btn-small" onclick="openAllBoxesAsync('${row.item}', function(){renderInventoryTab();renderTopBar();});" title="手上這 ${row.qty} 個一次開完（每 100 個一批，不卡畫面）">全部開啟(${row.qty})</button>` : ''}
+          ${def.boxOpen && row.qty > 1 ? `<button class="btn-small" onclick="openAllBoxesAsync('${row.item}', function(){renderInventoryTab();renderTopBar();});" title="手上這 ${row.qty} 個分批開啟，每批 25 個，降低手機卡頓">全部開啟(${row.qty})</button>` : ''}
           ${!locked && def.type !== 'relic' && def.sell > 0 ? `<button class="btn-small ghost" onclick="toggleInventoryAutoSell('${row.item}')">${(state.autoSellConfig && state.autoSellConfig.items || []).includes(row.item) ? '✓ 自動賣出' : '加入自動賣出'}</button>` : ''}
           ${locked || def.type === 'relic' ? '' : `<button class="btn-small ghost" onclick="sellItem('${row.item}',1);renderInventoryTab();renderTopBar();">賣出(${def.sell})</button>`}
           ${!locked && def.type !== 'relic' && row.qty > 1 ? `<button class="btn-small ghost" onclick="sellItemAll('${row.item}');renderInventoryTab();renderTopBar();">全部賣出</button>` : ''}
@@ -7521,10 +7529,19 @@ function renderWarehouseInner() {
    點左邊 → 移去右邊（開始自動賣）；點右邊 → 移回左邊（不再自動賣）。 */
 let asCategory = 'all';
 let asSearch = '';
-function setAsCategory(c) { asCategory = c; renderAutoSellWindow(); }
+let asLeftLimit = 100;
+let asRightLimit = 100;
+const AUTO_SELL_RENDER_PAGE = 100;
+function setAsCategory(c) { asCategory = c; asLeftLimit = asRightLimit = AUTO_SELL_RENDER_PAGE; renderAutoSellWindow(); }
+function loadMoreAutoSell(side) {
+  if (side === 'left') asLeftLimit += AUTO_SELL_RENDER_PAGE;
+  else asRightLimit += AUTO_SELL_RENDER_PAGE;
+  renderAutoSellWindow();
+}
 function onAsSearch(v, ev) {
   if (imeComposing(ev)) return;
   asSearch = (v || '').trim().toLowerCase();
+  asLeftLimit = asRightLimit = AUTO_SELL_RENDER_PAGE;
   renderAutoSellWindow();
   refocusSearch('as-search');
 }
@@ -7548,12 +7565,13 @@ function asClearAll() {
 function asAddAll() {
   if (!state.autoSellConfig) state.autoSellConfig = { enabled: false, items: [] };
   const cfg = state.autoSellConfig;
-  const all = state.inventory.filter(r => !r.instanceId && ITEMS[r.item] && (ITEMS[r.item].sell || 0) > 0);
-  let left = all.filter(r => !cfg.items.includes(r.item) && !isItemLocked(r.item));
+  const selected = new Set(cfg.items);
+  const all = getAutoSellBaseRows(state.inventory);
+  let left = all.filter(r => !selected.has(r.item) && !isItemLocked(r.item));
   if (asCategory !== 'all') left = left.filter(r => invCategoryOf(r.item) === asCategory);
   if (asSearch) left = left.filter(r => (ITEMS[r.item].name || '').toLowerCase().includes(asSearch));
   if (!left.length) { showToast('沒有可加入的道具'); return; }
-  left.forEach(r => { if (!cfg.items.includes(r.item)) cfg.items.push(r.item); });
+  left.forEach(r => { if (!selected.has(r.item)) { cfg.items.push(r.item); selected.add(r.item); } });
   saveGame();
   renderAutoSellWindow();
   showToast(`已加入 ${left.length} 樣到自動販賣`);
@@ -7655,6 +7673,33 @@ function doAutoSellSync(slot, mode) {
   renderTopBar();
 }
 
+function getAutoSellBaseRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  let cached = _autoSellBaseRowsCache.get(rows);
+  if (cached) return cached;
+  cached = rows.filter(r => r && !r.instanceId && ITEMS[r.item] && ITEMS[r.item].sell > 0)
+    .sort((a,b) => _autoSellNameCollator.compare(ITEMS[a.item].name || '', ITEMS[b.item].name || ''));
+  _autoSellBaseRowsCache.set(rows, cached);
+  return cached;
+}
+let _asSortedRightSource = null;
+let _asSortedRightIds = [];
+function getAutoSellSortedRightIds(items) {
+  if (_asSortedRightSource !== items || _asSortedRightIds.length !== items.length) {
+    _asSortedRightSource = items;
+    _asSortedRightIds = items.filter(id => ITEMS[id] && ITEMS[id].sell > 0)
+      .slice().sort((a,b) => _autoSellNameCollator.compare(ITEMS[a].name || '', ITEMS[b].name || ''));
+  }
+  return _asSortedRightIds;
+}
+function prioritizeAutoSellRecent(rows, side) {
+  const recent = _listRecent[side] || {};
+  const picked = [];
+  const rest = [];
+  for (const row of rows) (recent[row.item] ? picked : rest).push(row);
+  if (picked.length > 1) picked.sort((a,b) => (recent[b.item] || 0) - (recent[a.item] || 0));
+  return picked.length ? picked.concat(rest) : rows;
+}
 function renderAutoSellWindow() {
   keepListScroll('autosell-body', renderAutoSellWindowInner);   // 同倉庫（#139）
 }
@@ -7665,21 +7710,29 @@ function renderAutoSellWindowInner() {
   const cfg = state.autoSellConfig;
   const readyIn = Math.max(0, Math.ceil(((state.autoSellReadyAt || 0) - Date.now()) / 1000));
 
-  // 左邊：背包裡可賣、而且**不在**自動賣清單的道具（還留著）
-  const all = state.inventory.filter(r => !r.instanceId && ITEMS[r.item] && (ITEMS[r.item].sell || 0) > 0);
-  const left = all.filter(r => !cfg.items.includes(r.item));
-  /* 右邊＝自動賣清單的「紀錄」：就算已經賣光、背包暫時沒有，也照樣列著，
-     之後再打到就會被自動賣掉。點一下才移回左邊（取消自動賣）。 */
-  const right = cfg.items
-    .map(id => ({ item: id, qty: (state.inventory.find(r => r.item === id && !r.instanceId) || {}).qty || 0 }))
-    .filter(r => ITEMS[r.item] && (ITEMS[r.item].sell || 0) > 0);
-  const inCat = list => asCategory === 'all' ? list
-    : list.filter(r => invCategoryOf(r.item) === asCategory);
+  // 單次掃描背包建立數量索引，避免右欄每個品項都重新 find 整份背包。
+  const qtyById = new Map();
+  const all = getAutoSellBaseRows(state.inventory);
+  const catCount = {};
+  INV_CATEGORIES.forEach(c => { catCount[c.key] = 0; });
+  for (const r of all) {
+    qtyById.set(r.item, r.qty || 0);
+    const cat = invCategoryOf(r.item);
+    if (catCount[cat] !== undefined) catCount[cat]++;
+  }
+  const selected = new Set(cfg.items);
+  const left = all.filter(r => !selected.has(r.item));
+  // 右欄保留已賣光的選取紀錄，之後再次取得時仍會自動販賣。
+  const right = getAutoSellSortedRightIds(cfg.items).map(id => ({ item:id, qty:qtyById.get(id) || 0 }));
   const apply = (list, side) => {
-    let out = inCat(list);
+    let out = asCategory === 'all' ? list : list.filter(r => invCategoryOf(r.item) === asCategory);
     if (asSearch) out = out.filter(r => (ITEMS[r.item].name || '').toLowerCase().includes(asSearch));
-    return sortRowsWithRecent(out, side);
+    return prioritizeAutoSellRecent(out, side);
   };
+  const filteredLeft = apply(left, 'left');
+  const filteredRight = apply(right, 'right');
+  const visibleLeft = filteredLeft.slice(0, asLeftLimit);
+  const visibleRight = filteredRight.slice(0, asRightLimit);
 
   const listHtml = (rows, side) => rows.length
     ? rows.map(r => {
@@ -7695,10 +7748,10 @@ function renderAutoSellWindowInner() {
         </div>`;
       }).join('')
     : `<div class="empty-hint">${side === 'left' ? '左邊沒有可留的道具。' : '右邊沒有要自動賣的道具。'}</div>`;
-
-  const catCount = {};
-  INV_CATEGORIES.forEach(c => { catCount[c.key] = 0; });
-  all.forEach(r => { catCount[invCategoryOf(r.item)]++; });
+  const moreLeft = filteredLeft.length > visibleLeft.length
+    ? `<button class="btn-small ghost" onclick="loadMoreAutoSell('left')">載入更多（${visibleLeft.length}/${filteredLeft.length}）</button>` : '';
+  const moreRight = filteredRight.length > visibleRight.length
+    ? `<button class="btn-small ghost" onclick="loadMoreAutoSell('right')">載入更多（${visibleRight.length}/${filteredRight.length}）</button>` : '';
 
   body.innerHTML = `
     <div class="card-row" style="margin-bottom:8px">
@@ -7707,31 +7760,27 @@ function renderAutoSellWindowInner() {
         啟用自動販賣 ${cfg.enabled ? `（下次 ${readyIn}s）` : '（尚未啟用）'}
       </label>
     </div>
-
     <div class="inv-cats">
       <button class="btn-small ${asCategory === 'all' ? 'active' : ''}" onclick="setAsCategory('all')">全部 <span class="inv-cat-n">${all.length}</span></button>
       ${INV_CATEGORIES.filter(c => catCount[c.key] > 0).map(c =>
         `<button class="btn-small ${asCategory === c.key ? 'active' : ''}" onclick="setAsCategory('${c.key}')">${c.icon} ${c.name} <span class="inv-cat-n">${catCount[c.key]}</span></button>`
       ).join('')}
     </div>
-
     <div class="wh-toolbar">
       <input id="as-search" class="codex-search" type="text" placeholder="🔍 搜尋名稱…"
         value="${asSearch.replace(/"/g, '&quot;')}" oninput="onAsSearch(this.value, event)">
     </div>
-
     <div class="wh-cols">
       <div class="wh-col">
-        <div class="wh-col-head">不會自動賣（點一下移右邊 ▶）　${left.length} ${apply(left,'left').length ? `<button class="btn-small ghost" style="float:right" onclick="asAddAll()">一鍵全加入</button>` : ''}</div>
-        <div class="wh-list">${listHtml(apply(left, 'left'), 'left')}</div>
+        <div class="wh-col-head">不會自動賣（點一下移右邊 ▶）　${filteredLeft.length} ${filteredLeft.length ? `<button class="btn-small ghost" style="float:right" onclick="asAddAll()">一鍵全加入</button>` : ''}</div>
+        <div class="wh-list">${listHtml(visibleLeft, 'left')}${moreLeft}</div>
       </div>
       <div class="wh-col">
         <div class="wh-col-head">要自動賣（點一下移回左邊 ✕）
           ${right.length ? `<button class="btn-small ghost" style="float:right" onclick="asClearAll()">取消全部</button>` : ''}　${right.length} 種</div>
-        <div class="wh-list">${listHtml(apply(right, 'right'), 'right')}</div>
+        <div class="wh-list">${listHtml(visibleRight, 'right')}${moreRight}</div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 /* ---------------- 卡片系統 UI ---------------- */

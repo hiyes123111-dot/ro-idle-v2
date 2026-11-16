@@ -319,10 +319,13 @@ function withLogLane(lane, fn) {
   try { return fn(); } finally { _logLaneOverride = prev; }
 }
 function logLaneOf(text, lane) {
+  // 呼叫端明確指定優先；隊友行動仍固定進隊友欄。
   if (lane) return lane;
   if (_allyActing) return 'ally';
+  // 技能施放範圍內的續行傷害也必須跟隨技能欄，不能被上一筆普攻主欄覆蓋。
+  if (_logLaneOverride) return _logLaneOverride;
   if (/^\s*→/.test(text)) return _lastLogLane;
-  return _logLaneOverride || 'main';
+  return 'main';
 }
 /* 高速戰鬥可能連續產生大量飄字／戰鬥紀錄。
    不再每新增一筆就 shift() 搬移整個陣列；超過上限一個批次後，
@@ -6099,9 +6102,7 @@ function gameTick() {
     autoUseAspdPotion();
     // 成就一律在這裡集中判定，不在戰鬥流程裡埋觸發點（詳見 achievements.js 開頭說明）
     checkAchievements();
-    if (state.autoSkill) {
-      tryAutoCastSkill();
-    }
+    // 主動攻擊技能改在下方每次實際揮擊前檢查，避免慢心跳與攻擊節奏脫鉤。
     // 輔助技能獨立控制，不受自動施放技能開關影響
     tryAutoCastSupportSkills();
     // 中毒持續傷害：每秒跳一次
@@ -6225,6 +6226,9 @@ function gameTick() {
       state.attackAccumulator -= atkInterval;
       // 昏迷／冰凍／石化／睡眠／混亂：不能攻擊。累積器照樣扣，不然解除的瞬間會一口氣連打
       if (playerImmobile()) continue;
+      // 主動技能跟隨每次實際攻擊檢查，不依賴每秒慢心跳，也不依賴武器自動念咒。
+      // 每次最多成功施放一招；冷卻/SP/武器/目標條件仍由 tryAutoCastSkill 與 castSkill 統一判斷。
+      if (state.autoSkill) tryAutoCastSkill();
       playerAttack();
       if (state.monsters.length === 0) break;
     }
@@ -7473,6 +7477,12 @@ function playerAttackInner() {
   if (absorb.reflect > 0) takeReflectDamage(monDef, absorb.reflect);
   applyCardLeech(dmg);
   ailBreakOnDamage(target, monDef);   // 睡眠被打就醒
+  /* 普攻本體已在上方寫入主戰鬥欄；從被動觸發開始，後續追加傷害、卡片／遺物效果
+     與其擊殺結算都屬於技能效果。用 try/finally 設定整段上下文，確保任何 return
+     都會還原分流狀態，並讓 pushCombatLog 的「→」續行跟隨技能欄。 */
+  const _previousAttackLogLane = _logLaneOverride;
+  _logLaneOverride = 'skill';
+  try {
   /* 被動觸發的那一整排（#100）：訊息一律進**技能欄**（中間那格）。
      使用者指定「被動技能造成傷害顯示在中間視窗，左邊剔除」——左邊留給普攻本身
      與怪物的攻擊，被動的追擊、連段、偷錢、卸除全部搬到中間。
@@ -7721,7 +7731,9 @@ function playerAttackInner() {
       if (fist.hitsRemaining <= 0 || state.sp <= 0) state.spellFist = null;
     }
   }
-
+  } finally {
+    _logLaneOverride = _previousAttackLogLane;
+  }
 }
 
 /* 怪物施放技能。取代那一次普通攻擊，走跟普攻同一條減傷鏈，
@@ -12570,11 +12582,19 @@ function isAttackSkill(sk) { return !!sk && SKILL_ATTACK_TYPES.includes(sk.type)
 function isAutoSupportSkill(sk) { return !!sk && !sk.manualOnly && (sk.type === 'elemental_summon' || (sk.type !== 'passive' && !isAttackSkill(sk))); }
 function skillNeedsMonster(sk) { return !!sk && SKILL_NEEDS_MONSTER_TYPES.includes(sk.type); }
 
+function autoSkillDiagnostic(key, message) {
+  if (!state) return;
+  if (!state._autoSkillDiagAt) state._autoSkillDiagAt = {};
+  const now = Date.now();
+  if (now - (state._autoSkillDiagAt[key] || 0) < 8000) return;
+  state._autoSkillDiagAt[key] = now;
+  logMsg(`⚙️ 自動技能：${message}`, 'skill');
+}
 function tryAutoCastSkill() {
+  if (!state || !state.autoSkill) return false;
   if (!state.autoSkillConfig) state.autoSkillConfig = { skillId: null, mode: 'once', spThreshold: 30, skillId2: null, spThreshold2: 50, monsterCount2: 2 };
 
   const config = state.autoSkillConfig;
-  // 舊存檔可能只有第一招欄位；補齊預設值，避免 undefined 讓 SP 條件永遠不成立。
   const spThreshold1 = Math.max(0, Math.min(100, Number.isFinite(Number(config.spThreshold)) ? Number(config.spThreshold) : 30));
   const spThreshold2 = Math.max(0, Math.min(100, Number.isFinite(Number(config.spThreshold2)) ? Number(config.spThreshold2) : 50));
   const monsterThreshold2 = Math.max(1, Math.min(5, Number.isFinite(Number(config.monsterCount2)) ? Number(config.monsterCount2) : 2));
@@ -12582,31 +12602,38 @@ function tryAutoCastSkill() {
   const spPct = (Number(state.sp) || 0) / maxSp * 100;
   const monsterCount = state.monsters ? state.monsters.filter(m => m && m.hp > 0).length : 0;
 
-  // 兩招都沒設定就不施放；明確設定的技能依序嘗試，第一招失敗時讓第二招接手。
-  if (!config.skillId && !config.skillId2) return false;
+  if (!config.skillId && !config.skillId2) {
+    autoSkillDiagnostic('no-skill', '尚未選擇第一招或第二招。');
+    return false;
+  }
 
   const slots = [
     { id: config.skillId, spThreshold: spThreshold1, monsterThreshold: 1, label: '第一招' },
     { id: config.skillId2, spThreshold: spThreshold2, monsterThreshold: monsterThreshold2, label: '第二招' }
   ];
-
+  let selected = 0;
+  let blocked = [];
   for (const slot of slots) {
     if (!slot.id) continue;
+    selected++;
     const sk = findSkillForUse(slot.id);
-    if (!sk) continue;
+    if (!sk) { blocked.push(`${slot.label}技能資料不存在或未解鎖`); continue; }
     const lv = skillLv(sk.id);
-    if (!lv || !skillReady(sk.id)) continue;
-    if (!weaponReqMet(sk.requiresWeapon) || !equipReqMet(sk.requiresEquip)) continue;
-    if (sk.requiresSkill && !(state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) continue;
-    if (spPct < slot.spThreshold) continue;
-    if (skillNeedsMonster(sk) && monsterCount < slot.monsterThreshold) continue;
-    if (!skillNeedsMonster(sk) && slot.label === '第二招' && monsterCount < slot.monsterThreshold) continue;
-    if (state.sp < skillSpCost(sk, lv) || wastesResourceInTown(sk, lv)) continue;
-
-    // castSkill 可能因沉默、前置狀態、目標或技能內部條件回傳 false。
-    // 只有真正成功才結束本輪；失敗時繼續試下一個技能槽，避免第一招卡死第二招。
+    if (!lv) { blocked.push(`${sk.name}尚未學會`); continue; }
+    if (!skillReady(sk.id)) continue; // 冷卻中屬正常狀態，不刷提示
+    if (!weaponReqMet(sk.requiresWeapon)) { blocked.push(`${sk.name}不符合武器需求`); continue; }
+    if (!equipReqMet(sk.requiresEquip)) { blocked.push(`${sk.name}不符合裝備需求`); continue; }
+    if (sk.requiresSkill && !(state.learnedSkills && state.learnedSkills[sk.requiresSkill] > 0)) { blocked.push(`${sk.name}缺少前置技能`); continue; }
+    if (spPct < slot.spThreshold) { blocked.push(`${sk.name}未達 SP 保留門檻（目前 ${Math.floor(spPct)}%，需求 ${slot.spThreshold}%）`); continue; }
+    if (skillNeedsMonster(sk) && monsterCount < slot.monsterThreshold) { blocked.push(`${sk.name}等待目標（目前 ${monsterCount} 隻）`); continue; }
+    if (!skillNeedsMonster(sk) && slot.label === '第二招' && monsterCount < slot.monsterThreshold) { blocked.push(`${sk.name}等待怪物數量（目前 ${monsterCount} 隻，需求 ${slot.monsterThreshold} 隻）`); continue; }
+    if (state.sp < skillSpCost(sk, lv)) { blocked.push(`${sk.name} SP 不足`); continue; }
+    if (wastesResourceInTown(sk, lv)) { blocked.push(`${sk.name}在城鎮施放會浪費資源`); continue; }
     if (castSkill(sk.id)) return true;
+    blocked.push(`${sk.name}施放條件未通過（請檢查沉默、前置狀態或技能目標）`);
   }
+  if (blocked.length) autoSkillDiagnostic('blocked-' + blocked[0], blocked[0] + '。');
+  else if (selected === 0) autoSkillDiagnostic('no-skill', '尚未選擇第一招或第二招。');
   return false;
 }
 
@@ -13267,7 +13294,7 @@ function addItem(itemId, qty) {
 }
 
 /* 寶箱／卡冊獲得通知：只記錄開啟容器產生的道具，不攔截一般掉落、交易或倉庫移動。 */
-function recordLootNotice(itemId, qty, source) {
+function recordLootNotice(itemId, qty, source, silent) {
   if (!ITEMS[itemId] || !(qty > 0)) return;
   const owner = allyOwnerState();
   if (!Array.isArray(owner.lootNotices)) owner.lootNotices = [];
@@ -13280,7 +13307,7 @@ function recordLootNotice(itemId, qty, source) {
     owner.lootNotices.push({ item: itemId, qty, source, time: now });
   }
   if (owner.lootNotices.length > 30) owner.lootNotices.splice(0, owner.lootNotices.length - 30);
-  if (typeof renderLootNotices === 'function' && owner === state) renderLootNotices();
+  if (!silent && typeof renderLootNotices === 'function' && owner === state) renderLootNotices();
 }
 function removeItem(itemId, qty) {
   const owner = allyOwnerState();          // 換身中也扣玩家的（見 getItemQty）
@@ -13387,8 +13414,8 @@ function reforgeYorscalpEquipment(baseId) {
    稀有的（MVP／迷你王卡、售價 5 萬以上）還是各自列一行——那是開箱子的重點，
    混在「共 37 種」裡面等於沒看到。 */
 const BOX_OPEN_ALL_MAX = 999;              // 一次最多開這麼多，避免手滑卡住畫面
-const BOX_OPEN_CHUNK = 50;                 // 每批開這麼多就讓出主執行緒（玩家回報一次開太多會當掉）
-const BOX_OPEN_CHUNK_DELAY_MS = 30;        // 批次之間的間隔：讓瀏覽器真的有空檔重繪，低階機也撐得住
+const BOX_OPEN_CHUNK = 25;                 // 手機低階裝置每批 25 個，避免單批抽取與存檔阻塞畫面
+const BOX_OPEN_CHUNK_DELAY_MS = 50;        // 批次間隔讓瀏覽器有機會重繪及處理觸控
 /* 分批開箱（保守版）：每 BOX_OPEN_CHUNK 個就讓出主執行緒，批次間再隔
    BOX_OPEN_CHUNK_DELAY_MS——setTimeout 0 在某些瀏覽器會被併進同一個影格，
    間隔拉開才保證畫面有真的呼吸空間。同步一口氣開完幾百個後，
@@ -13401,6 +13428,8 @@ function openAllBoxesAsync(itemId, onDone) {
   const total = Math.min(row.qty, BOX_OPEN_ALL_MAX);
   let openedTotal = 0;
   const savedLog = logMsg;
+  const isCardAlbum = def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0;
+  const albumOnlySet = isCardAlbum ? new Set(getAlbumOnlyCards()) : null; // 同一輪分批共用，不改變圖鑑資料動態更新行為
   let running = false;
   const step = () => {
     if (openedTotal >= total) {
@@ -13414,7 +13443,7 @@ function openAllBoxesAsync(itemId, onDone) {
     // 批次內靜音：中間的彙總訊息丟掉，只留最後一筆
     logMsg = () => {};
     let opened = 0;
-    try { opened = openAllBoxes(itemId); }
+    try { opened = openAllBoxes(itemId, BOX_OPEN_CHUNK, albumOnlySet); }
     catch (e) { console.error('開箱失敗', e); }
     finally { logMsg = savedLog; running = false; }
     openedTotal += opened;
@@ -13430,14 +13459,15 @@ function openAllBoxesAsync(itemId, onDone) {
   setTimeout(step, BOX_OPEN_CHUNK_DELAY_MS);
   return true;
 }
-function openAllBoxes(itemId) {
+function openAllBoxes(itemId, maxCount, cachedAlbumOnlySet) {
   const def = ITEMS[itemId];
   const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
   if (!def || !def.boxOpen || !row || row.qty < 1) return 0;
   const pool = boxPool(def.boxOpen);
   if (!pool || !pool.ids.length) { logMsg(`⚠️ ${def.name} 打不開（道具池是空的）。`); return 0; }
 
-  const n = Math.min(row.qty, BOX_OPEN_ALL_MAX);
+  const requestedLimit = Number.isFinite(Number(maxCount)) && Number(maxCount) > 0 ? Math.floor(Number(maxCount)) : BOX_OPEN_ALL_MAX;
+  const n = Math.min(row.qty, BOX_OPEN_ALL_MAX, requestedLimit);
   const got = {};                           // itemId → 數量
   const rare = [];
   for (let i = 0; i < n; i++) {
@@ -13453,20 +13483,31 @@ function openAllBoxes(itemId) {
   if (!opened) return 0;
   removeItem(itemId, opened);
   let worth = 0;
-  Object.entries(got).forEach(([id, q]) => {
-    addItem(id, q);
-    if (def.boxOpen === 'violet' || def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) {
-      recordLootNotice(id, q, def.boxOpen === 'violet' ? '紫箱' : '卡冊');
-    }
-    if (def.boxOpen === 'any' || def.boxOpen === 'violet') codexRecordBox(id);
-    if (def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0) codexRecordBoxCardIfAlbumOnly(id);
+  const inventory = state.inventory;
+  const rowById = new Map();
+  for (const row of inventory) if (row && !row.instanceId) rowById.set(row.item, row);
+  const isCardAlbum = def.boxOpen === 'card' || def.boxOpen === 'cardFlat' || String(def.boxOpen).indexOf('card_') === 0;
+  const isBoxCodex = def.boxOpen === 'any' || def.boxOpen === 'violet';
+  const isLootNotice = def.boxOpen === 'violet' || isCardAlbum;
+  const albumOnlySet = isCardAlbum ? (cachedAlbumOnlySet || new Set(getAlbumOnlyCards())) : null;
+  for (const [id, q] of Object.entries(got)) {
+    const existing = rowById.get(id);
+    if (existing) existing.qty += q;
+    else { const added = {item:id, qty:q}; inventory.push(added); rowById.set(id, added); }
+    withOwner(() => codexRecordItem(id, q));
+    if (isLootNotice) recordLootNotice(id, q, def.boxOpen === 'violet' ? '紫箱' : '卡冊', true);
+    if (isBoxCodex) codexRecordBox(id);
+    if (albumOnlySet && albumOnlySet.has(id)) ensureCodex().box[id] = 1;
     worth += (ITEMS[id].sell || 0) * q;
-  });
+  }
+  if (typeof invalidateInventoryViewCache === 'function') invalidateInventoryViewCache(state);
+  if (isLootNotice && typeof renderLootNotices === 'function') renderLootNotices();
 
   logMsg(`📦 一次開啟 ${opened} 個${def.name}，開出 ${Object.keys(got).length} 種道具（總售價 ${worth.toLocaleString()}z）。`);
   rare.slice(0, 10).forEach(txt => logMsg(txt));
   if (rare.length > 10) logMsg(`　…另外還有 ${rare.length - 10} 件稀有道具。`);
-  if (row.qty > opened) logMsg(`　（一次最多開 ${BOX_OPEN_ALL_MAX} 個，還剩 ${row.qty - opened} 個。）`);
+  const remainingQty = getItemQty(itemId);
+  if (remainingQty > 0) logMsg(`　（還剩 ${remainingQty} 個，會在下一批繼續開啟。）`);
   saveGame();
   return opened;
 }
@@ -15581,28 +15622,33 @@ function runAutoSellNow() {
   return sold;
 }
 function autoSellSelectedItems() {
-  if (!state.autoSellConfig || !state.autoSellConfig.items || state.autoSellConfig.items.length === 0) return false;
-  let soldAny = false;
+  const cfg = state.autoSellConfig;
+  if (!cfg || !Array.isArray(cfg.items) || cfg.items.length === 0 || !Array.isArray(state.inventory)) return false;
+  // 將清單轉 Set，整個背包只掃一次；避免「選了 N 種 × 背包 M 列」的重複 find/filter。
+  const selected = new Set(cfg.items);
+  const kept = [];
   let totalGold = 0;
-  state.autoSellConfig.items.forEach(itemId => {
-    const def = ITEMS[itemId];
-    const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
-    if (!def || !row || row.qty < 1) return;
-    if (def.type === 'relic') return;   // 遺物賣不掉（見 sellItem）
-    if (isItemLocked(itemId)) return;   // 鎖定的道具自動販賣一律跳過
+  let soldCount = 0;
+  const mult = state.shopOverchargeMult || 1;
+  for (const row of state.inventory) {
+    if (!row || row.instanceId || !selected.has(row.item)) { if (row) kept.push(row); continue; }
+    const def = ITEMS[row.item];
+    if (!def || def.type === 'relic' || !(row.qty > 0) || isItemLocked(row.item)) { kept.push(row); continue; }
     const qty = Number(row.qty);
-    const unitPrice = safeSellUnitPrice(def, state.shopOverchargeMult || 1);
-    if (unitPrice === null || !Number.isFinite(qty) || qty < 1) return;
+    const unitPrice = safeSellUnitPrice(def, mult);
+    if (unitPrice === null || !Number.isFinite(qty) || qty < 1) { kept.push(row); continue; }
     const price = unitPrice * Math.floor(qty);
-    if (!Number.isFinite(price)) return;
-    ensureSafeGold();
-    removeItem(itemId, qty);
-    state.gold += price;
+    if (!Number.isFinite(price)) { kept.push(row); continue; }
     totalGold += price;
-    soldAny = true;
-  });
-  if (soldAny) logMsg(`🏷️ 自動販賣賣出了選定道具，獲得 ${totalGold} 鋅幣！`);
-  return soldAny;
+    soldCount++;
+  }
+  if (!soldCount) return false;
+  ensureSafeGold();
+  state.inventory = kept;
+  state.gold += totalGold;
+  if (typeof invalidateInventoryViewCache === 'function') invalidateInventoryViewCache(state);
+  logMsg(`🏷️ 自動販賣賣出了 ${soldCount} 種選定道具，獲得 ${totalGold} 鋅幣！`);
+  return true;
 }
 function tryAutoSell() {
   if (!state.autoSellConfig) state.autoSellConfig = { enabled: false, items: [] };
