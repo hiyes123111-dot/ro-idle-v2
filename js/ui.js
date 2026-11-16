@@ -243,6 +243,8 @@ function renderSlotList() {
 }
 
 function selectSlot(slot) {
+  // 切換存檔格前先把上一個角色的排程存檔寫回原欄位，避免延遲回呼寫錯格。
+  if (typeof flushPendingSave === 'function') flushPendingSave();
   currentSlot = slot;
   if (hasSave()) {
     continueGame();
@@ -253,6 +255,7 @@ function selectSlot(slot) {
 
 function deleteSlotConfirm(slot) {
   if (confirm('確定要刪除欄位 ' + (slot + 1) + ' 的存檔嗎？')) {
+    if (Number(currentSlot) === Number(slot) && typeof flushPendingSave === 'function') flushPendingSave();
     localStorage.removeItem(getSlotKey(slot));
     renderSlotList();
   }
@@ -374,7 +377,11 @@ function selectGender(g) {
 function confirmCreate() {
   const nameInput = document.getElementById('char-name-input');
   const name = (nameInput.value || '').trim().slice(0, 12) || '無名冒險者';
-  createCharacter(name, creationAlloc, selectedGender);
+  const saved = createCharacter(name, creationAlloc, selectedGender);
+  if (saved !== true) {
+    showToast('⚠️ 新角色尚未成功保存，為避免重新整理後角色消失，暫不進入遊戲。請檢查瀏覽器儲存空間後重試。');
+    return;
+  }
   enterGame();
 }
 
@@ -1967,15 +1974,32 @@ function lootEscapeHtml(value) {
 
 // 物品說明是外部資料匯入內容：保留可讀文字與換行，但一律移除 HTML 標籤／超連結，
 // 再跳脫文字，避免背包、倉庫、圖鑑與提示框把資料來源網址渲染成可點擊連結。
+/* 物品說明在背包／倉庫／圖鑑切換時會反覆經過相同的清洗流程。
+   使用有上限的 LRU 快取，只快取純字串輸出，不碰道具資料或存檔。 */
+const ITEM_DESCRIPTION_HTML_CACHE_LIMIT = 1024;
+const _itemDescriptionHtmlCache = new Map();
 function itemDescriptionHtml(value) {
-  let text = String(value == null ? '' : value);
+  const source = String(value == null ? '' : value);
+  if (_itemDescriptionHtmlCache.has(source)) {
+    const cached = _itemDescriptionHtmlCache.get(source);
+    _itemDescriptionHtmlCache.delete(source);
+    _itemDescriptionHtmlCache.set(source, cached);
+    return cached;
+  }
+  let text = source;
   text = text.replace(/<\s*br\s*\/?\s*>/gi, '\n')
     .replace(/<\s*\/\s*p\s*>/gi, '\n')
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'");
-  return lootEscapeHtml(text).replace(/\r?\n/g, '<br>');
+  const result = lootEscapeHtml(text).replace(/\r?\n/g, '<br>');
+  if (_itemDescriptionHtmlCache.size >= ITEM_DESCRIPTION_HTML_CACHE_LIMIT) {
+    const oldest = _itemDescriptionHtmlCache.keys().next().value;
+    _itemDescriptionHtmlCache.delete(oldest);
+  }
+  _itemDescriptionHtmlCache.set(source, result);
+  return result;
 }
 function renderLootNotices() {
   const el = document.getElementById('loot-notice-feed');
@@ -3352,12 +3376,19 @@ let codexFilter = 'all';    // all | found | missing | recent
 let codexSearch = '';
 let codexPage = 0;
 let codexOpenId = null;
-/* 搜尋索引快取：道具／卡片／怪物資料量大，避免每次輸入都重組同一筆完整搜尋字串。 */
-const CODEX_SEARCH_TEXT_CACHE = Object.create(null);
+/* 搜尋索引快取：限制容量，避免長時間掛機或反覆搜尋不同 ID 時無限制累積。
+   LRU 會優先保留最近查詢的資料；只存搜尋字串，不持有 DOM／遊戲物件。 */
+const CODEX_SEARCH_TEXT_CACHE_LIMIT = 4096;
+const CODEX_SEARCH_TEXT_CACHE = new Map();
 function getCodexSearchText(row) {
   const id = row && row.id;
   if (!id) return '';
-  if (CODEX_SEARCH_TEXT_CACHE[id] !== undefined) return CODEX_SEARCH_TEXT_CACHE[id];
+  if (CODEX_SEARCH_TEXT_CACHE.has(id)) {
+    const cached = CODEX_SEARCH_TEXT_CACHE.get(id);
+    CODEX_SEARCH_TEXT_CACHE.delete(id);
+    CODEX_SEARCH_TEXT_CACHE.set(id, cached);
+    return cached;
+  }
   const item = ITEMS[id] || {};
   const card = CARDS[id] || {};
   const monster = MONSTERS[id] || {};
@@ -3367,7 +3398,10 @@ function getCodexSearchText(row) {
     monster.name, monster.searchTerms, monster.race, monster.element,
     id
   ].filter(Boolean).join(' ').toLocaleLowerCase();
-  CODEX_SEARCH_TEXT_CACHE[id] = text;
+  if (CODEX_SEARCH_TEXT_CACHE.size >= CODEX_SEARCH_TEXT_CACHE_LIMIT) {
+    CODEX_SEARCH_TEXT_CACHE.delete(CODEX_SEARCH_TEXT_CACHE.keys().next().value);
+  }
+  CODEX_SEARCH_TEXT_CACHE.set(id, text);
   return text;
 }
 let codexJobFilter = false;  // 只顯示本職業裝得上的裝備
@@ -3657,15 +3691,14 @@ function renderCodexTab() {
      開放的是挑戰入口，不會自動灌滿收藏進度，也不會發放任何道具。 */
   const boxUnlocked = true;
 
-  // 依目前分頁組出清單，並套用搜尋/篩選
-  let rows;
-  // 分類列要顯示**各類的總數**，所以算數量用的是還沒篩過的全表
+  // 依目前分頁組出清單。先以 ID 篩選，再只建立最後需要顯示的 row，
+  // 避免每次輸入搜尋字都為整份萬筆圖鑑配置大量暫存物件。
+  // 分類列要顯示各類總數，因此統計仍使用未篩選的完整 ID 清單。
   const allIds = codexView === 'mon' ? pool.monsters
     : codexView === 'card' ? pool.cards
     /* 卡冊限定卡排最前面：7 張混在 1.2 萬件後面永遠翻不到 */
     : codexView === 'hidden' ? getAlbumOnlyCards().concat(getBoxCodexPool())
     : pool.items;
-  // 近期新增數量以目前完整卡片池動態計算，避免 UI 固定顯示舊數字。
   const recentCardCount = codexView === 'card'
     ? allIds.filter(id => CARDS[id] && CARDS[id].addedVersion).length
     : 0;
@@ -3673,36 +3706,52 @@ function renderCodexTab() {
   let ids = codexCatFilter(allIds);
   const subBar = codexSubBar(ids);
   ids = codexSubFilter(ids);
-  if (codexView === 'mon') {
-    // 怪物圖鑑只依怪物等級由低至高排列；不顯示王國、區域或地圖分組。
-    rows = ids.map(id => {
-      const d = MONSTERS[id] || {};
-      const monsterNameZh = { ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
-      return { id, name: monsterNameZh[id] || d.name || id, found: !!book.seen[id], level: Number(d.level) || 0 };
-    }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
-  } else if (codexView === 'card') {
-    rows = ids.map(id => ({ id, name: (CARDS[id] || ITEMS[id]).name, found: !!book.item[id], recent: !!(CARDS[id] && CARDS[id].addedVersion) }));
-  } else if (codexView === 'hidden') {
-    rows = ids.map(id => ({ id, name: ITEMS[id].name, found: !!(book.box && book.box[id]) }));
-  } else {
-    rows = ids.map(id => ({ id, name: ITEMS[id].name, found: !!book.item[id] }));
-  }
-  if (codexFilter === 'found') rows = rows.filter(r => r.found);
-  else if (codexFilter === 'missing') rows = rows.filter(r => !r.found);
-  else if (codexFilter === 'recent' && codexView === 'card') rows = rows.filter(r => r.recent);
-  /* 搜尋不再限制「已發現」（使用者 2026-08-15 指定全開放）。
-     舊規則是為了不讓玩家用搜尋框偷看還沒遇到的內容，但圖鑑的定位已經
-     從「收集紀錄」改成「查東西在哪打」——查不到還沒發現的東西就等於沒用。 */
-  if (codexSearch) rows = rows.filter(r => getCodexSearchText(r).includes(codexSearch));
 
-  /* 職業篩選（使用者 2026-08-22 指定）：武器/防具分頁可只顯示本職業裝得上的裝備 */
+  const monsterNameZh = { ill_kraken: '深淵海神', ill_abysmal_witch: '深淵女巫', ep18_burning_fang: '燃燒之牙', r001_bestia: 'R001-Bestia' };
+  const getRowName = id => codexView === 'mon'
+    ? (monsterNameZh[id] || (MONSTERS[id] || {}).name || id)
+    : codexView === 'card'
+      ? ((CARDS[id] || ITEMS[id] || {}).name || id)
+      : ((ITEMS[id] || {}).name || id);
+
+  // 收藏狀態、搜尋與職業限制先作用在 ID 陣列，減少中間 row 物件與 GC 壓力。
+  if (codexFilter === 'found') {
+    ids = ids.filter(id => codexView === 'mon' ? !!book.seen[id]
+      : codexView === 'hidden' ? !!(book.box && book.box[id]) : !!book.item[id]);
+  } else if (codexFilter === 'missing') {
+    ids = ids.filter(id => codexView === 'mon' ? !book.seen[id]
+      : codexView === 'hidden' ? !(book.box && book.box[id]) : !book.item[id]);
+  } else if (codexFilter === 'recent' && codexView === 'card') {
+    ids = ids.filter(id => !!(CARDS[id] && CARDS[id].addedVersion));
+  }
+
+  /* 搜尋仍可查詢尚未發現的資料；保留原本名稱、別名、類型與怪物屬性索引。 */
+  if (codexSearch) {
+    ids = ids.filter(id => getCodexSearchText({ id, name: getRowName(id) }).includes(codexSearch));
+  }
+
+  /* 職業篩選只對武器／防具呼叫裝備限制判斷。 */
   if (codexView === 'item' && codexJobFilter) {
-    rows = rows.filter(r => {
-      const d = ITEMS[r.id];
+    ids = ids.filter(id => {
+      const d = ITEMS[id];
       if (!d) return false;
       if (d.type !== 'weapon' && d.type !== 'armor') return true;
-      return !equipBlockReason(r.id);
+      return !equipBlockReason(id);
     });
+  }
+
+  let rows;
+  if (codexView === 'mon') {
+    rows = ids.map(id => {
+      const d = MONSTERS[id] || {};
+      return { id, name: getRowName(id), found: !!book.seen[id], level: Number(d.level) || 0 };
+    }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
+  } else if (codexView === 'card') {
+    rows = ids.map(id => ({ id, name: getRowName(id), found: !!book.item[id], recent: !!(CARDS[id] && CARDS[id].addedVersion) }));
+  } else if (codexView === 'hidden') {
+    rows = ids.map(id => ({ id, name: getRowName(id), found: !!(book.box && book.box[id]) }));
+  } else {
+    rows = ids.map(id => ({ id, name: getRowName(id), found: !!book.item[id] }));
   }
 
   const totalPages = Math.max(1, Math.ceil(rows.length / CODEX_PAGE_SIZE));
@@ -6592,8 +6641,10 @@ document.addEventListener('visibilitychange', () => {
 
 /* ---------------- 手動存檔 ---------------- */
 function manualSave() {
-  saveGame();
-  showToast('💾 已儲存進度');
+  const ok = saveGame();
+  if (ok) showToast('💾 已儲存進度');
+  // 失敗提示由 saveGame() 統一顯示；不可再覆蓋成「已儲存」。
+  return !!ok;
 }
 
 let toastTimer = null;

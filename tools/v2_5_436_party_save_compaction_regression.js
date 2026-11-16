@@ -45,18 +45,22 @@ if (saveStart < 0 || saveEnd < 0) throw new Error('saveGame not found');
 const saveFn = src.slice(saveStart, saveEnd + 2);
 const calls = {toast:[], set:0};
 const saveSandbox = {
-  state: {lastActiveAt:0, mapId:'high_exp_208', allies:[{_allyName:'暗影十字隊友',jobId:'shadow_cross',monsters:[],monster:{id:1}}]}, _allyActing:null, currentSlot:3,
+  state: {name:'隊長',jobId:'shadow_cross',createdAt:123,lastActiveAt:0,mapId:'high_exp_208',
+    hp:100,sp:50,inventory:[],stats:{str:1},equip:{},
+    allies:[{_allyName:'暗影十字隊友',jobId:'shadow_cross',monsters:[],monster:{id:1}}]},
+  _allyActing:null, currentSlot:3, MAX_SLOTS:15,
   getSlotKey:slot=>'slot_'+slot,
-  localStorage:{setItem(){calls.set++; throw Object.assign(new Error('quota'),{name:'QuotaExceededError'});}},
+  localStorage:{setItem(){calls.set++; throw Object.assign(new Error('quota'),{name:'QuotaExceededError'});},getItem(){return null;}},
   showToast:m=>calls.toast.push(m), console:{error(){}}, Date,
 };
 vm.createContext(saveSandbox);
-vm.runInContext('let lastSaveTs=0; let saveFailureNotified=false; '+saveFn+'; globalThis.getSaveFailureNotified=()=>saveFailureNotified;',saveSandbox);
+vm.runInContext('let lastSaveTs=0; let saveFailureNotified=false; let pendingSaveTimer=null; let savePending=false; function clearTimeout(){}; '+saveFn+'; globalThis.getSaveFailureNotified=()=>saveFailureNotified;',saveSandbox);
 saveSandbox.saveGame();
-if (calls.toast.length !== 1 || !calls.toast[0].includes('存檔失敗')) throw new Error('quota failure did not notify user');
+if (calls.toast.length !== 1 || !calls.toast[0].includes('儲存空間不足')) throw new Error('quota failure did not notify user');
 // Simulate successful storage and ensure the warning latch resets.
 let stored = null;
 saveSandbox.localStorage.setItem=(key,value)=>{calls.set++; stored={key,value};};
+saveSandbox.localStorage.getItem=(key)=>stored && stored.key===key ? stored.value : null;
 saveSandbox.saveGame();
 if (saveSandbox.getSaveFailureNotified() !== false) throw new Error('save warning did not reset after success');
 const roundTrip = JSON.parse(stored.value);

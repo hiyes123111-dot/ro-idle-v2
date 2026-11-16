@@ -1,0 +1,13 @@
+const fs=require('fs'); const assert=require('assert');
+const html=fs.readFileSync('index.html','utf8'); const sw=fs.readFileSync('sw.js','utf8');
+const version=fs.readFileSync('VERSION.txt','utf8').trim();
+assert.strictEqual(version,'2.5.441');
+const refs=[...html.matchAll(/[?&]v=(2\.5\.\d+)/g)].map(x=>x[1]);
+assert(refs.length>=50 && refs.every(x=>x===version));
+assert(html.includes("navigator.serviceWorker.register('./sw.js?v=2.5.441'"));
+assert(html.includes("updateViaCache: 'none'") && html.includes('registration.update()'));
+assert(sw.includes('fetch(request, { cache: \'no-store\' })'));
+assert(!/localStorage|indexedDB|caches\.delete|location\.reload/.test(sw));
+console.log('PASS v2.5.441 release version and cache-busting references');
+console.log('PASS service worker update check without clearing player data');
+console.log('2/2 passed');

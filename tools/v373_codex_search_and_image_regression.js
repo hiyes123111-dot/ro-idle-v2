@@ -1,8 +1,9 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
 const root=path.resolve(__dirname,'..');
 const ui=fs.readFileSync(path.join(root,'js/ui.js'),'utf8');
-assert(ui.includes('const CODEX_SEARCH_TEXT_CACHE = Object.create(null);'),'search cache exists');
-const match=ui.match(/const CODEX_SEARCH_TEXT_CACHE = Object\.create\(null\);\s*function getCodexSearchText\(row\) \{[\s\S]*?\n\}/);
+assert(ui.includes('const CODEX_SEARCH_TEXT_CACHE_LIMIT = 4096;'),'search cache has a fixed memory cap');
+assert(ui.includes('const CODEX_SEARCH_TEXT_CACHE = new Map();'),'search cache uses bounded LRU Map');
+const match=ui.match(/const CODEX_SEARCH_TEXT_CACHE_LIMIT = 4096;\s*const CODEX_SEARCH_TEXT_CACHE = new Map\(\);\s*function getCodexSearchText\(row\) \{[\s\S]*?\n\}/);
 assert(match,'search text helper can be isolated');
 const ctx={ITEMS:{sword:{name:'測試武器',searchTerms:'試作 劍',type:'weapon',armorType:'weapon'}},CARDS:{},MONSTERS:{wolf:{name:'灰狼',searchTerms:'森林 狼',race:'animal',element:'earth'}}};
 vm.createContext(ctx);vm.runInContext(match[0],ctx);

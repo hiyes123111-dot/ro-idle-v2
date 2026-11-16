@@ -448,7 +448,7 @@ function createCharacter(name, statAlloc, gender) {
   logMsg(`歡迎，${state.name}！你的冒險即將展開。`);
   logMsg('新手包：獲得紅色藥水 x100、短劍 x1、棉襯衫 x1！');
   spawnMonster();
-  saveGame();
+  return saveGame();
 }
 
 function renameCharacter(newName) {
@@ -8354,12 +8354,23 @@ function codexRecordBoxCardIfAlbumOnly(cardId) {
   if (getAlbumOnlyCards().includes(cardId)) ensureCodex().box[cardId] = 1;
 }
 
-// 可收集清單是靜態資料算出來的，只算一次後快取
+// 可收集清單主要是靜態資料。完整簽章包含大型 ITEMS／CARDS 字典，不能在每次圖鑑重畫時重算。
 let _codexPoolCache = null;
 let _codexPoolSignature = '';
+let _codexPoolSignatureCheckedAt = 0;
+const CODEX_POOL_SIGNATURE_CHECK_MS = 10000;
+function invalidateCodexPoolCache() {
+  _codexPoolCache = null;
+  _codexPoolSignature = '';
+  _codexPoolSignatureCheckedAt = 0;
+}
 function getCodexPool() {
-  // V2／擴充內容會在主資料庫載入後追加地圖與怪物；舊版永久快取會漏掉新怪物及其掉落物。
-  // 快取簽章涵蓋實際 ID／新增版本／掉落內容；只比筆數會漏掉「同筆數替換資料」。
+  // 正常遊玩時資料庫不會逐筆變動；完整內容簽章最多每 10 秒驗證一次。
+  // 資料載入器若在遊戲運行中追加資料，可呼叫 invalidateCodexPoolCache() 立即重建。
+  const now = Date.now();
+  if (_codexPoolCache && now - _codexPoolSignatureCheckedAt < CODEX_POOL_SIGNATURE_CHECK_MS) {
+    return _codexPoolCache;
+  }
   const poolSignature = [
     MAPS.map(m => `${m.id}:${(m.monsters || []).map(x => x.id).join(',')}`).join('|'),
     Object.entries(MONSTERS).map(([id,m]) => `${id}:${(m.drops || []).map(d => d && `${d.item || ''}:${d.chance ?? ''}`).join(',')}`).join('|'),
@@ -8368,6 +8379,7 @@ function getCodexPool() {
     typeof MONSTER_CARD_DROPS !== 'undefined'
       ? Object.entries(MONSTER_CARD_DROPS).map(([k,v]) => `${k}:${v.card}:${v.chance}`).join('|') : ''
   ].join('::');
+  _codexPoolSignatureCheckedAt = now;
   if (_codexPoolCache && _codexPoolSignature === poolSignature) return _codexPoolCache;
   _codexPoolSignature = poolSignature;
   _codexPoolCache = null;
@@ -15778,38 +15790,95 @@ function toggleMvpMode(enabled) {
 /* ---------------- 存讀檔 ---------------- */
 let lastSaveTs = 0;
 let saveFailureNotified = false;
+let pendingSaveTimer = null;
+let savePending = false;
+const SAVE_THROTTLE_MS = 5000;
 function saveGameThrottled() {
-  if (Date.now() - lastSaveTs > 5000) saveGame();
+  if (!state || _allyActing) return false;
+  savePending = true;
+  // 同一個 5 秒窗口內的多次戰鬥／統計更新合併成一次寫入；不反覆重設計時器，避免忙碌時餓死。
+  if (pendingSaveTimer !== null) return true;
+  const delay = Math.max(0, SAVE_THROTTLE_MS - (Date.now() - lastSaveTs));
+  pendingSaveTimer = setTimeout(() => {
+    pendingSaveTimer = null;
+    if (!savePending) return;
+    savePending = false;
+    saveGame();
+  }, delay);
+  return true;
+}
+function flushPendingSave() {
+  if (pendingSaveTimer !== null) {
+    clearTimeout(pendingSaveTimer);
+    pendingSaveTimer = null;
+  }
+  if (!savePending) return true;
+  savePending = false;
+  return saveGame();
+}
+// 手機瀏覽器切換分頁／關閉頁面時，盡可能同步寫入最後一批已排程進度。
+if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+  window.addEventListener('pagehide', flushPendingSave);
 }
 function saveGame() {
-  if (!state) return;
-  /* 換身期間（withAlly）**絕對不能存**（#105）：那時候的 `state` 是隊友快照，
-     存下去等於把玩家的存檔格整個換成隊友——名字、職業、等級、背包全部變成他的。
-
-     `withAlly()` 的註解本來就寫著「不要在 fn 裡呼叫 saveGame()」，但那是靠自律，
-     而隊友跑的是**同一支 `playerAttack()`**：裡面的 `tryAutoSpells()` 打到卡片的
-     自動念咒就會 `castSkill()`，castSkill 尾端有 saveGame()。
-     實測隊友裝一張牛蛙卡（普攻機率放毒刃），普攻五下就把玩家的角色蓋掉了。
-
-     隊友的狀態不會因此漏存：隊友快照住在 `state.allies` 裡，
-     換回玩家之後的任何一次正常存檔都會把它一起寫進去。 */
-  if (_allyActing) return;
+  if (!state) return false;
+  /* withAlly() 期間的 state 是隊友快照，刻意略過；不能寫進玩家存檔格。 */
+  if (_allyActing) return true;
+  if (pendingSaveTimer !== null) {
+    clearTimeout(pendingSaveTimer);
+    pendingSaveTimer = null;
+  }
+  savePending = false;
+  const slot = Number(currentSlot);
+  if (!Number.isInteger(slot) || slot < 0 || slot >= MAX_SLOTS) {
+    console.error('saveGame aborted: invalid slot', currentSlot);
+    if (typeof showToast === 'function') showToast('⚠️ 存檔欄位異常，已停止寫入以保護角色資料。');
+    return false;
+  }
+  const key = getSlotKey(slot);
   try {
     state.lastActiveAt = Date.now();
-    /* 隊友快照跟主角**共用**同一個 state.monsters 陣列（withAlly 塞的），
-       直接序列化會把整場怪重複存兩份，而且讀檔後會變成三份互不相干的場。 */
-    (state.allies || []).forEach(a => { if (a) { a.monsters = null; a.monster = null; } });
-    localStorage.setItem(getSlotKey(currentSlot), JSON.stringify(state));
+    /* 隊友與主角可能共用怪物陣列；序列化副本時才排除重複怪物資料，
+       不直接修改 state.allies，避免存檔副作用污染記憶體中的隊友狀態。 */
+    const snapshot = Object.assign({}, state, {
+      allies: (state.allies || []).map(a => a ? Object.assign({}, a, { monsters: null, monster: null }) : a)
+    });
+    const serialized = JSON.stringify(snapshot);
+    if (typeof serialized !== 'string' || !serialized.length) throw new Error('empty save payload');
+
+    /* 寫入前先確認資料形狀；寫入後立即讀回比對，避免 UI 誤以為角色已保存。 */
+    const check = JSON.parse(serialized);
+    if (!check || typeof check.name !== 'string' || typeof check.jobId !== 'string' ||
+        !check.createdAt || !Array.isArray(check.inventory) || !check.stats || !check.equip) {
+      throw new Error('save payload validation failed');
+    }
+    localStorage.setItem(key, serialized);
+    const persisted = localStorage.getItem(key);
+    if (persisted !== serialized) throw new Error('save read-back verification failed');
+    // serialized 已在寫入前成功 JSON.parse 並通過必要欄位檢查；讀回逐字相同，
+    // 不必再對同一份大型存檔 JSON.parse 第二次。
+    const verified = check;
+    if (verified.name !== state.name || verified.jobId !== state.jobId ||
+        verified.createdAt !== state.createdAt || verified.mapId !== state.mapId) {
+      throw new Error('save identity verification failed');
+    }
     lastSaveTs = Date.now();
     saveFailureNotified = false;
+    return true;
   } catch (e) {
-    /* 儲存失敗不能再靜默略過：若使用者立刻重新整理，會讀回上一份存檔，
-       看起來就像地圖被重設、整隊消失。只提示一次，避免每個 tick 洗版。 */
+    // 儲存空間不足時限制高頻統計的重試頻率；重要操作仍可直接呼叫 saveGame() 重試。
+    lastSaveTs = Date.now();
     if (!saveFailureNotified) {
       saveFailureNotified = true;
-      console.error('saveGame failed; current progress may not be persisted:', e);
-      if (typeof showToast === 'function') showToast('⚠️ 存檔失敗！請先匯出備份，暫勿重新整理。');
+      console.error('saveGame failed; current progress is not confirmed persisted:', e);
+      if (typeof showToast === 'function') {
+        const quota = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
+        showToast(quota
+          ? '⚠️ 儲存空間不足！角色尚未安全保存，請先匯出其他角色備份並釋放空間，勿重新整理。'
+          : '⚠️ 存檔驗證失敗！角色尚未確認保存，請先匯出備份，勿重新整理。');
+      }
     }
+    return false;
   }
 }
 function loadGame() {
@@ -15817,6 +15886,11 @@ function loadGame() {
     const raw = localStorage.getItem(getSlotKey(currentSlot));
     if (!raw) return false;
     state = JSON.parse(raw);
+    if (!state || typeof state !== 'object' || Array.isArray(state) ||
+        typeof state.name !== 'string' || typeof state.jobId !== 'string') return false;
+    // 舊存檔若沒有建立時間，補上穩定識別值，讓後續寫入驗證仍可正常工作。
+    if (!Number.isFinite(Number(state.createdAt)) || Number(state.createdAt) <= 0) state.createdAt = Date.now();
+    if (!Number.isFinite(Number(state.lastActiveAt)) || Number(state.lastActiveAt) <= 0) state.lastActiveAt = state.createdAt;
     // 修復舊版販售 NaN 被 JSON 序列化成 null 的鋅幣存檔。
     if (!Number.isFinite(Number(state.gold)) || Number(state.gold) < 0) state.gold = 0;
     else state.gold = Math.floor(Number(state.gold));
@@ -16721,6 +16795,8 @@ function hasSave() {
 /* 存檔匯入：把外部 JSON 物件寫進指定欄位，並用 loadGame() 的相容性遷移
    驗證過才保留。失敗時把原存檔（若原本有）原封不動還原。 */
 function importSaveToSlot(slot, obj) {
+  // 匯入會暫時切換 currentSlot；先提交舊角色的排程存檔，避免寫入目標欄位。
+  if (typeof flushPendingSave === 'function') flushPendingSave();
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
     return { ok: false, msg: '檔案內容不是有效的存檔物件。' };
   }
@@ -16760,6 +16836,7 @@ function importSaveToSlot(slot, obj) {
   return { ok: true, slot: slot };
 }
 function deleteSave() {
+  if (typeof flushPendingSave === 'function') flushPendingSave();
   localStorage.removeItem(getSlotKey(currentSlot));
 }
 function hasAnySave() {
