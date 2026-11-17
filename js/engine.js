@@ -390,6 +390,8 @@ function createCharacter(name, statAlloc, gender) {
     equippedCards: {}, // 舊版插卡資料（按欄位），僅供遷移讀取，新邏輯一律用 instances
     instances: {},     // { instanceId: {item, refine, cards:[cardId,...]} } 精煉或插卡過的裝備會變成獨立個體，跟著那一件走
     inventory: [],        // [{item:'jellopy', qty:3}]
+    pet: null,             // v2.5.455：目前出門中的寵物（蛋 ID、名稱、飢餓度、親密度）
+    petRecords: {},        // v2.5.464：依寵物蛋 ID 分組、以 petUid 區分個體的培養紀錄
     gold: 50,
     mapId: 'novice_safe',
     monster: null,        // {defId, hp, maxHp} - 保留相容性
@@ -1118,25 +1120,27 @@ function recomputeDerived(fullHeal) {
   //   一般武器：STR + (STR/10)² + DEX/5 + LUK/5
   //   弓系武器：DEX + (DEX/10)² + STR/5 + LUK/5
   // （含職業加成與卡片加成）
-  const cStr = s.str + jobBonus.str + getCardBonus('str') + equippedStatBonus('str') + passiveStrBonus;
-  const cDex = Math.round((s.dex + jobBonus.dex + getCardBonus('dex') + equippedStatBonus('dex') + passiveDexBonus) * (1 + buffStatPct));
-  const cLuk = s.luk + jobBonus.luk + getCardBonus('luk') + equippedStatBonus('luk') + buffLukBonus;
-  const cAgi = Math.round((s.agi + jobBonus.agi + getCardBonus('agi') + equippedStatBonus('agi') + buffAgiBonus) * (1 + buffStatPct));
+  const cStr = s.str + jobBonus.str + getCardBonus('str') + equippedStatBonus('str') + passiveStrBonus + (typeof getPetBonus === 'function' ? getPetBonus('str') : 0);
+  const cDex = Math.round((s.dex + jobBonus.dex + getCardBonus('dex') + equippedStatBonus('dex') + passiveDexBonus + (typeof getPetBonus === 'function' ? getPetBonus('dex') : 0)) * (1 + buffStatPct));
+  const cLuk = s.luk + jobBonus.luk + getCardBonus('luk') + equippedStatBonus('luk') + buffLukBonus + (typeof getPetBonus === 'function' ? getPetBonus('luk') : 0);
+  const cAgi = Math.round((s.agi + jobBonus.agi + getCardBonus('agi') + equippedStatBonus('agi') + buffAgiBonus + (typeof getPetBonus === 'function' ? getPetBonus('agi') : 0)) * (1 + buffStatPct));
   /* VIT 以前**完全沒有接 buff 的固定加成**——因為在 #61 之前沒有任何 buff 加 VIT
      （blessing 是 STR/INT/DEX、agiflat/lukflat 各管一個）。狙殺瞄準的全素質 +5 一來就露餡了。 */
-  const cVit = s.vit + jobBonus.vit + getCardBonus('vit') + equippedStatBonus('vit') + buffFlat.vit;
-  const cInt = s.int + jobBonus.int + getCardBonus('int') + equippedStatBonus('int') + passiveIntBonus;
+  const cVit = s.vit + jobBonus.vit + getCardBonus('vit') + equippedStatBonus('vit') + buffFlat.vit + (typeof getPetBonus === 'function' ? getPetBonus('vit') : 0);
+  const cInt = s.int + jobBonus.int + getCardBonus('int') + equippedStatBonus('int') + passiveIntBonus + (typeof getPetBonus === 'function' ? getPetBonus('int') : 0);
   /* 角色分頁要用的素質明細：base / 職業 / 裝備卡片 / 技能 / buff 各佔多少，
      以及百分比 buff 最後實際加了幾點（四捨五入後的差額，跟戰鬥用的數字一致）。 */
   const STAT_TOTALS = { str: cStr, agi: cAgi, vit: cVit, int: cInt, dex: cDex, luk: cLuk };
   state._statBreakdown = {};
   ['str', 'agi', 'vit', 'int', 'dex', 'luk'].forEach(k => {
     const gear = equippedStatBonus(k) + getCardBonus(k);
-    const flat = s[k] + jobBonus[k] + gear + skillFlat[k] + buffFlat[k];
+    const petV = typeof getPetBonus === 'function' ? getPetBonus(k) : 0;
+    const flat = s[k] + jobBonus[k] + gear + petV + skillFlat[k] + buffFlat[k];
     state._statBreakdown[k] = {
       base: s[k],
       job: jobBonus[k],
       gear,
+      pet: petV,
       skill: skillFlat[k],
       buff: buffFlat[k],
       pct: STAT_TOTALS[k] - flat,          // 心神凝聚之類的 % 加成實際多出來的點數
@@ -1165,22 +1169,22 @@ function recomputeDerived(fullHeal) {
   // 大聲吶喊buff：ATK 固定加成（於狀態ATK算完後直接加）
   let buffAtkFlat = 0;
   state.buffs.forEach(b => { if (b.type === 'flatstat' && b.flatBonus) buffAtkFlat += b.flatBonus; });
-  state.atk += buffAtkFlat;
-  state._atkMastery += buffAtkFlat;
+  state.atk += buffAtkFlat + (typeof getPetBonus === 'function' ? getPetBonus('atk') : 0);
+  state._atkMastery += buffAtkFlat + (typeof getPetBonus === 'function' ? getPetBonus('atk') : 0);
 
   // MATK：區間公式，min = INT+(INT/7)²，max = INT+(INT/5)²，取平均當戰鬥數值
   const traitSplMatk = getCardBonus('spl') * 5 + Math.floor(getCardBonus('con') / 5); // 四轉 SPL + CON：Status MATK
   const matkMinRaw = cInt + Math.floor((cInt / 7) ** 2) + Math.floor(cDex / 5) + traitSplMatk;
   const matkMaxRaw = cInt + Math.floor((cInt / 5) ** 2) + Math.floor(cDex / 5) + Math.floor(cLuk / 3) + traitSplMatk;
-  state.matkMin = Math.round(matkMinRaw * job.matkMod) + equippedMatk();
-  state.matkMax = Math.round(matkMaxRaw * job.matkMod) + equippedMatk();
+  state.matkMin = Math.round(matkMinRaw * job.matkMod) + equippedMatk() + (typeof getPetBonus === 'function' ? getPetBonus('matk') : 0);
+  state.matkMax = Math.round(matkMaxRaw * job.matkMod) + equippedMatk() + (typeof getPetBonus === 'function' ? getPetBonus('matk') : 0);
   state.matk = Math.round((state.matkMin + state.matkMax) / 2);
 
   /* DEF 拆成硬防與軟防，兩者的運算方式完全不同（官方 battle_calc_defense）：
        硬防（裝備DEF）→ 比例減傷 傷害 × (4000+硬防)/(4000+10×硬防)
        軟防（等級+VIT）→ 固定扣血，每一擊各扣一次
      `state.def` 只留給介面顯示（兩者相加），戰鬥一律讀 defHard / defSoft。 */
-  state.defHard = equippedDef();
+  state.defHard = equippedDef() + (typeof getPetBonus === 'function' ? getPetBonus('def') : 0);
   state.defSoft = Math.floor((bl + cVit) / 2);   // 官方 renewal 的怪物軟防公式，玩家沿用同一條
   state.def = state.defHard + state.defSoft;
 
@@ -1214,8 +1218,8 @@ function recomputeDerived(fullHeal) {
   const traitCRT = getCardBonus('crt');
   const traitPOW = getCardBonus('pow');
   const traitSPL = getCardBonus('spl');
-  state.hit = 175 + bl + cDex + traitCON * 2;
-  state.flee = 100 + bl + cAgi + traitCON * 2;
+  state.hit = 175 + bl + cDex + traitCON * 2 + (typeof getPetBonus === 'function' ? getPetBonus('hit') : 0);
+  state.flee = 100 + bl + cAgi + traitCON * 2 + (typeof getPetBonus === 'function' ? getPetBonus('flee') : 0);
 
   // 四轉特性衍生值。保留獨立欄位，供面板、戰鬥公式與後續裝備效果共用。
   state.traitStats = { pow: traitPOW, sta: traitSTA, wis: traitWIS, spl: traitSPL, con: traitCON, crt: traitCRT };
@@ -1234,8 +1238,8 @@ function recomputeDerived(fullHeal) {
   state.sMatk = Math.floor(traitSPL / 3) + Math.floor(traitCON / 5) + getCardBonus('sMatk');
 
   // 完全迴避（無視命中判定）與暴擊率（無視閃避判定）
-  state.perfectDodge = Math.floor(cLuk / 10);
-  state.critRate = Math.min(50, 4 + Math.floor(cLuk / 3));
+  state.perfectDodge = Math.floor(cLuk / 10) + (typeof getPetBonus === 'function' ? getPetBonus('perfectDodge') : 0);
+  state.critRate = Math.min(50, 4 + Math.floor(cLuk / 3) + (typeof getPetBonus === 'function' ? getPetBonus('critRate') : 0));
   // 拳刃：暴擊率加倍（官方特性，也是刺客拿拳刃而不是雙短劍的主要理由）
   state._katarEquipped = isKatarWeapon(getEquipBaseItemId('weapon'));
   if (state._katarEquipped) state.critRate = Math.min(100, state.critRate * KATAR_CRIT_MULT);
@@ -2452,8 +2456,8 @@ function recomputeDerived(fullHeal) {
   state.perfectDodge += getCardBonus('perfectDodge') + equippedStatBonus('perfectDodge')
     + buffMult('perfectdodge').flatBonus;
   // 信任（#66）跟卡片的固定值 HP 走同一行——後面那道 %HP 加成兩者一起吃，官方也是這個順序
-  state.maxHp += getCardBonus('hp') + equippedStatBonus('hp') + (state.skillMaxHpFlat || 0);
-  state.maxSp += getCardBonus('sp') + equippedStatBonus('sp');
+  state.maxHp += getCardBonus('hp') + equippedStatBonus('hp') + (state.skillMaxHpFlat || 0) + (typeof getPetBonus === 'function' ? getPetBonus('hp') : 0);
+  state.maxSp += getCardBonus('sp') + equippedStatBonus('sp') + (typeof getPetBonus === 'function' ? getPetBonus('sp') : 0);
   // 操控樂器／練習舞蹈（#68）的最大SP +N%（被動，跟下面的 buff 版分開算）
   if (state.songMaxSpPct) state.maxSp = Math.round(state.maxSp * (1 + state.songMaxSpPct / 100));
   /* 伊登的蘋果／為您服務（#68）的最大HP・最大SP 百分比。
@@ -2471,11 +2475,11 @@ function recomputeDerived(fullHeal) {
      因此 ATK、HIT、CRI 及未來新增的 HP/MATK/技能傷害等目標都走同一入口。 */
 
   // 卡片加成 — 百分比（負值也要吃，塔奧群卡那種有取捨的卡才成立）
-  const hpPctBonus = getCardBonus('hpPct') / 100;
+  const hpPctBonus = (getCardBonus('hpPct') + (typeof getPetBonus === 'function' ? getPetBonus('hpPct') : 0)) / 100;
   if (hpPctBonus !== 0) {
     state.maxHp = Math.max(1, Math.round(state.maxHp * (1 + hpPctBonus)));
   }
-  const spPctBonus = getCardBonus('spPct') / 100;
+  const spPctBonus = (getCardBonus('spPct') + (typeof getPetBonus === 'function' ? getPetBonus('spPct') : 0)) / 100;
   if (spPctBonus !== 0) {
     state.maxSp = Math.max(1, Math.round(state.maxSp * (1 + spPctBonus)));
   }
@@ -2489,7 +2493,7 @@ function recomputeDerived(fullHeal) {
   /* ATK +N%（#113 遺物）。跟 matkPct 對稱，乘在所有 ATK 來源加完之後。
      **三個桶子要一起乘**：普攻的傷害鏈是分開讀 _atkWeapon / _atkStatus / _atkMastery 的
      （官方的體型與屬性修正只作用在武器 ATK 上），只乘 state.atk 的話普攻完全吃不到。 */
-  const atkPctBonus = getCardBonus('atkPct') / 100;
+  const atkPctBonus = (getCardBonus('atkPct') + (typeof getPetBonus === 'function' ? getPetBonus('atkPct') : 0)) / 100;
   if (atkPctBonus !== 0) {
     const m = 1 + atkPctBonus;
     state._atkWeapon = Math.round(state._atkWeapon * m);
@@ -2497,7 +2501,7 @@ function recomputeDerived(fullHeal) {
     state._atkMastery = Math.round(state._atkMastery * m);
     state.atk = state._atkStatus + state._atkWeapon + state._atkMastery;
   }
-  const matkPctBonus = getCardBonus('matkPct') / 100;
+  const matkPctBonus = (getCardBonus('matkPct') + (typeof getPetBonus === 'function' ? getPetBonus('matkPct') : 0)) / 100;
   const matkBuffMult = buffMult('matk').mult;
   if (matkPctBonus !== 0 || matkBuffMult !== 1) {
     const m = (1 + matkPctBonus) * matkBuffMult;
@@ -7473,6 +7477,7 @@ function playerAttackInner() {
   }
   dmg = absorb.dmg;
   target.hp -= dmg;
+  if (typeof tryPetOutgoingDamageProc === 'function') tryPetOutgoingDamageProc(dmg, 'physical');
   logMsg(`你對 ${monDef.name} 造成 ${dmg} 點傷害${isCrit ? '（暴擊！無視閃避與防禦）' : ''}`);
   if (absorb.reflect > 0) takeReflectDamage(monDef, absorb.reflect);
   applyCardLeech(dmg);
@@ -7493,6 +7498,7 @@ function playerAttackInner() {
     tryAutoSpells('attack', target);
     tryCardSpiritProcs('attack');
     tryItemRecoveryProcs('attack');
+    if (typeof tryPetCatNineTailRecovery === 'function') tryPetCatNineTailRecovery({ ranged:isBowWeapon(getEquipBaseItemId('weapon')), damage:dmg });
     tryAttackBuffs('attack', target);
     tryOnAttackStrikes(target, monDef);  // 傷害增壓／巧打（#58）
     tryEdpProc(target);                  // 致命塗毒（#59）：目標中毒時才觸發
@@ -7924,6 +7930,7 @@ function monsterCastSkillInner(mon, monDef, sk) {
     // 睡眠 ×1.5 與永恆之光 ×2：官方是**最後**的傷害倍率，要在防禦之後乘。
     // 乘在防禦之前的話，軟防那一段是固定減值，會讓實際倍率大於寫出來的數字
     dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), !!sk.magic);
+    if (!sk.magic && el === 'none' && typeof petMarionetteNeutralActive === 'function' && petMarionetteNeutralActive()) dmg = Math.max(1,Math.round(dmg*0.8));
     // 精靈防禦模式：玩家承受怪物技能傷害降低 15%，再進入護盾／免傷結算。
     if (state.elementalSpirit && state.elementalSpirit.mode === 'defensive') dmg = Math.max(1, Math.round(dmg * 0.85));
     dmg = rejectSwordAbsorb(dmg, mon, monDef);  // 霸王魂（#79）
@@ -7941,6 +7948,10 @@ function monsterCastSkillInner(mon, monDef, sk) {
     // 怪物技能（包含魔法與物理技能）也必須經過護盾吸收，讓精靈結界的「抵擋 1 次攻擊」不只對普通攻擊生效。
     dmg = absorbWithShields(state, dmg);
     state.hp -= dmg;
+    if (!sk.magic && dmg > 0 && state.hp > 0 && typeof tryPetOnPhysicalDamageTaken === 'function') {
+      tryPetOnPhysicalDamageTaken(dmg, { ranged:false, kind:'skill' });
+      if (typeof tryPetMarionetteProc === 'function') tryPetMarionetteProc(dmg, { kind:'skill', element:el });
+    }
     logMsg(`✨ ${nameOf()} 造成了 ${dmg} 點傷害！`);
     if (typeof showPlayerFloat === 'function') showPlayerFloat('-' + dmg, 'normal');
     playerAilBreakOnDamage();
@@ -8222,6 +8233,7 @@ function monsterAttackSingle(mon) {
      會讓實際倍率大於寫出來的數字（實測 ×2 會變成 ×2.5）。 */
   raw = applyDKTwoHandDefense(raw, monDef);
   let dmg = applyTraitResistance(Math.max(1, Math.round(mitigatePlayerIncoming(raw, hardDef, softDef) * playerDmgTakenMult())), false);
+  if (monAtkElement === 'none' && typeof petMarionetteNeutralActive === 'function' && petMarionetteNeutralActive()) dmg = Math.max(1,Math.round(dmg*0.8));
   // 精靈防禦模式同樣減免怪物普通攻擊，與技能傷害使用一致的 15% 比例。
   if (state.elementalSpirit && state.elementalSpirit.mode === 'defensive') dmg = Math.max(1, Math.round(dmg * 0.85));
   dmg = rejectSwordAbsorb(dmg, mon, monDef);    // 霸王魂（#79）
@@ -8237,6 +8249,10 @@ function monsterAttackSingle(mon) {
   // 護盾（霸邪之陣/暗之障壁）：吸收近距離物理傷害，直到耐久或次數耗盡
   dmg = absorbWithShields(state, dmg);
   state.hp -= dmg;
+  if (dmg > 0 && state.hp > 0 && typeof tryPetOnPhysicalDamageTaken === 'function') {
+    tryPetOnPhysicalDamageTaken(dmg, { ranged:!!rangedBasicAttack, kind:'basic' });
+    if (typeof tryPetMarionetteProc === 'function') tryPetMarionetteProc(dmg, { kind:'basic', element:monAtkElement });
+  }
   // 同上：睡眠「被打就醒」以前也只寫在技能那條路徑，普攻打不醒
   playerAilBreakOnDamage();
   pDebuffConsumeOnce('dmgTakenPct');
@@ -11101,6 +11117,7 @@ function castSkillInner(skillId, opts) {
         ...defOf(def, 1, useMag, target)) + raceFlatBonus(def) + faExtraFlat;
       const dkChargeBurst = dkChargingDamageMult(sk.id) > 1;
       target.hp -= dmg;
+      if (typeof tryPetOutgoingDamageProc === 'function') tryPetOutgoingDamageProc(dmg, useMag ? 'magic' : 'physical');
       if (dkChargeBurst && state.dkChargingPierce) { state.dkChargingPierce.stacks = 0; state.dkChargingPierce.lastChargeAt = 0; logMsg('⚡ 充能貫穿滿層爆發！蓄力已消耗。'); }
       else dkRecordChargingSkill(sk.id);
       if (sk.requiresSpirit) logMsg(`✨ 精靈激發以${ELEMENT_NAMES[skElement] || ''}屬性發動！`);
@@ -11114,6 +11131,7 @@ function castSkillInner(skillId, opts) {
       if (useMag) { tryCardAilments('magic', target); tryAttackBuffs('magic', target); }
       if (useMag) { tryAutoSpells('magic', target); tryItemRecoveryProcs('magic'); }
       else tryItemRecoveryProcs('attack');
+      if (!useMag && sk.rangeType !== 'ranged' && typeof tryPetCatNineTailRecovery === 'function') tryPetCatNineTailRecovery({ ranged:false, damage:dmg });
       // 冰凍術/石化術：魔法傷害命中會提前喚醒被反制暈眩的目標
       if (sk.type === 'magic') wakeIfFrozen(target);
       // 雷鳴術：命中必定使目標暈眩
@@ -11223,6 +11241,8 @@ function castSkillInner(skillId, opts) {
         if (sk.id === 'blitzbeat' && state.falconFlatBonus) dmg += state.falconFlatBonus;
         if (dmg > aoeTopDmg) aoeTopDmg = dmg;
         mon.hp -= dmg;
+        if (!useMag && sk.rangeType !== 'ranged' && typeof tryPetCatNineTailRecovery === 'function') tryPetCatNineTailRecovery({ ranged:false, damage:dmg });
+        if (typeof tryPetOutgoingDamageProc === 'function') tryPetOutgoingDamageProc(dmg, useMag ? 'magic' : 'physical');
         ailBreakOnDamage(mon, monDef);   // 睡眠被打就醒
         if (useMag) { tryCardAilments('magic', mon); tryAttackBuffs('magic', mon); }
       if (useMag) { tryAutoSpells('magic', mon); tryItemRecoveryProcs('magic'); }
@@ -13513,6 +13533,7 @@ function openAllBoxes(itemId, maxCount, cachedAlbumOnlySet) {
 }
 
 function useItem(itemId) {
+  if (typeof usePetItem === 'function' && usePetItem(itemId)) return true;
   const def = ITEMS[itemId];
   const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
   if (!def || !row) return false;
@@ -15984,6 +16005,52 @@ function loadGame() {
       delete a.offlineLog;
       delete a.lootNotices;
     });
+    // v2.5.464：寵物個體資料遷移。舊版每種蛋只有一筆物件，轉為陣列；
+    // 新版以 petUid 區分同種類的不同寵物，不刪除有效培養紀錄。
+    if (state.pet && (typeof state.pet !== 'object' || !ITEMS[state.pet.eggId])) state.pet = null;
+    if (!state.petRecords || typeof state.petRecords !== 'object' || Array.isArray(state.petRecords)) state.petRecords = {};
+    Object.keys(state.petRecords).forEach(eggId => {
+      if (!ITEMS[eggId]) { delete state.petRecords[eggId]; return; }
+      const raw = state.petRecords[eggId];
+      const rows = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? [raw] : []);
+      const seen = new Set();
+      const normalized = [];
+      rows.forEach((r, index) => {
+        if (!r || typeof r !== 'object' || (r.eggId && r.eggId !== eggId)) return;
+        const rec = Object.assign({}, r);
+        rec.eggId = eggId;
+        rec.petUid = String(rec.petUid || `pet-${eggId}-${index + 1}-${Number(rec.lastCareAt) || 0}`);
+        if (seen.has(rec.petUid)) rec.petUid += `-${index + 1}`;
+        seen.add(rec.petUid);
+        const intimacy = Number(rec.intimacy), hunger = Number(rec.hunger);
+        rec.intimacy = Math.max(0, Math.min(1000, Number.isFinite(intimacy) ? intimacy : 250));
+        rec.hunger = Math.max(0, Math.min(100, Number.isFinite(hunger) ? hunger : 100));
+        rec.name = String(rec.name || ITEMS[eggId].name || eggId).slice(0, 24);
+        rec.named = !!rec.named;
+        rec.autoFeed = !!rec.autoFeed;
+        rec.autoBuyReserve = Math.max(0, Math.min(100000000, Number(rec.autoBuyReserve ?? 10000) || 0));
+        rec.lastCareAt = Date.now(); // 收回中的寵物暫停照護計時
+        normalized.push(rec);
+      });
+      if (normalized.length) state.petRecords[eggId] = normalized;
+      else delete state.petRecords[eggId];
+    });
+    if (state.pet) {
+      const petIntimacy = Number(state.pet.intimacy), petHunger = Number(state.pet.hunger);
+      state.pet.intimacy = Math.max(0, Math.min(1000, Number.isFinite(petIntimacy) ? petIntimacy : 250));
+      state.pet.hunger = Math.max(0, Math.min(100, Number.isFinite(petHunger) ? petHunger : 100));
+      state.pet.lastCareAt = Number(state.pet.lastCareAt) || Date.now();
+      state.pet.named = !!state.pet.named;
+      const rows = state.petRecords[state.pet.eggId] || (state.petRecords[state.pet.eggId] = []);
+      // v2.5.463 had the same active pet copied into petRecords without UID;
+      // reuse that migrated profile's UID instead of creating a duplicate.
+      if (!state.pet.petUid) {
+        const matching = rows.find(r => r && r.name === state.pet.name && Number(r.intimacy) === Number(state.pet.intimacy) && Number(r.hunger) === Number(state.pet.hunger));
+        state.pet.petUid = matching ? matching.petUid : `pet-${state.pet.eggId}-active-${Date.now()}`;
+      }
+      state.pet.petUid = String(state.pet.petUid);
+      if (!rows.some(r => r.petUid === state.pet.petUid)) rows.push(Object.assign({}, state.pet, { lastCareAt:Date.now() }));
+    }
     if (typeof state.autoBuyReviveLeaf !== 'boolean') state.autoBuyReviveLeaf = true;
     if (typeof state.autoReviveAlly !== 'boolean') state.autoReviveAlly = true;
     if (!state.allyPotion) state.allyPotion = { enabled: true, primary: '', fallback: ALLY_POTION_FALLBACK, hpThreshold: 50 };

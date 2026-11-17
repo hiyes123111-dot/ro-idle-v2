@@ -1,0 +1,22 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const version = fs.readFileSync(path.join(root, 'VERSION.txt'), 'utf8').trim();
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+const expected = '2.5.459';
+function check(ok, message) { if (!ok) throw new Error('FAIL: ' + message); }
+check(version === 'v' + expected, 'VERSION.txt must match release');
+check(html.includes('js/v2_5_459_pet_proc_completion.js?v=' + expected), 'v459 script must be loaded with matching query version');
+check(!/src="[^"]+\.js\?v=2\.5\.458"/.test(html), 'index.html must not load stale v458 JS');
+check(!/href="[^"]+\.css\?v=2\.5\.458"/.test(html), 'index.html must not load stale v458 CSS');
+check(html.includes("sw.js?v=" + expected), 'service worker registration URL must match release');
+check(sw.includes('ro-idle-runtime-v' + expected), 'runtime cache name must match release');
+check(sw.includes('諸神放置錄 v' + expected), 'service worker header must match release');
+check(changelog.startsWith('## v' + expected), 'changelog must start with current release');
+check(readme.startsWith('## v' + expected), 'README must start with current release');
+check(fs.existsSync(path.join(root, 'docs/pet-audit-v2.5.459.md')), 'release audit must exist');
+check(fs.existsSync(path.join(root, 'tests/test_pet459_pet_proc_completion.js')), 'release test must exist');
+console.log('v2.5.459 release/cache consistency checks passed (11).');

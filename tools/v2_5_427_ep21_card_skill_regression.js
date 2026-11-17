@@ -22,7 +22,7 @@ const cardSkills={
  ep21_lora_card:['v25_abyss_chaser_10','v25_abyss_chaser_11'],
  ep21_aurely_card:['v25_arch_mage_3','v25_arch_mage_6'],
  ep21_ylze_card:['v25_element_master_6','v25_element_master_8'],
- ep21_epesto_card:['v25_windhawk_progressive_shot','wh_wild_walk'],
+ ep21_epesto_card:['v25_windhawk_progressive_shot','sn_sharpshooting'],
  ep21_mary_stella_card:['v25_troubadour_14','v25_troubadour_15'],
  ep21_lee_card:['v25_arch_mage_20','v25_arch_mage_21']
 };

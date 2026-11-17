@@ -1653,8 +1653,8 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 }
 
 /* ---------------- 背包四分類 ---------------- */
-.inv-cats { display: flex; gap: 5px; margin-bottom: 8px; }
-.inv-cats .btn-small { flex: 1; padding: 7px 4px; font-size: 12px; }
+.inv-cats { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.inv-cats .btn-small { flex: 1 1 calc(25% - 5px); min-width: 0; padding: 7px 4px; font-size: 12px; }
 .inv-cats .btn-small.active { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
 .inv-cat-n { opacity: .7; font-size: 10px; font-variant-numeric: tabular-nums; }
 
@@ -2073,3 +2073,12 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
 .ab-proc-table th,.ab-proc-table td{padding:7px 8px;border-bottom:1px solid var(--border-color,rgba(128,128,128,.22));text-align:center;white-space:nowrap}
 .ab-proc-table th:first-child,.ab-proc-table td:first-child{text-align:left}
 .ab-proc-table td small{display:block;color:var(--text-muted,#888);font-size:.72rem;margin-top:2px}
+
+
+/* v2.5.477：寵物圖鑑／個體列的窄螢幕操作區，避免手機上按鈕擠壓文字。 */
+@media (max-width: 640px) {
+  .pet-codex-row { grid-template-columns: minmax(0, 1fr) !important; }
+  .pet-codex-row > div:last-child { min-width: 0; width: 100%; }
+  .pet-instance-row { align-items: stretch !important; }
+  .pet-instance-row button { width: 100%; min-height: 40px; }
+}

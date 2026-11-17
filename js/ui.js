@@ -857,6 +857,7 @@ function switchTab(name) {
   if (name === 'skills') renderSkillsTab();
   if (name === 'equip') renderEquipTab();
   if (name === 'inventory') renderInventoryTab();
+  if (name === 'pet' && typeof renderPetCenter === 'function') renderPetCenter();
   if (name === 'jobtree') renderJobTree();
   if (name === 'character') renderCharacterTab();
   if (name === 'codex') renderCodexTab();
@@ -3854,8 +3855,11 @@ function codexItemCell(r, book) {
   // 避免名稱解析器失效時退回英文 item ID。
   const displayName = r.name || (cardDef && cardDef.name) || d.name ||
     (typeof window.getItemDisplayName === 'function' ? window.getItemDisplayName(r.id) : '') || r.id;
+  // 卡片是獨立圖檔資源，不可用一般道具 itemImgSrc()；否則圖鑑卡片格會請求錯誤路徑。
+  const cellImage = cardDef ? cardArtSrc(r.id) : itemImgSrc(r.id);
+  const cellFallback = placeholderImgSrc(cardDef ? 'card' : itemPlaceholderKind(d));
   return `<div class="codex-cell ${codexOpenId === r.id ? 'open' : ''} ${got ? '' : 'unfound'}" onclick="toggleCodexDetail('${r.id}')">
-    <img class="codex-icon" src="${itemImgSrc(r.id)}" alt="${displayName}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+    <img class="codex-icon" src="${cellImage}" alt="${displayName}" onerror="this.onerror=null;this.src='${cellFallback}'">
     <div class="codex-cell-name">${displayName}${(cardDef || d).addedVersion ? ` <span style="display:inline-block;margin-left:3px;padding:1px 4px;border:1px solid #d8b34a;border-radius:5px;color:#f2cf65;font-size:10px;white-space:nowrap;">新 ${(cardDef || d).addedVersion.replace('v2.5.','')}</span>` : ''}</div>
     <div class="codex-cell-sub">${sub}</div>
     <div class="codex-cell-count ${got ? '' : 'zero'}">${got ? '×' + got : '未取得'}</div>
@@ -4023,7 +4027,7 @@ function renderCodexDetail(id) {
       const cname = (CARDS[cd.card] || ITEMS[cd.card]).name;
       const got = book.item[cd.card] || 0;
       cardRow = `<div class="codex-drop card ${got ? 'got' : ''}">
-        <img src="${itemImgSrc(cd.card)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('item')}'">
+        <img src="${cardArtSrc(cd.card)}" onerror="this.onerror=null;this.src='${placeholderImgSrc('card')}'">
         <span class="codex-drop-name">🃏 ${cname}</span>
         <span class="codex-drop-rate">${(cd.chance * 100).toFixed(2)}%</span>
         <span class="codex-drop-got">${got ? '✔ ×' + got : '—'}</span>
@@ -4157,7 +4161,7 @@ function renderCodexDetail(id) {
   const illustration = card
     ? `<div class="codex-card-art">
          <img src="${cardArtSrc(id)}" alt="${d.name}" loading="lazy"
-              onerror="this.closest('.codex-card-art').style.display='none'">
+              onerror="this.onerror=null;this.src='${placeholderImgSrc('card')}'">
        </div>`
     : '';
   // 解析不出來的原始效果文字：老實標成未實裝，不讓玩家誤以為有作用
@@ -4172,7 +4176,7 @@ function renderCodexDetail(id) {
   return `<div class="codex-detail">
     <button class="codex-detail-close" onclick="toggleCodexDetail('${id}')">✕</button>
     <div class="codex-detail-head">
-      <img class="codex-detail-icon" src="${itemImgSrc(id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(itemPlaceholderKind(d))}'">
+      <img class="codex-detail-icon" src="${card ? cardArtSrc(id) : itemImgSrc(id)}" onerror="this.onerror=null;this.src='${placeholderImgSrc(card ? 'card' : itemPlaceholderKind(d))}'">
       <div>
         <div class="codex-detail-name">${(card && card.name) || d.name || (typeof window.getItemDisplayName === 'function' ? window.getItemDisplayName(id) : id)}</div>
         <div class="codex-detail-tags">
@@ -4203,7 +4207,7 @@ const CARD_BONUS_LABELS = {
   critRate: '暴擊率', perfectDodge: '完全迴避', hp: 'MaxHP', sp: 'MaxSP',
   hpPct: 'MaxHP', spPct: 'MaxSP', matkPct: 'MATK', hpRegenPct: 'HP恢復力', spRegenPct: 'SP恢復力',
   allStat: '全素質', aspdPct: '攻擊速度', aspdFlat: 'ASPD', critDmgPct: '暴擊傷害',
-  bossDmgPct: '對首領類傷害', allTargetDmgPct: '物理傷害', rangedDmgPct: '遠距離傷害',
+  bossDmgPct: '對首領類傷害', allTargetDmgPct: '物理傷害', meleeDmgPct: '近距離物理傷害', rangedDmgPct: '遠距離物理傷害',
   rangedDmgTakenPct: '受遠距離傷害', bossDmgTakenPct: '受首領類傷害',
   normalDmgTakenPct: '受一般魔物傷害', spCostPct: '技能SP消耗', defPct: 'DEF',
   rangedCritRate: '遠距離攻擊暴擊率',
@@ -4219,7 +4223,7 @@ function cardArtSrc(cardId) {
 /* 百分比型的加成鍵，顯示時要帶 % */
 const CARD_PCT_KEYS = [
   'hpPct', 'spPct', 'hpRegenPct', 'spRegenPct', 'aspdPct', 'skillAfterDelayPct', 'critDmgPct',
-  'bossDmgPct', 'allTargetDmgPct', 'rangedDmgPct', 'rangedDmgTakenPct',
+  'bossDmgPct', 'allTargetDmgPct', 'meleeDmgPct', 'rangedDmgPct', 'rangedDmgTakenPct',
   'bossDmgTakenPct', 'normalDmgTakenPct', 'spCostPct', 'defPct', 'matkPct',
   'expAllPct', 'dropPct'
 ];
@@ -4333,6 +4337,13 @@ function formatCardBonus(k, v, all) {
   }
   // 搭配指定裝備後，依「該裝備」精煉等級累加的效果。
   // 例如耶斯卡夫 EP21 卡片：A階級頭冠+10後，頭冠每精煉+1，指定技能傷害+12%。
+  // 卡片自身精煉每 N 階累加的條件效果；避免把 per2Refine_* 原始欄位直接顯示給玩家。
+  const cardRefine = /^per([1-5])Refine_(.+)$/.exec(k);
+  if (cardRefine) {
+    const step = Math.max(1, Number(cardRefine[1]) || 1);
+    const innerKey = cardRefine[2];
+    return `每精煉 +${step}，${formatCardBonus(innerKey, v, all) || innerKey}`;
+  }
   const itemRefine = /^perItem(\\d+)Refine_(.+)$/.exec(k);
   if (itemRefine) {
     const step = Math.max(1, Number(itemRefine[1]) || 1);
@@ -4417,6 +4428,26 @@ function formatCardBonus(k, v, all) {
    type 是 material，跟 900 多個素材混在一起會完全找不到。
    分類與子分類全部讀既有欄位（type / weaponType / armorType / CARDS.slot），不需要改資料。
 ------------------------------------------------- */
+/* 附魔／寵物是跨素材與消耗品的用途分類，獨立成背包欄位；
+   只建立檢視分類，不改道具 ID、數量、存檔結構或原本使用流程。 */
+function isPetUseInventoryItem(itemId) {
+  const d = ITEMS[itemId] || {};
+  const id = String(itemId || '').toLowerCase();
+  const name = String(d.name || '');
+  const desc = String(d.desc || '');
+  return /寵物|孵蛋|捕捉/.test(name + ' ' + desc) ||
+    /(^pet_|_egg$|_pet_coupon$|^captured_|^pet_incubator$)/.test(id);
+}
+function isEnchantUseInventoryItem(itemId) {
+  const d = ITEMS[itemId] || {};
+  if (!['material', 'consumable'].includes(d.type)) return false;
+  const id = String(itemId || '').toLowerCase();
+  const name = String(d.name || '');
+  const desc = String(d.desc || '');
+  return /附魔|魔石|魔神的(武力|智慧|速度|體力|集中|幸運)精髓|改造模組|魔力原石/.test(name) ||
+    /(^reactor_|^ice_f_stone|^snow_f_stone|^gear_|_enchant$|^enchant_|^hero_enchant|^stone_for_work$|^stoneforwork$|^etel_stone$|^timeoverload_power)/.test(id) ||
+    /附魔材料|附魔石|附魔票/.test(desc);
+}
 const INV_CATEGORIES = [
   { key: 'weapon', name: '武器', icon: '⚔️' },
   { key: 'armor',  name: '防具', icon: '🛡️' },
@@ -4424,6 +4455,8 @@ const INV_CATEGORIES = [
   /* 遺物自成一類（#115）：48 件混在「道具」裡跟藥水、素材擠在一起找不到，
      而倉庫是玩家保護遺物不被換券吃掉的唯一手段，得先找得到才行 */
   { key: 'relic',  name: '遺物', icon: '🏺' },
+  { key: 'enchant', name: '附魔使用', icon: '✨' },
+  { key: 'pet', name: '寵物使用', icon: '🐾' },
   { key: 'item',   name: '道具', icon: '🎒' }
 ];
 const WEAPON_TYPE_LABELS = {
@@ -4446,6 +4479,9 @@ let invSort = 'name';      // name | qty | value
 let invQuickFilter = 'all'; // 道具快速篩選
 
 function invCategoryOf(itemId) {
+  // 用途分類優先於原始 type，讓寵物蛋、附魔石等跨素材／消耗品道具能集中顯示。
+  if (isPetUseInventoryItem(itemId)) return 'pet';
+  if (isEnchantUseInventoryItem(itemId)) return 'enchant';
   if (CARDS[itemId]) return 'card';
   const d = ITEMS[itemId];
   if (!d) return 'item';
@@ -4473,6 +4509,7 @@ function invSubOf(itemId) {
   }
   if (cat === 'card') return (CARDS[itemId].slot || 'any');
   if (cat === 'relic') return d.relicSet || 'other';   // 遺物照套裝分（#115）
+  if (cat === 'enchant' || cat === 'pet') return 'all';
   return d.type || 'etc';
 }
 function invSubLabel(cat, sub) {
@@ -4480,6 +4517,8 @@ function invSubLabel(cat, sub) {
   if (cat === 'armor') return ARMOR_TYPE_LABELS[sub] || '其他';
   if (cat === 'card') return CARD_SLOT_LABELS[sub] || sub;
   if (cat === 'relic') return (RELIC_SETS[sub] && RELIC_SETS[sub].name) || sub;
+  if (cat === 'enchant') return '附魔道具';
+  if (cat === 'pet') return '寵物道具';
   return ITEM_SUBTYPE_LABELS[sub] || sub;
 }
 
@@ -5567,7 +5606,6 @@ function renderInventoryTab() {
       ['usable','用得到的',getInventoryCachedRows(state.inventory,'item','all','usable','','none').length],
       ['no_effect','吃了沒效果',getInventoryCachedRows(state.inventory,'item','all','no_effect','','none').length],
       ['unopened','打不開的箱子',getInventoryCachedRows(state.inventory,'item','all','unopened','','none').length],
-      ['pet','寵物相關',getInventoryCachedRows(state.inventory,'item','all','pet','','none').length],
       ['ammo','箭矢',getInventoryCachedRows(state.inventory,'item','all','ammo','','none').length]
     ] : [];
     const quickFilterHtml = quickFilters.length > 0 ? `<div class="inv-subs inv-quick-filters">
@@ -5657,6 +5695,7 @@ function renderInventoryTab() {
               + (times > 1 ? `<button class="btn-small" onclick="synthesizeOreAll('${k}');renderInventoryTab();renderTopBar();"
                 title="湊得滿的 ${times} 份一次合成完，除不盡的留在背包">全部合成(${times})</button>` : '');
           })()}
+          ${typeof petItemActionLabel === 'function' && petItemActionLabel(row.item) ? `<button class="btn-small" onclick="usePetItem('${row.item}');renderInventoryTab();renderTopBar();">${petItemActionLabel(row.item)}</button>` : ''}
           ${canUse ? `<button class="btn-small" onclick="useItem('${row.item}');renderInventoryTab();">${def.type === 'consumable' ? '使用' : '裝備'}</button>` : ''}
           ${def.boxOpen && row.qty > 1 ? `<button class="btn-small" onclick="openAllBoxesAsync('${row.item}', function(){renderInventoryTab();renderTopBar();});" title="手上這 ${row.qty} 個分批開啟，每批 25 個，降低手機卡頓">全部開啟(${row.qty})</button>` : ''}
           ${!locked && def.type !== 'relic' && def.sell > 0 ? `<button class="btn-small ghost" onclick="toggleInventoryAutoSell('${row.item}')">${(state.autoSellConfig && state.autoSellConfig.items || []).includes(row.item) ? '✓ 自動賣出' : '加入自動賣出'}</button>` : ''}
@@ -5724,7 +5763,8 @@ function renderInventoryTab() {
       <button class="btn-small" onclick="showAutoSellWindow()">設定自動販賣</button>
     </div>`;
 
-    el.innerHTML = `${vendingHtml}${craftingHtml}${warehouseHtml}${autoSellHtml}`
+    const petPanelHtml = invCategory === 'pet' && typeof renderPetPanel === 'function' ? renderPetPanel() : '';
+    el.innerHTML = `${vendingHtml}${craftingHtml}${warehouseHtml}${autoSellHtml}${petPanelHtml}`
       + `<h3 class="panel-title">背包（${known.length}）</h3>${invHtml}`;
   } catch (e) {
     el.innerHTML = `<div class="empty-hint">背包載入錯誤：${e.message}</div>`;
@@ -5958,6 +5998,7 @@ function renderCharacterTab() {
         // 技能／buff 那兩段同理：鶚梟之眼的 DEX+10、心神凝聚的 DEX/AGI% 本來也算進去了，
         // 只是畫面上完全沒有數字，看起來就像技能沒效果
         const bd = (state._statBreakdown && state._statBreakdown[k]) || null;
+        const petV = bd ? (bd.pet || 0) : 0;
         const skillV = bd ? bd.skill : 0;
         const buffV = bd ? bd.buff : 0;
         const pctV = bd ? bd.pct : 0;
@@ -5967,6 +6008,7 @@ function renderCharacterTab() {
           <div class="stat-value"><span class="stat-seg" title="基礎值（已分配的屬性點）">${state.stats[k]}</span>${
             bonus > 0 ? `<span class="stat-seg" style="color:#4fc3f7" title="${statJobSourceTitle(k, bonus)}">+${bonus}</span>` : ''}${
             gear !== 0 ? `<span class="stat-seg" style="color:var(--gold-soft)" title="${statGearSourceTitle(k)}">${gear > 0 ? '+' : ''}${gear}</span>` : ''}${
+            petV !== 0 ? `<span class="stat-seg" style="color:#80cbc4" title="寵物加成">${petV > 0 ? '+' : ''}${petV}</span>` : ''}${
             skillV !== 0 ? `<span class="stat-seg" style="color:#a5d6a7" title="${statListTitle('技能加成　合計 ' + (skillV > 0 ? '+' : '') + skillV, bd.skillSrc)}">${skillV > 0 ? '+' : ''}${skillV}</span>` : ''}${
             buffV !== 0 ? `<span class="stat-seg" style="color:#ffb74d" title="${statListTitle('BUFF 加成　合計 ' + (buffV > 0 ? '+' : '') + buffV, bd.buffSrc)}">${buffV > 0 ? '+' : ''}${buffV}</span>` : ''}${
             pctV !== 0 ? `<span class="stat-seg" style="color:#ce93d8" title="${statPctTitle(bd.pctSrc, pctV)}">${pctV > 0 ? '+' : ''}${pctV}</span>` : ''}</div>
@@ -6023,6 +6065,7 @@ function renderCharacterTab() {
       <div title="四轉特性衍生值：POW 每3點+1 P.ATK；SPL 每3點+1 S.MATK；CON 每5點各+1 P.ATK、S.MATK；STA/WIS 分別增加 RES/MRES；CRT 增加 H.PLUS 與 C.RATE。">四轉衍生：RES ${state.res || 0}　MRES ${state.mres || 0}　H.PLUS ${state.hPlus || 0}　C.RATE ${state.cRate || 0}　P.ATK ${state.pAtk || 0}　S.MATK ${state.sMatk || 0}</div>
     </div>
     ${setListHtml}
+    ${typeof renderPetStatusSummary === 'function' ? renderPetStatusSummary() : ''}
     ${buffListHtml}
     <div class="derived-grid">
       <div>物理攻擊 ATK：${state.atk}${(() => { const r = getRefinementLevel('weapon'); const wId = getEquipBaseItemId('weapon'); const wLv = wId ? getRefineWeaponLv(ITEMS[wId]) : 1; return r > 0 ? ` (+${getRefinementAtkBonus(r, wLv)}精煉)` : ''; })()}</div>
