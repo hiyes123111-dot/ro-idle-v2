@@ -110,9 +110,9 @@ check('other pets cannot use Tamadora auto-heal', () => casts.length === 4);
 const index = fs.readFileSync(__dirname + '/../index.html','utf8');
 const sw = fs.readFileSync(__dirname + '/../sw.js','utf8');
 const version = fs.readFileSync(__dirname + '/../VERSION.txt','utf8').trim();
-check('version marker is 2.5.479', () => version === 'v2.5.479');
-check('new runtime script is loaded with matching cache version', () => index.includes('v2_5_460_tamadora_auto_heal.js?v=2.5.479'));
+check('version marker is 2.5.481', () => version === 'v2.5.481');
+check('new runtime script is loaded with matching cache version', () => index.includes('v2_5_460_tamadora_auto_heal.js?v=2.5.481'));
 check('HTML asset query versions are consistent', () => !/\\?v=2\\.5\\.(?!466)[^"']+/.test(index));
-check('Service Worker runtime cache matches release', () => sw.includes('ro-idle-runtime-v2.5.479'));
+check('Service Worker runtime cache matches release', () => sw.includes('ro-idle-runtime-v2.5.481'));
 
 console.log(`v2.5.460 Tamadora auto-heal checks passed (${checks.length}):\n- `+checks.join('\n- '));

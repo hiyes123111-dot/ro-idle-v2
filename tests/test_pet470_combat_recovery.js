@@ -114,8 +114,8 @@ check('Returning the pet removes healing and regeneration bonuses',()=>Object.ke
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 const version=fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim();
-check('v2.5.479 runtime module and cache version are synchronized',()=>version==='v2.5.479'&&index.includes('v2_5_470_pet_combat_recovery.js?v=2.5.479')&&sw.includes('ro-idle-runtime-v2.5.479'));
+check('v2.5.481 runtime module and cache version are synchronized',()=>version==='v2.5.481'&&index.includes('v2_5_470_pet_combat_recovery.js?v=2.5.481')&&sw.includes('ro-idle-runtime-v2.5.481'));
 check('variable cast and skill-after-delay systems remain untouched',()=>!index.includes('v2_5_470_cast')&&!index.includes('v2_5_470_skill_after_delay'));
 
 function engineSource(start,next,ctx){const s=fs.readFileSync(path.join(root,'js/engine.js'),'utf8');const i=s.indexOf(start);if(i<0)throw new Error('missing '+start);const j=s.indexOf(next,i+start.length);if(j<0)throw new Error('missing end for '+start);return s.slice(i,j);}
-console.log(`v2.5.479 pet combat/recovery checks passed (${checks.length}):\n- `+checks.join('\n- '));
+console.log(`v2.5.481 pet combat/recovery checks passed (${checks.length}):\n- `+checks.join('\n- '));

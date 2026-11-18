@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const files=[...html.matchAll(/<script[^>]+src=["']([^"']+\.js)(?:\?[^"']*)?["']/g)].map(m=>m[1]).filter(f=>f.startsWith('js/'));
+const ctx={console,window:{},CARD_ART_FALLBACKS:{},document:{addEventListener(){},removeEventListener(){},getElementById(){return null},querySelector(){return null},querySelectorAll(){return[]},createElement(){return{}},body:{appendChild(){},classList:{add(){},remove(){}}}},Image:function(){},localStorage:{getItem(){return null},setItem(){},removeItem(){}},setTimeout(){return 0},clearTimeout(){},setInterval(){return 0},clearInterval(){},requestAnimationFrame(){return 0},performance:{now(){return 0}},Math,Date,Map,Set,Array,Object,Number,String,JSON,RegExp,Float64Array};
+ctx.window=ctx;vm.createContext(ctx);
+for(const f of files)vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),ctx,{filename:f,timeout:60000});
+const run=x=>vm.runInContext(x,ctx);
+const wild=run("SKILLS.wh_wild_walk");
+assert.deepStrictEqual(Array.from(wild.spCost),[63,66,69,72,75]);
+run("state={buffs:[],cardSpCostPct:0,skillSpCostPct:0}");
+for(let lv=1;lv<=5;lv++) assert.strictEqual(run(`skillSpCost(SKILLS.wh_wild_walk,${lv})`),[63,66,69,72,75][lv-1],`Lv${lv} SP cost`);
+assert.strictEqual(run("skillSpCost(SKILLS.wh_wild_walk,5)"),75);
+assert.ok(wild.desc.includes('700%～2,100%'),'damage multiplier retained');
+assert.deepStrictEqual(Array.from(wild.hits),[3,3,3,3,3],'three hits retained');
+assert.deepStrictEqual(Array.from(wild.fleeFlat),[100,150,200,250,300],'FLEE retained');
+assert.deepStrictEqual(Array.from(wild.duration),[6,9,12,15,18],'duration retained');
+console.log('v2.5.481 Wild Walk SP cost checks passed (10)');

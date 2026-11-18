@@ -75,8 +75,8 @@ check('Pet lifecycle operations recompute derived stats after hatch, restore, re
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 const version=fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim();
-check('v2.5.479 release assets and runtime cache versions are synchronized',()=>{
+check('v2.5.481 release assets and runtime cache versions are synchronized',()=>{
   const versions=[...html.matchAll(/[?&]v=([^"'&]+)/g)].map(m=>m[1]);
-  return versions.length>0&&versions.every(v=>v==='2.5.479')&&sw.includes('ro-idle-runtime-v2.5.479')&&version==='v2.5.479';
+  return versions.length>0&&versions.every(v=>v==='2.5.481')&&sw.includes('ro-idle-runtime-v2.5.481')&&version==='v2.5.481';
 });
-console.log(`v2.5.479 pet bonus integration checks passed (${checks.length+matrix}): ${matrix} egg/tier matrix cases + ${checks.length} integration checks; ${keysSeen.size} distinct bonus keys.`);
+console.log(`v2.5.481 pet bonus integration checks passed (${checks.length+matrix}): ${matrix} egg/tier matrix cases + ${checks.length} integration checks; ${keysSeen.size} distinct bonus keys.`);

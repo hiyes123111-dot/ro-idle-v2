@@ -12,7 +12,7 @@ const breath=skills.dk_dragonicbreath,aura=skills.dk_dragonicaura,hack=byName('�
 check(breath.maxLv===10&&breath.type==='damage_aoe'&&breath.mult[0]===6&&breath.mult[9]===17,'Dragon Breath follows current project balance, 600%–1,700%, Lv10');
 check(breath.desc.includes('600%～1700%'),'Dragon Breath description matches its implemented damage values');
 check(aura.maxLv===10&&aura.type==='buff_atk'&&aura.mult[0]===1.1&&aura.mult[9]===1.6&&aura.cooldown[0]===60,'Dragonic Aura is an ATK buff with 60s cooldown');
-check(hack.id==='v25_dragon_knight_6'&&hack.name==='橫揮斬'&&hack.type==='damage_aoe'&&hack.mult[0]===27&&hack.mult[9]===54&&hack.desc.includes('2,700%～5,400%'),'Hack and Slasher uses canonical ID and correct Taiwan name; AOE 2,700%–5,400%');
+check(hack.id==='v25_dragon_knight_6'&&hack.name==='橫揮斬'&&hack.type==='damage_aoe'&&hack.mult[0]===7&&hack.mult[9]===21&&hack.desc.includes('700%～2,100%'),'Hack and Slasher uses canonical ID and correct Taiwan name; AOE 700%–2,100%');
 check(storm.id==='v25_dragon_knight_7'&&storm.name==='風暴斬擊'&&storm.type==='damage'&&storm.rangeType==='melee'&&storm.mult[0]===19&&storm.mult[4]===21,'Storm Slash uses canonical ID, correct Taiwan name and single-target melee type; 1,900%–2,100%');
 check(madness.mult[0]===9&&madness.mult[4]===19,'Madness Crusher uses the current project balance values');
 check(pierce.mult[0]===7&&pierce.mult[4]===13,'Dragonic Pierce follows current project balance values');

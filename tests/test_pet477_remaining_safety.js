@@ -165,9 +165,9 @@ assert('Pet codex uses stacked full-width controls on narrow screens',()=>{
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 const version=fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim();
-assert('v2.5.479 release version and runtime cache are synchronized',()=>{
+assert('v2.5.481 release version and runtime cache are synchronized',()=>{
  const q=[...html.matchAll(/[?&]v=([^"'&]+)/g)].map(x=>x[1]);
- return version==='v2.5.479'&&q.length>0&&q.every(x=>x==='2.5.479')&&sw.includes('ro-idle-runtime-v2.5.479');
+ return version==='v2.5.481'&&q.length>0&&q.every(x=>x==='2.5.481')&&sw.includes('ro-idle-runtime-v2.5.481');
 });
 
-console.log(`v2.5.479 remaining pet-system safety checks passed (${checks.length}):\n- `+checks.join('\n- '));
+console.log(`v2.5.481 remaining pet-system safety checks passed (${checks.length}):\n- `+checks.join('\n- '));

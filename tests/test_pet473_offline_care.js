@@ -36,11 +36,11 @@ assert('Loli Ruri cordial and loyal codex tiers show the implemented Heal trigge
 const releaseHtml=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const releaseSw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 const releaseVersion=fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim();
-assert('v2.5.479 offline-care module is registered and release cache versions are synchronized',()=>{
+assert('v2.5.481 offline-care module is registered and release cache versions are synchronized',()=>{
  const versions=[...releaseHtml.matchAll(/[?&]v=([^"'&]+)/g)].map(m=>m[1]);
- return releaseHtml.includes('js/v2_5_473_pet_offline_care.js?v=2.5.479')&&
-   versions.length>0&&versions.every(v=>v==='2.5.479')&&
-   releaseSw.includes('ro-idle-runtime-v2.5.479')&&releaseVersion==='v2.5.479';
+ return releaseHtml.includes('js/v2_5_473_pet_offline_care.js?v=2.5.481')&&
+   versions.length>0&&versions.every(v=>v==='2.5.481')&&
+   releaseSw.includes('ro-idle-runtime-v2.5.481')&&releaseVersion==='v2.5.481';
 });
 function setupPet(overrides={}) {
  ctx.state.pet=Object.assign({eggId:'poring_egg',petUid:'pet-offline-test',name:'波利',intimacy:250,hunger:100,lastCareAt:now-120*60000,named:false,autoFeed:true,autoBuyReserve:10000},overrides);
@@ -71,4 +71,4 @@ assert('Offline care persists updated pet record and throttled save',()=>{
  setupPet({autoFeed:false});ctx.tickPetCare();
  return ctx.state.petRecords.poring_egg?.some(x=>x.petUid==='pet-offline-test'&&x.hunger===0&&x.intimacy===230)&&ctx.throttledSaves===1;
 });
-console.log(`v2.5.479 offline pet care checks passed (${checks.length}):\n- `+checks.join('\n- '));
+console.log(`v2.5.481 offline pet care checks passed (${checks.length}):\n- `+checks.join('\n- '));

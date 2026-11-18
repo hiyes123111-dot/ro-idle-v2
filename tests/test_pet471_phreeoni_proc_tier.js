@@ -40,5 +40,5 @@ ctx.state.pet={eggId:'poring_egg',intimacy:950};
 check('Switching away from Phreeoni immediately removes its perfect-hit proc',()=>ctx.effectiveGearBonuses().perfectHitAddRate===undefined||ctx.effectiveGearBonuses().perfectHitAddRate===0);
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-check('Runtime script and all cache/version markers use v2.5.479',()=>fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim()==='v2.5.479'&&index.includes('v2_5_471_phreeoni_pet_proc_tier.js?v=2.5.479')&&sw.includes('ro-idle-runtime-v2.5.479'));
-console.log(`v2.5.479 Phreeoni tier checks passed (${checks.length}):\n- `+checks.join('\n- '));
+check('Runtime script and all cache/version markers use v2.5.481',()=>fs.readFileSync(path.join(root,'VERSION.txt'),'utf8').trim()==='v2.5.481'&&index.includes('v2_5_471_phreeoni_pet_proc_tier.js?v=2.5.481')&&sw.includes('ro-idle-runtime-v2.5.481'));
+console.log(`v2.5.481 Phreeoni tier checks passed (${checks.length}):\n- `+checks.join('\n- '));

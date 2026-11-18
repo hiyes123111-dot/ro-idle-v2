@@ -160,7 +160,7 @@
       // 倍率係數以 1.0 = 100% 表示，沿用既有 damage / damage_aoe 傷害結算。
       if (jobId === 'dragon_knight') {
         const dkValues = {
-          '橫揮斬': { type:'damage_aoe', mult:[27,30,33,36,39,42,45,48,51,54], cooldown:Array(10).fill(0.35), spCost:[25,27,29,31,33,35,37,39,41,43], desc:'龍騎士四轉範圍物理攻擊，ATK 2,700%～5,400%。' },
+          '橫揮斬': { type:'damage_aoe', mult:[7,8.5555555556,10.1111111111,11.6666666667,13.2222222222,14.7777777778,16.3333333333,17.8888888889,19.4444444444,21], cooldown:Array(10).fill(0.35), spCost:[25,27,29,31,33,35,37,39,41,43], desc:'龍騎士四轉範圍物理攻擊，ATK 700%～2,100%。' },
           '風暴斬擊': { type:'damage_aoe', mult:[19,19.5,20,20.5,21], cooldown:Array(5).fill(0.5), desc:'龍騎士四轉範圍物理攻擊，ATK 1,900%～2,100%。' },
           '神龍貫刺': { type:'damage', mult:[76,97.5,119,140.5,162], cooldown:Array(5).fill(2), desc:'長矛專用遠距離物理攻擊，ATK 7,600%～16,200%。', requiresWeapon:'spear' },
           '狂暴粉碎': { type:'damage', mult:[71,103.5,136,168.5,201], cooldown:[0.2,0.4,0.6,0.8,1], desc:'龍騎士四轉強力單體物理攻擊，ATK 7,100%～20,100%。' },
@@ -234,11 +234,11 @@
           },
           '狂野疾行': {
             type:'damage_multi', element:'weapon', spCost:[0,0,0,0,0], cooldown:Array(5).fill(20),
-            mult:[46,74,102,130,158], hits:Array(5).fill(3),
+            mult:[7,10.5,14,17.5,21], hits:Array(5).fill(3),
             critRateMult:1, critDmgMult:0.5,
             fleeFlat:[100,150,200,250,300], duration:[6,9,12,15,18], rangeType:'ranged',
             requires:[{skillId:'v25_wind_hawk_1',level:3},{skillId:'v25_wind_hawk_13',level:3}],
-            desc:'風鷹狩獵者四轉遠距離物理技能，使用獵鷹造成3段攻擊；每段ATK 4600%～15800%，依BaseLv、CON、自然親和與鷹之熟練加成，可依自身暴擊率暴擊且暴擊傷害加成減半。施放後FLEE+100～300，持續6～18秒。本作沒有AP與移動速度系統，故不消耗AP，移動速度效果不模擬。'
+            desc:'風鷹狩獵者四轉遠距離物理技能，使用獵鷹造成3段攻擊；每段ATK 700%～2,100%，依BaseLv、CON、自然親和與鷹之熟練加成，可依自身暴擊率暴擊且暴擊傷害加成減半。施放後FLEE+100～300，持續6～18秒。本作沒有AP與移動速度系統，故不消耗AP，移動速度效果不模擬。'
           }
         };
         if (sourceValues[name]) Object.assign(sk, sourceValues[name]);
@@ -246,7 +246,7 @@
           sk.id = 'wh_wild_walk';
           sk.maxLv = 5;
           sk.requiresSkill = 'v25_wind_hawk_13';
-          sk.spCost = [0,0,0,0,0]; // 本作無 AP 系統；不將官方 AP 消耗錯當 SP
+          sk.spCost = [63,66,69,72,75]; // twRO 各級 SP 消耗；AP 5 為獨立資源，本作未模擬 AP
         }
 
         // 下列六招在來源圖鑑標示「效果待實作」：沿用本作既有觸發／被動效果，只採用來源的技能名稱與最高等級。

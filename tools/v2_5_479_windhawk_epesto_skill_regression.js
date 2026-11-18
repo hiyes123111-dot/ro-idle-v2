@@ -19,11 +19,13 @@ assert.ok(run("SKILLS.wh_wild_walk"),'Wind Hawk Wild Walk skill record remains')
 const wild=run("SKILLS.wh_wild_walk");
 assert.strictEqual(wild.name,'狂野疾行','Wind Hawk original skill name restored');
 assert.strictEqual(wild.type,'damage_multi','Wild Walk remains multi-hit physical skill');
-assert.strictEqual(wild.mult[4],158,'Wild Walk Lv5 multiplier unchanged');
+assert.strictEqual(wild.mult[0],7,'Wild Walk Lv1 multiplier is 700% per hit');
+assert.strictEqual(wild.mult[4],21,'Wild Walk Lv5 multiplier is 2100% per hit');
+assert.strictEqual(wild.desc.includes('ATK 700%～2,100%'),true,'Wild Walk description matches per-hit multiplier range');
 assert.strictEqual(wild.hits[4],3,'Wild Walk remains 3 hits');
 assert.strictEqual(wild.fleeFlat[4],300,'Wild Walk Lv5 FLEE bonus unchanged');
 assert.strictEqual(wild.duration[4],18,'Wild Walk Lv5 duration unchanged');
 assert.ok(run("JOB_TREE.wind_hawk.skills.some(s=>s.id==='wh_wild_walk')"),'Wind Hawk job tree still includes Wild Walk');
 assert.ok(run("JOB_TREE.sniper.skills.some(s=>s.id==='sn_sharpshooting')"),'Sniper predecessor skill tree still includes Sharp Shooting for Wind Hawk inheritance');
 assert.ok(run("ITEMS.ep21_epesto_card.desc.includes('銳利射擊') && ITEMS.ep21_epesto_card.desc.includes('狂野疾行')"),'item description documents card/skill distinction');
-console.log('v2.5.479 Wind Hawk Wild Walk + Epesto Sharp Shooting checks passed (15)');
+console.log('v2.5.480 Wind Hawk Wild Walk + Epesto Sharp Shooting checks passed (17)');

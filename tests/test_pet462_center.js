@@ -40,7 +40,7 @@ const index = fs.readFileSync(__dirname+'/../index.html','utf8');
 const ui = fs.readFileSync(__dirname+'/../js/ui.js','utf8');
 const petSystem = fs.readFileSync(__dirname+'/../js/v2_5_456_pet_system.js','utf8');
 check('Main navigation contains dedicated pet tab',()=>index.includes("data-tab=\"pet\"") && index.includes('id=\"tab-pet\"'));
-check('Pet center runtime is loaded by index',()=>index.includes('js/v2_5_462_pet_center.js?v=2.5.479'));
+check('Pet center runtime is loaded by index',()=>index.includes('js/v2_5_462_pet_center.js?v=2.5.481'));
 check('Main tab switch calls pet center renderer',()=>ui.includes("if (name === 'pet' && typeof renderPetCenter === 'function') renderPetCenter();"));
 check('Existing inventory panel remains backward compatible',()=>petSystem.includes('function renderPetPanel(options)') && petSystem.includes("options && options.includeShop === false"));
 console.log(`v2.5.462 pet center checks passed (${checks.length}):\\n- `+checks.join('\\n- '));

@@ -156,7 +156,8 @@
   hackAndSlasher.type = 'damage_aoe';
   hackAndSlasher.element = 'neutral';
   hackAndSlasher.rangeType = 'melee';
-  hackAndSlasher.desc = '龍騎士四轉範圍物理攻擊，ATK 2,700%～5,400%。';
+  hackAndSlasher.mult = [7,8.5555555556,10.1111111111,11.6666666667,13.2222222222,14.7777777778,16.3333333333,17.8888888889,19.4444444444,21];
+  hackAndSlasher.desc = '龍騎士四轉範圍物理攻擊，ATK 700%～2,100%。';
   dk.push(hackAndSlasher);
   dk.push(put('dk_dragonicpierce','龍之貫穿 Dragonic Pierce',5,'damage','neutral',
     ints(40,56,5),[4,4,4,4,4],lin(7,13,5),

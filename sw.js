@@ -1,10 +1,10 @@
-/* 諸神放置錄 v2.5.479
+/* 諸神放置錄 v2.5.481
  * Versioned runtime cache. New releases never reuse an older runtime cache.
  * Navigation + JS/CSS are network-first; localStorage/player saves are untouched.
  */
 'use strict';
 
-var GAME_CACHE = 'ro-idle-runtime-v2.5.479';
+var GAME_CACHE = 'ro-idle-runtime-v2.5.481';
 var GAME_CACHE_PREFIX = 'ro-idle-runtime-';
 
 self.addEventListener('install', function (event) {
