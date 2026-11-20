@@ -2082,3 +2082,18 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); co
   .pet-instance-row { align-items: stretch !important; }
   .pet-instance-row button { width: 100%; min-height: 40px; }
 }
+
+/* v2.5.490：戰鬥日誌顯示可獨立關閉，不影響訊息緩衝與戰鬥流程。 */
+.log-display-controls { display:flex; justify-content:flex-end; margin:2px 0 4px; }
+.log-display-controls button { border:1px solid rgba(216,179,74,.45); background:transparent; color:var(--ink-dim,#c8b88c); border-radius:5px; padding:2px 8px; font-size:11px; }
+
+
+/* v2.5.491：低耗能模式只隱藏戰鬥視覺，不停止遊戲模擬 */
+body.low-power-mode .battle-scene,
+body.low-power-mode .combat-log,
+body.low-power-mode #loot-notice-feed {
+  display: none !important;
+}
+body.low-power-mode .log-display-controls {
+  display: flex;
+}

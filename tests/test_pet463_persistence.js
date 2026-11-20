@@ -57,6 +57,6 @@ check('New character state initializes petRecords',()=>engine.includes('petRecor
 check('Load migration preserves legacy active pet into archive',()=>engine.includes('const rows = state.petRecords[state.pet.eggId] || (state.petRecords[state.pet.eggId] = []);'));
 const index=fs.readFileSync(__dirname+'/../index.html','utf8');
 const sw=fs.readFileSync(__dirname+'/../sw.js','utf8');
-check('HTML runtime references all use v2.5.481',()=>!/[?&]v=2\.5\.(?!481)\d+/.test(index));
-check('Service worker cache uses v2.5.481',()=>sw.includes('ro-idle-runtime-v2.5.481'));
+check('HTML runtime references all use v2.5.491',()=>!/[?&]v=2\.5\.(?!491)\d+/.test(index));
+check('Service worker cache uses v2.5.491',()=>sw.includes('ro-idle-runtime-v2.5.491'));
 console.log(`v2.5.463 compatibility persistence checks passed (${checks.length}):\n- `+checks.join('\n- '));

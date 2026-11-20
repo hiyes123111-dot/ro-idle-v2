@@ -12389,17 +12389,10 @@ function castSkillInner(skillId, opts) {
       const hits = weaponSpecificHits != null
         ? (Array.isArray(weaponSpecificHits) ? weaponSpecificHits[lv - 1] : weaponSpecificHits)
         : (Array.isArray(sk.hits) ? sk.hits[lv - 1] : (sk.hits || 1));
-      let perHitMult = mult;
-      if (sk.id === 'wh_wild_walk') {
-        // 官方公式：[(1800 + 2800×技能Lv + 5×CON + 30×(自然親和Lv+鋼製喙Lv))×BaseLv/100]%。
-        const baseMult = Array.isArray(sk.mult) ? sk.mult[lv - 1] : sk.mult;
-        const con = Math.max(0, Number(state.traitStats && state.traitStats.con) || 0);
-        const natureLv = skillLv('v25_wind_hawk_1');
-        const beakLv = skillLv('falconnastery');
-        const extraPct = (5 * con + 30 * (natureLv + beakLv)) / 100;
-        perHitMult = (baseMult + extraPct) * (Math.max(1, Number(state.baseLevel) || 1) / 100)
-          * (1 + skillDmgPct / 100);
-      }
+      // 所有技能（包含狂野疾行）共用上方的 mult：技能倍率 × 技能增傷。
+      // 狂野疾行已依本作指定平衡值固定為每段 700%～2,100%；不可再套用舊官方
+      // BaseLv／CON／自然親和／鋼製喙公式，否則倍率會被放大，且 skillDmgPct 會重複計算。
+      const perHitMult = mult;
       let critFactor = 1;
       const weaponCritRateMult = sk.weaponCritRateMult && sk.weaponCritRateMult[weaponKey];
       const effectiveCritRateMult = weaponCritRateMult != null ? weaponCritRateMult : sk.critRateMult;
@@ -13434,13 +13427,14 @@ function reforgeYorscalpEquipment(baseId) {
    稀有的（MVP／迷你王卡、售價 5 萬以上）還是各自列一行——那是開箱子的重點，
    混在「共 37 種」裡面等於沒看到。 */
 const BOX_OPEN_ALL_MAX = 999;              // 一次最多開這麼多，避免手滑卡住畫面
-const BOX_OPEN_CHUNK = 25;                 // 手機低階裝置每批 25 個，避免單批抽取與存檔阻塞畫面
-const BOX_OPEN_CHUNK_DELAY_MS = 50;        // 批次間隔讓瀏覽器有機會重繪及處理觸控
+const BOX_OPEN_CHUNK = 100;                // 加速大量開箱：每批 100 個，仍保留主執行緒讓出點
+const BOX_OPEN_CHUNK_DELAY_MS = 20;        // 縮短批次間隔；避免 999 個箱子等待過久
 /* 分批開箱（保守版）：每 BOX_OPEN_CHUNK 個就讓出主執行緒，批次間再隔
    BOX_OPEN_CHUNK_DELAY_MS——setTimeout 0 在某些瀏覽器會被併進同一個影格，
    間隔拉開才保證畫面有真的呼吸空間。同步一口氣開完幾百個後，
    renderInventoryTab() 要重建兩千多列背包 HTML，凍結就發生在那裡。
-   每批都 saveGame()：中途關掉分頁也不會丟進度。 */
+   每批都 saveGame()：中途關掉分頁也不會丟進度。批次放大至 100、間隔縮至 20ms；
+   戰鬥訊息顯示可獨立隱藏，並把開箱通知 DOM 更新延後至整輪完成。 */
 function openAllBoxesAsync(itemId, onDone) {
   const def = ITEMS[itemId];
   const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
@@ -13454,6 +13448,7 @@ function openAllBoxesAsync(itemId, onDone) {
   const step = () => {
     if (openedTotal >= total) {
       logMsg = savedLog;
+      if (typeof renderLootNotices === 'function') renderLootNotices();
       logMsg(`📦 ${def.name} 全部開完，共 ${openedTotal} 個。`);
       if (typeof onDone === 'function') onDone();
       return;
@@ -13463,12 +13458,13 @@ function openAllBoxesAsync(itemId, onDone) {
     // 批次內靜音：中間的彙總訊息丟掉，只留最後一筆
     logMsg = () => {};
     let opened = 0;
-    try { opened = openAllBoxes(itemId, BOX_OPEN_CHUNK, albumOnlySet); }
+    try { opened = openAllBoxes(itemId, BOX_OPEN_CHUNK, albumOnlySet, { deferLootRender: true }); }
     catch (e) { console.error('開箱失敗', e); }
     finally { logMsg = savedLog; running = false; }
     openedTotal += opened;
     // 開不出東西（池空/數量異常）就停，避免空轉
     if (opened <= 0) {
+      if (typeof renderLootNotices === 'function') renderLootNotices();
       logMsg(`📦 ${def.name} 開了 ${openedTotal} 個後停止。`);
       if (typeof onDone === 'function') onDone();
       return;
@@ -13479,7 +13475,7 @@ function openAllBoxesAsync(itemId, onDone) {
   setTimeout(step, BOX_OPEN_CHUNK_DELAY_MS);
   return true;
 }
-function openAllBoxes(itemId, maxCount, cachedAlbumOnlySet) {
+function openAllBoxes(itemId, maxCount, cachedAlbumOnlySet, options) {
   const def = ITEMS[itemId];
   const row = state.inventory.find(r => r.item === itemId && !r.instanceId);
   if (!def || !def.boxOpen || !row || row.qty < 1) return 0;
@@ -13521,7 +13517,7 @@ function openAllBoxes(itemId, maxCount, cachedAlbumOnlySet) {
     worth += (ITEMS[id].sell || 0) * q;
   }
   if (typeof invalidateInventoryViewCache === 'function') invalidateInventoryViewCache(state);
-  if (isLootNotice && typeof renderLootNotices === 'function') renderLootNotices();
+  if (isLootNotice && !(options && options.deferLootRender) && typeof renderLootNotices === 'function') renderLootNotices();
 
   logMsg(`📦 一次開啟 ${opened} 個${def.name}，開出 ${Object.keys(got).length} 種道具（總售價 ${worth.toLocaleString()}z）。`);
   rare.slice(0, 10).forEach(txt => logMsg(txt));
@@ -14604,6 +14600,13 @@ function mergeBonus(target, bonus, scale) {
 let _gearBonusCache = null;
 let _gearBonusKey = '';
 let _activeSets = [];
+
+// 角色登出時只清除依角色裝備組成的衍生快取；靜態道具／圖鑑資料仍供下一隻角色共用。
+function resetCharacterDerivedCaches() {
+  _gearBonusCache = null;
+  _gearBonusKey = '';
+  _activeSets.length = 0;
+}
 
 /* EP21 耶斯卡夫頭冠附魔：附魔是裝備個體屬性，會跟著裝備移動／存檔。
    官方效果以頭冠精煉值計算：每+2套用一次主詞條，每+4套用一次副詞條。
@@ -16121,6 +16124,30 @@ function loadGame() {
         state.jobSkillPoints[state.jobId] = state.skillPoints;
       }
     }
+    // v2.5.486：依使用者要求移除魅影追蹤者「烈火戰車」。舊存檔若已投入技能點，
+    // 將已學等級退回 shadowchaser 共用技能點池；並清除自動施放／冷卻／殘留增益引用。
+    // 隊友快照同步清理，避免舊技能仍被隊友自動施放。只處理此技能，不重置其他存檔資料。
+    const removeLegacyFullThrottle = (target, refundPoints) => {
+      if (!target || typeof target !== 'object') return;
+      const learned = target.learnedSkills;
+      const hasSkill = learned && Object.prototype.hasOwnProperty.call(learned, 'sc_fullthrottle');
+      const removedLv = hasSkill ? Math.max(0, Math.min(5, Math.floor(Number(learned.sc_fullthrottle) || 0))) : 0;
+      if (hasSkill) delete learned.sc_fullthrottle;
+      if (refundPoints && removedLv > 0) {
+        if (!target.jobSkillPoints || typeof target.jobSkillPoints !== 'object') target.jobSkillPoints = {};
+        target.jobSkillPoints.shadowchaser = (Number(target.jobSkillPoints.shadowchaser) || 0) + removedLv;
+        target.skillPoints = Object.values(target.jobSkillPoints).reduce((sum, n) => sum + (Number(n) || 0), 0);
+      }
+      if (target.autoSkillConfig) {
+        if (target.autoSkillConfig.skillId === 'sc_fullthrottle') target.autoSkillConfig.skillId = null;
+        if (target.autoSkillConfig.skillId2 === 'sc_fullthrottle') target.autoSkillConfig.skillId2 = null;
+      }
+      if (target.autoSupportSkills) delete target.autoSupportSkills.sc_fullthrottle;
+      if (target.cooldowns) delete target.cooldowns.sc_fullthrottle;
+      if (Array.isArray(target.buffs)) target.buffs = target.buffs.filter(b => !b || b.skillId !== 'sc_fullthrottle');
+    };
+    removeLegacyFullThrottle(state, true);
+    (state.allies || []).forEach(ally => removeLegacyFullThrottle(ally, true));
     // 同步全域技能點
     state.skillPoints = Object.values(state.jobSkillPoints).reduce((a, b) => a + b, 0);
     if (!state.lastAttackTime) state.lastAttackTime = Date.now();

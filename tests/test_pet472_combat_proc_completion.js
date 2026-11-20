@@ -56,4 +56,4 @@ check('Pet codex summaries render across all 133 eggs and four intimacy tiers',(
 const engine=fs.readFileSync(path.join(root,'js/engine.js'),'utf8');
 check('Engine calls outgoing pet procs on basic, single skill, and AoE hit paths',()=>engine.includes("tryPetOutgoingDamageProc(dmg, 'physical')")&&engine.includes("tryPetOutgoingDamageProc(dmg, useMag ? 'magic' : 'physical')")&&engine.includes("tryPetOutgoingDamageProc(dmg, useMag ? 'magic' : 'physical');"));
 check('Engine applies Marionette neutral resistance to physical incoming damage',()=>engine.includes("petMarionetteNeutralActive()) dmg = Math.max(1,Math.round(dmg*0.8))")&&engine.includes("tryPetMarionetteProc(dmg, { kind:'basic', element:monAtkElement })"));
-console.log(`v2.5.481 pet proc checks passed (${checks.length}):\n- `+checks.join('\n- '));
+console.log(`v2.5.486 pet proc checks passed (${checks.length}):\n- `+checks.join('\n- '));

@@ -15,4 +15,4 @@ assert.ok(wild.desc.includes('每段ATK 700%～2,100%'));
 assert.deepStrictEqual(Array.from(wild.hits),[3,3,3,3,3]);
 assert.deepStrictEqual(Array.from(wild.fleeFlat),[100,150,200,250,300]);
 assert.deepStrictEqual(Array.from(wild.duration),[6,9,12,15,18]);
-console.log('v2.5.481 multiplier checks passed (12)');
+console.log('v2.5.486 multiplier checks passed (12)');

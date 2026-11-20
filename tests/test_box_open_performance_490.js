@@ -1,0 +1,21 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const engine = fs.readFileSync(path.join(root, 'js/engine.js'), 'utf8');
+const ui = fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const version = fs.readFileSync(path.join(root, 'VERSION.txt'), 'utf8').trim();
+const checks = [];
+function check(name, fn) { if (!fn()) throw new Error('FAIL: ' + name); checks.push(name); }
+check('release version is v2.5.491', () => version === 'v2.5.491');
+check('HTML and service worker use matching cache versions', () => html.includes('js/engine.js?v=2.5.491') && html.includes('js/ui.js?v=2.5.491') && html.includes('sw.js?v=2.5.491') && sw.includes('ro-idle-runtime-v2.5.491'));
+check('batch size is 100 and delay is 20ms', () => /const BOX_OPEN_CHUNK = 100;/.test(engine) && /const BOX_OPEN_CHUNK_DELAY_MS = 20;/.test(engine));
+check('each batch still saves progress', () => /function openAllBoxes\([\s\S]*?saveGame\(\);[\s\S]*?return opened;/.test(engine));
+check('each box still draws independently', () => /for \(let i = 0; i < n; i\+\+\) \{\s*const id = drawFromBox\(def\.boxOpen\);/.test(engine));
+check('async opening defers loot DOM refresh until completion', () => engine.includes('{ deferLootRender: true }') && /if \(isLootNotice && !\(options && options\.deferLootRender\)/.test(engine) && /if \(typeof renderLootNotices === 'function'\) renderLootNotices\(\);/.test(engine));
+check('unified low-power toggle is present', () => html.includes('toggleLowPowerMode()') && ui.includes('function toggleLowPowerMode()'));
+check('hidden combat logs keep data but skip DOM rendering', () => /function logMsg\(text, lane\) \{\s*pushCombatLog\(text, lane\);/.test(fs.readFileSync(path.join(root, 'js/engine.js'), 'utf8')) && /if \(!_combatLogDisplayEnabled\) return;/.test(ui) && /if \(!_logDirty \|\| !_combatLogDisplayEnabled\) return;/.test(ui));
+check('disabling low-power mode flushes buffered rows', () => /if \(!_lowPowerModeEnabled\) renderLogNow\(\);/.test(ui));
+console.log(`v2.5.491 box-opening performance checks passed (${checks.length}):\n- ` + checks.join('\n- '));

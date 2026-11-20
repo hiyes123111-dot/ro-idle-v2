@@ -14,4 +14,4 @@ assert.ok(wild.desc.includes('700%～2,100%'),'damage multiplier retained');
 assert.deepStrictEqual(Array.from(wild.hits),[3,3,3,3,3],'three hits retained');
 assert.deepStrictEqual(Array.from(wild.fleeFlat),[100,150,200,250,300],'FLEE retained');
 assert.deepStrictEqual(Array.from(wild.duration),[6,9,12,15,18],'duration retained');
-console.log('v2.5.481 Wild Walk SP cost checks passed (10)');
+console.log('v2.5.486 Wild Walk SP cost checks passed (10)');

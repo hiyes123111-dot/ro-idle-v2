@@ -27,4 +27,4 @@ check('Summary module is registered after the previous pet modules',()=>{
  const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
  return index.indexOf('v2_5_473_pet_offline_care.js')<index.indexOf('v2_5_476_pet_codex_summary_fix.js');
 });
-console.log(`v2.5.481 pet codex summary checks passed (${checks.length}):\n- `+checks.join('\n- '));
+console.log(`v2.5.486 pet codex summary checks passed (${checks.length}):\n- `+checks.join('\n- '));

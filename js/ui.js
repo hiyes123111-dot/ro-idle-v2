@@ -156,13 +156,15 @@ function bindSearchComposition() {
   });
 }
 
+let titleMusicMuted = false;
+let titleMusicVolume = 0.5;
 function playTitleMusic() {
   bgmToken++;
   const myToken = bgmToken;
   stopMusic();
-  const muted = state && state.muted;
+  const muted = state ? !!state.muted : titleMusicMuted;
   if (muted) return;
-  const vol = (state && state.bgmVolume != null) ? state.bgmVolume : 0.5;
+  const vol = state && state.bgmVolume != null ? state.bgmVolume : titleMusicVolume;
   const audio = new Audio();
   audio.loop = true;
   audio.volume = vol;
@@ -185,16 +187,59 @@ function showSlotSelect() {
 }
 
 function backToTitle() {
-  saveGame();
-  // 走 stopLoop() 而不是自己清計時器：那支還會把 loopRunning() 的旗標放下來（#135），
-  // 少了那一步，切分頁的處理會以為迴圈還在跑，回來就不重啟了
+  // 先確認角色存檔成功，再釋放執行期資源；儲存失敗時留在遊戲畫面，避免切換角色造成進度遺失。
+  if (state && !saveGame()) return;
+  const titleMuted = !!(state && state.muted);
+  const titleVolume = state && Number.isFinite(Number(state.bgmVolume))
+    ? Math.max(0, Math.min(1, Number(state.bgmVolume))) : 0.5;
+
+  // 走 stopLoop() 而不是自己清計時器：那支還會把 loopRunning() 的旗標放下來（#135）。
   stopLoop();
   stopAnim();
-  if (animCanvas) animCanvas.style.display = 'none';
+  if (typeof stopCastAnim === 'function') stopCastAnim();
+
+  // 日誌 debounce 先落盤，必須在 state 清空前保存，且仍以原角色名稱作為儲存鍵。
+  if (typeof _combatLogPersistTimer !== 'undefined' && _combatLogPersistTimer !== null) {
+    clearTimeout(_combatLogPersistTimer);
+    _combatLogPersistTimer = null;
+    if (typeof saveCombatLogHistory === 'function') saveCombatLogHistory();
+  }
+  if (typeof combatLogBuf !== 'undefined') combatLogBuf.length = 0;
+  if (typeof combatLogLanes !== 'undefined') {
+    ['main', 'skill', 'ally'].forEach(lane => { combatLogLanes[lane].length = 0; });
+  }
+  if (typeof _combatLogHistoryLoadedKey !== 'undefined') _combatLogHistoryLoadedKey = null;
+  if (typeof _lastLogLane !== 'undefined') _lastLogLane = 'main';
+
+  // 取消尚未執行的日誌畫面更新，避免舊角色的 callback 在新角色登入後才執行。
+  if (_logRafId) {
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(_logRafId);
+    else clearTimeout(_logRafId);
+    _logRafId = 0;
+  }
+  _logDirty = false;
+
+  // 釋放上一隻角色載入的動畫影格與畫布 backing store；共用遊戲資料／圖鑑快取不動。
+  releaseCharacterAnimationResources();
+  if (typeof resetCharacterDerivedCaches === 'function') resetCharacterDerivedCaches();
+  if (typeof _equipClickTimers !== 'undefined') Object.keys(_equipClickTimers).forEach(k => delete _equipClickTimers[k]);
+  if (typeof toastTimer !== 'undefined' && toastTimer !== null) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+  if (typeof stopMusic === 'function') stopMusic();
+  bgmToken++; // 讓尚未完成載入的舊地圖音樂 callback 失效。
+
+  // 上一隻角色資料不再被全域 state 持有，讓 GC 有機會回收背包、隊友與戰鬥物件。
+  state = null;
+  titleMusicMuted = titleMuted;
+  titleMusicVolume = titleVolume;
+
   const img = document.getElementById('player-img');
-  if (img) img.style.display = '';
+  if (img) { img.style.display = ''; img.removeAttribute('src'); }
   document.getElementById('title-buttons').classList.remove('hidden');
   document.getElementById('slot-select').classList.add('hidden');
+  document.getElementById('ro-equip-tooltip')?.classList.remove('show');
   showScreen('screen-title');
   playTitleMusic();
 }
@@ -386,6 +431,7 @@ function confirmCreate() {
 }
 
 function enterGame() {
+  syncCombatLogDisplay();
   startLoop();
   activeTab = 'map';
   const cur = regionOf(state.mapId);
@@ -494,6 +540,7 @@ function allySpriteHtml(a) {
 let allySpriteSig = '';
 const allyAnimIdx = [0, 0];
 function renderAllySprites() {
+  if (isLowPowerMode()) return;
   const list = (state && state.allies) || [];
   const sig = list.map(a => a ? a._slot + ':' + a.jobId + ':' + (a.gender || 'male') : '-').join('|');
   if (sig !== allySpriteSig) {
@@ -522,6 +569,7 @@ function renderAllySprites() {
 /* 揮擊時從第 0 格播到最後一格。UI 心跳是 100ms 一次，一輪 6~8 格約 0.6~0.8 秒，
    比大多數的攻擊間隔短，所以看起來就是「打一下、收回來」。 */
 function stepAllyAnim(i, ally, fig) {
+  if (isLowPowerMode()) return;
   const img = fig.querySelector('.ally-img');
   const key = fig.getAttribute('data-key');
   if (!img || !key) return;
@@ -922,6 +970,8 @@ let animTimer = null;
 let animFrameIdx = 0;
 let animFrameImages = {};   // { key: Image[] }
 let animFramesLoaded = {};  // { key: boolean }
+let animPendingLoads = new Set(); // 尚未完成的 Image 載入取消器，切換角色時一併中止
+let animCacheGeneration = 0; // 角色切換時遞增，阻止舊角色尚未完成的圖片載入回填快取
 let animating = false;
 let animCanvas = null;
 let animCanvasCtx = null;
@@ -987,6 +1037,7 @@ function getAnimKey() {
 }
 
 function updatePlayerSprite() {
+  if (isLowPowerMode()) return;
   const img = document.getElementById('player-img');
   if (!img) return;
   const key = getAnimKey();
@@ -1008,6 +1059,7 @@ function updatePlayerSprite() {
     return;
   }
   loadAnimFrames(key).then(() => {
+    if (!state || getAnimKey() !== key) return; // 舊角色的載入結果不得改動新角色畫面
     if (animFrameImages[key] && animFrameImages[key].length) {
       showAnimCanvas(key);
     } else {
@@ -1223,6 +1275,7 @@ function showAnimCanvas(key) {
 }
 
 function drawAnimFrame() {
+  if (isLowPowerMode()) return;
   if (!animCanvasCtx || !currentAnimKey) return;
   const frames = animFrameImages[currentAnimKey];
   if (!frames || !frames.length) return;
@@ -1236,23 +1289,65 @@ function drawAnimFrame() {
 
 async function loadAnimFrames(key) {
   if (key in animFramesLoaded) return;
+  const generation = animCacheGeneration;
   animFramesLoaded[key] = false;
   const promises = [];
   for (let i = 0; i < 20; i++) {
     const src = `images/frames/${key}/frame_${String(i).padStart(3, '0')}.png`;
     promises.push(new Promise(resolve => {
       const im = new Image();
-      im.onload = () => resolve(im);
-      im.onerror = () => resolve(null);
+      let settled = false;
+      const settle = value => {
+        if (settled) return;
+        settled = true;
+        animPendingLoads.delete(cancel);
+        resolve(value);
+      };
+      const cancel = () => {
+        im.onload = null;
+        im.onerror = null;
+        // 移除 src 可中止尚未完成的圖片請求；沒有此方法的測試環境則只釋放事件參照。
+        if (typeof im.removeAttribute === 'function') im.removeAttribute('src');
+        settle(null);
+      };
+      animPendingLoads.add(cancel);
+      im.onload = () => settle(im);
+      im.onerror = () => settle(null);
       im.src = src;
     }));
   }
   const results = await Promise.all(promises);
+  // 如果載入期間已切換角色，丟棄舊影格，不讓過期 Promise 把快取重新塞滿。
+  if (generation !== animCacheGeneration) return;
   animFrameImages[key] = results.filter(Boolean);
   animFramesLoaded[key] = animFrameImages[key].length > 0;
 }
 
+function releaseCharacterAnimationResources() {
+  animCacheGeneration++;
+  Array.from(animPendingLoads).forEach(cancel => cancel());
+  if (animTimer !== null) { clearInterval(animTimer); animTimer = null; }
+  if (castAnimTimer !== null) { clearInterval(castAnimTimer); castAnimTimer = null; }
+  animating = false;
+  castingAnim = false;
+  animFrameIdx = 0;
+  currentAnimKey = null;
+  baseAnimKey = null;
+  animSizedKey = '';
+  Object.keys(animFrameImages).forEach(key => { delete animFrameImages[key]; });
+  Object.keys(animFramesLoaded).forEach(key => { delete animFramesLoaded[key]; });
+  Object.keys(spriteMetrics).forEach(key => { delete spriteMetrics[key]; });
+  if (animCanvasCtx && animCanvas) {
+    animCanvasCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+    animCanvas.width = 1;
+    animCanvas.height = 1;
+  }
+  if (animCanvas) animCanvas.style.display = 'none';
+  animCanvasCtx = null;
+}
+
 function playAttackAnim() {
+  if (isLowPowerMode()) return;
   if (castingAnim) return;   // 施放姿勢優先：兩組動作共用同一張 canvas，不讓路會互相蓋掉
   if (!currentAnimKey || !animFrameImages[currentAnimKey] || !animFrameImages[currentAnimKey].length) return;
   stopAnim();
@@ -1293,6 +1388,7 @@ let castAnimTimer = null;
 let castingAnim = false;
 
 function playSkillCastAnim() {
+  if (isLowPowerMode()) return;
   if (castingAnim) return;
   if (!animCanvas || !animCanvasCtx || animCanvas.style.display === 'none') return;
   const backTo = baseAnimKey;
@@ -1379,7 +1475,7 @@ function skillPlaysCastAnim(sk) {
 }
 
 function showSkillCastEffect(sk) {
-  if (!sk) return;
+  if (isLowPowerMode() || !sk) return;
   if (skillPlaysCastAnim(sk)) playSkillCastAnim();   // 職業共用的施放姿勢，不分技能
   const fx = skillFxFor(sk.id);
   if (!fx || !fx.sprite) return;
@@ -1398,6 +1494,7 @@ function showSkillCastEffect(sk) {
 /* 持續時間內的光芒：每個 tick 對照 buff 是否還在，決定 class 加或拿掉。
    比對 skillId 而不是 buff type——攻速藥水也是 type:'aspd'，比 type 會讓喝藥也發光。 */
 function updateSkillAura() {
+  if (isLowPowerMode()) return;
   const host = document.getElementById('player-sprite');
   if (!host || !state) return;
   Object.keys(SKILL_FX).forEach(skillId => {
@@ -1612,6 +1709,7 @@ function playStatusSound(kind) {
 
 let lastMonsterDefId = null; // 追蹤目前顯示的怪物，避免重複渲染
 function renderMonster() {
+  if (isLowPowerMode()) return;
   const wrap = document.getElementById('monster-area');
   if (!wrap) return;
   if (!state.monsters || state.monsters.length === 0) {
@@ -1673,6 +1771,7 @@ function renderMonster() {
 
 // 只更新 HP 條
 function updateMonsterHp() {
+  if (isLowPowerMode()) return;
   if (!state.monsters || state.monsters.length === 0) return;
   state.monsters.forEach(mon => {
     const hpBar = document.getElementById(`monster-hp-bar-${mon.id}`);
@@ -1723,6 +1822,7 @@ function showDamageFloatAt(monsterInstanceId, dmg, type, element) {
    這裡純粹是特效——真的打 3600 次會把戰鬥迴圈跑爆。
    錯開時間送出，讓它們像連射而不是一次噴一坨。 */
 function showGatlingFloats(monsterInstanceId, n) {
+  if (isLowPowerMode()) return;
   const count = n || 12;
   const targetEl = document.getElementById('monster-slot-' + monsterInstanceId);
   if (!targetEl) return;
@@ -1758,6 +1858,7 @@ function showGatlingFloats(monsterInstanceId, n) {
    class 加在 player-sprite 上，一秒後自己拔掉——不用 animationend，
    連續觸發時那顆事件會被後一次的重設吃掉。 */
 function showBuddhaShield() {
+  if (isLowPowerMode()) return;
   const el = document.getElementById('player-sprite');
   if (el) {
     el.classList.remove('buddha-glow');
@@ -1770,6 +1871,7 @@ function showBuddhaShield() {
 
 // 在玩家頭上顯示飄字
 function showPlayerFloat(dmg, type) {
+  if (isLowPowerMode()) return;
   const el = document.createElement('div');
   el.className = 'damage-float';
   if (type === 'crit') el.classList.add('crit');
@@ -1801,6 +1903,7 @@ const ELEMENT_FLOAT_LABEL = {
   poison: '毒', holy: '聖', shadow: '暗', ghost: '念', undead: '不死',
 };
 function showElementFloat(monsterInstanceId, element, mult) {
+  if (isLowPowerMode()) return;
   let targetEl = monsterInstanceId != null ? document.getElementById('monster-slot-' + monsterInstanceId) : null;
   if (!targetEl) targetEl = document.querySelector('.monster-slot.target');
   if (!targetEl) return;
@@ -1830,8 +1933,10 @@ const MAX_LIVE_FLOATS = 48;
 const MAX_LIVE_CRIT_BURSTS = 18; // 高速多目標暴擊時限制動畫與計時器數量
 let _liveFloats = 0;
 let _liveCritBursts = 0;
+const _critAnimTimers = new Set();
 
 function showDamageFloat(dmg, type, element) {
+  if (isLowPowerMode()) return;
   if (_liveFloats >= MAX_LIVE_FLOATS && type !== 'crit') return;
   // 找到目標怪物 DOM 元素來取得座標
   let targetEl = null;
@@ -1887,6 +1992,7 @@ function showDamageFloat(dmg, type, element) {
 }
 
 function triggerMonsterHit(isCrit) {
+  if (isLowPowerMode()) return;
   const icon = document.getElementById('monster-icon');
   if (!icon) return;
   icon.classList.remove('monster-hit', 'crit-flash');
@@ -1914,6 +2020,7 @@ const CRIT_FRAMES = Array.from({ length: CRIT_FRAME_COUNT },
 CRIT_FRAMES.forEach(src => { const im = new Image(); im.src = src; });
 
 function showCritEffect(dmgText, targetEl) {
+  if (isLowPowerMode()) return;
   // 暴擊特效過去繞過一般飄字上限；高攻速／範圍連擊時會堆出大量 DOM、圖片切換計時器。
   // 超出上限只省略視覺動畫，實際傷害、戰鬥紀錄與暴擊判定完全不變。
   if (_liveCritBursts >= MAX_LIVE_CRIT_BURSTS) return;
@@ -1949,13 +2056,15 @@ function showCritEffect(dmgText, targetEl) {
   const timer = setInterval(() => {
     frame++;
     // 播完就停在最後一格（星芒已經散開），剩下的交給外層的淡出
-    if (frame >= CRIT_FRAME_COUNT) { clearInterval(timer); return; }
+    if (frame >= CRIT_FRAME_COUNT) { clearInterval(timer); _critAnimTimers.delete(timer); return; }
     img.src = CRIT_FRAMES[frame];
   }, CRIT_FRAME_MS);
+  _critAnimTimers.add(timer);
   setTimeout(() => { wrap.remove(); _liveCritBursts = Math.max(0, _liveCritBursts - 1); }, CRIT_FLOAT_MS + 100);
 }
 
 function triggerMonsterDie() {
+  if (isLowPowerMode()) return;
   const card = document.getElementById('monster-card');
   if (!card) return;
   card.classList.add('monster-dying');
@@ -2055,8 +2164,64 @@ function openLootNoticeHistory() {
    訊息本身照舊即時寫進 combatLogLanes，所以不會漏也不會亂序。 */
 let _logDirty = false;
 let _logRafId = 0;
+// 低耗能模式只關閉戰鬥視覺與日誌 DOM 更新；戰鬥引擎、AI、傷害、掉落及存檔不受影響。
+let _lowPowerModeEnabled = (() => {
+  try { return localStorage.getItem('ro_low_power_mode') === '1'; }
+  catch (e) { return false; }
+})();
+let _combatLogDisplayEnabled = !_lowPowerModeEnabled;
+function isLowPowerMode() { return !!_lowPowerModeEnabled; }
+function syncCombatLogDisplay() {
+  const btn = document.getElementById('btn-toggle-combat-log');
+  _combatLogDisplayEnabled = !_lowPowerModeEnabled;
+  if (document.body) document.body.classList.toggle('low-power-mode', _lowPowerModeEnabled);
+  if (btn) {
+    btn.textContent = _lowPowerModeEnabled ? '關閉低耗能模式' : '啟用低耗能模式';
+    btn.setAttribute('aria-pressed', _lowPowerModeEnabled ? 'true' : 'false');
+    btn.title = _lowPowerModeEnabled ? '恢復戰鬥畫面與三種訊息' : '隱藏戰鬥畫面與訊息，保留戰鬥運算';
+  }
+}
+function toggleCombatLogDisplay() { toggleLowPowerMode(); } // 舊版 onclick 相容
+function toggleLowPowerMode() {
+  _lowPowerModeEnabled = !_lowPowerModeEnabled;
+  _combatLogDisplayEnabled = !_lowPowerModeEnabled;
+  try { localStorage.setItem('ro_low_power_mode', _lowPowerModeEnabled ? '1' : '0'); } catch (e) {}
+  if (_lowPowerModeEnabled) {
+    // 停止純視覺動畫計時器，避免畫面已隱藏仍持續畫 canvas。
+    if (typeof stopAnim === 'function') stopAnim();
+    if (typeof animTimer !== 'undefined' && animTimer) { clearInterval(animTimer); animTimer = null; }
+    if (typeof castAnimTimer !== 'undefined' && castAnimTimer) { clearInterval(castAnimTimer); castAnimTimer = null; }
+    if (typeof animating !== 'undefined') animating = false;
+    if (typeof castingAnim !== 'undefined') castingAnim = false;
+    // 釋放玩家動畫 canvas backing store；關閉模式時 updatePlayerSprite 會重新建立。
+    if (typeof animCanvas !== 'undefined' && animCanvas) {
+      if (typeof animCanvasCtx !== 'undefined' && animCanvasCtx) {
+        animCanvasCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+      }
+      animCanvas.width = 1;
+      animCanvas.height = 1;
+      animCanvas.style.display = 'none';
+      animCanvasCtx = null;
+    }
+    if (typeof _critAnimTimers !== 'undefined') { _critAnimTimers.forEach(timer => clearInterval(timer)); _critAnimTimers.clear(); }
+    if (typeof _liveCritBursts !== 'undefined') _liveCritBursts = 0;
+    document.querySelectorAll('.damage-float,.element-float,.crit-burst').forEach(el => el.remove());
+    _logDirty = true; // 日誌資料仍保留，重新開啟時一次補畫
+  } else {
+    // 解除隱藏時強制重建怪物與隊友畫面，避免沿用低耗能期間的舊 DOM。
+    lastMonsterDefId = null;
+    renderMonster();
+    renderAllySprites();
+    updatePlayerSprite();
+    _logDirty = true;
+  }
+  syncCombatLogDisplay();
+  if (!_lowPowerModeEnabled) renderLogNow();
+}
+
 function renderLog() {
   _logDirty = true;
+  if (!_combatLogDisplayEnabled) return;
   if (_logRafId) return;
   // Android WebView／背景分頁若暫時沒有 requestAnimationFrame，改用短延遲刷新，
   // 不讓戰鬥資料已寫入緩衝、但畫面一直空白。
@@ -2068,7 +2233,7 @@ function renderLog() {
 }
 /* 真正動 DOM 的那半。分頁在背景時 rAF 不會跑，所以 onTickUI 也會來敲一次 */
 function renderLogNow() {
-  if (!_logDirty) return;
+  if (!_logDirty || !_combatLogDisplayEnabled) return;
   _logDirty = false;
   Object.keys(LOG_PANES).forEach(lane => {
     const el = document.getElementById(LOG_PANES[lane]);
@@ -3748,23 +3913,35 @@ function renderCodexTab() {
     });
   }
 
-  let rows;
+  // 道具／卡片／隱藏圖鑑可能有上萬筆；先算頁數並切出當頁 ID，
+  // 再建立最多 60 個 row 物件。舊作法會在每次搜尋或切頁時先 map 全清單，
+  // 造成大量短命物件與 GC 壓力，即使畫面最後只顯示 60 格。
+  let rows = null;
+  let pageRows;
+  let totalRows;
   if (codexView === 'mon') {
     rows = ids.map(id => {
       const d = MONSTERS[id] || {};
       return { id, name: getRowName(id), found: !!book.seen[id], level: Number(d.level) || 0 };
     }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'zh-Hant') || a.id.localeCompare(b.id));
-  } else if (codexView === 'card') {
-    rows = ids.map(id => ({ id, name: getRowName(id), found: !!book.item[id], recent: !!(CARDS[id] && CARDS[id].addedVersion) }));
-  } else if (codexView === 'hidden') {
-    rows = ids.map(id => ({ id, name: getRowName(id), found: !!(book.box && book.box[id]) }));
+    totalRows = rows.length;
   } else {
-    rows = ids.map(id => ({ id, name: getRowName(id), found: !!book.item[id] }));
+    totalRows = ids.length;
   }
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / CODEX_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalRows / CODEX_PAGE_SIZE));
   if (codexPage >= totalPages) codexPage = totalPages - 1;
-  const pageRows = rows.slice(codexPage * CODEX_PAGE_SIZE, (codexPage + 1) * CODEX_PAGE_SIZE);
+  const pageStart = codexPage * CODEX_PAGE_SIZE;
+  if (rows) {
+    pageRows = rows.slice(pageStart, pageStart + CODEX_PAGE_SIZE);
+  } else {
+    const pageIds = ids.slice(pageStart, pageStart + CODEX_PAGE_SIZE);
+    pageRows = pageIds.map(id => codexView === 'card'
+      ? ({ id, name: getRowName(id), found: !!book.item[id], recent: !!(CARDS[id] && CARDS[id].addedVersion) })
+      : codexView === 'hidden'
+        ? ({ id, name: getRowName(id), found: !!(book.box && book.box[id]) })
+        : ({ id, name: getRowName(id), found: !!book.item[id] }));
+  }
 
   let html = `<h3 class="panel-title">📕 圖鑑</h3>
     <div class="codex-progress">
@@ -3821,7 +3998,7 @@ function renderCodexTab() {
   if (totalPages > 1) {
     html += '<div class="codex-pager">';
     html += `<button class="btn-small" ${codexPage === 0 ? 'disabled' : ''} onclick="setCodexPage(${codexPage - 1})">‹ 上一頁</button>`;
-    html += `<span class="codex-pager-info">${codexPage + 1} / ${totalPages}　（共 ${rows.length} 筆）</span>`;
+    html += `<span class="codex-pager-info">${codexPage + 1} / ${totalPages}　（共 ${totalRows} 筆）</span>`;
     html += `<button class="btn-small" ${codexPage >= totalPages - 1 ? 'disabled' : ''} onclick="setCodexPage(${codexPage + 1})">下一頁 ›</button>`;
     html += '</div>';
   }
@@ -5495,6 +5672,10 @@ function setInvQuickFilter(filter) {
 const _inventoryViewCache = new WeakMap();
 const _autoSellBaseRowsCache = new WeakMap();
 const _autoSellNameCollator = new Intl.Collator('zh-Hant');
+// 每個角色背包最多保留 12 組查詢結果；每組都是 row 陣列副本，
+// 搜尋詞快速變動時，48 組可能長時間持有大量背包列參照。採 LRU 淘汰，
+// 最近使用的分類／搜尋仍可命中，舊查詢則自動釋放。
+const INVENTORY_QUERY_CACHE_LIMIT = 12;
 function invalidateInventoryViewCache(owner) {
   const rows = owner && Array.isArray(owner.inventory) ? owner.inventory : null;
   if (rows) { _inventoryViewCache.delete(rows); _autoSellBaseRowsCache.delete(rows); }
@@ -5537,7 +5718,12 @@ function getInventoryViewIndex(rows) {
 function getInventoryCachedRows(rows, category, sub, quick, search, sort) {
   const index = getInventoryViewIndex(rows);
   const key = JSON.stringify([category || 'all', sub || 'all', quick || 'all', search || '', sort || 'name']);
-  if (index.queries.has(key)) return index.queries.get(key);
+  if (index.queries.has(key)) {
+    const cached = index.queries.get(key);
+    index.queries.delete(key);
+    index.queries.set(key, cached);
+    return cached;
+  }
 
   let out = (category && category !== 'all' ? (index.byCategory[category] || []) : index.known).slice();
   if (sub && sub !== 'all') out = out.filter(r => invSubOf(r.item) === sub);
@@ -5552,8 +5738,11 @@ function getInventoryCachedRows(rows, category, sub, quick, search, sort) {
       return (b.instanceId ? 1 : 0) - (a.instanceId ? 1 : 0);
     });
   }
-  // 限制每個背包索引最多保留 48 組篩選結果，避免玩家反覆搜尋造成快取本身膨脹。
-  if (index.queries.size >= 48) index.queries.clear();
+  // LRU 淘汰最久未使用的一組，避免清空全部快取造成連續切換分類時重算。
+  if (index.queries.size >= INVENTORY_QUERY_CACHE_LIMIT) {
+    const oldest = index.queries.keys().next().value;
+    index.queries.delete(oldest);
+  }
   index.queries.set(key, out);
   return out;
 }

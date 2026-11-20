@@ -1,0 +1,23 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const ui = fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'css/style.css'), 'utf8');
+const engine = fs.readFileSync(path.join(root, 'js/engine.js'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const version = fs.readFileSync(path.join(root, 'VERSION.txt'), 'utf8').trim();
+const checks = [];
+function check(name, fn) { if (!fn()) throw new Error('FAIL: ' + name); checks.push(name); }
+check('version bumped to v2.5.491', () => version === 'v2.5.491');
+check('HTML and service worker cache versions synchronized', () => html.includes('js/ui.js?v=2.5.491') && html.includes('js/engine.js?v=2.5.491') && html.includes('sw.js?v=2.5.491') && sw.includes('ro-idle-runtime-v2.5.491'));
+check('one low-power toggle is visible above battle logs', () => /onclick="toggleLowPowerMode\(\)"/.test(html) && html.includes('啟用低耗能模式'));
+check('mode persists independently of character saves', () => ui.includes("localStorage.getItem('ro_low_power_mode')") && ui.includes("localStorage.setItem('ro_low_power_mode'"));
+check('CSS hides scene, three logs and loot feed', () => css.includes('body.low-power-mode .battle-scene') && css.includes('body.low-power-mode .combat-log') && css.includes('body.low-power-mode #loot-notice-feed'));
+check('monster and ally DOM updates are skipped', () => /function renderMonster\(\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && /function renderAllySprites\(\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && /function updateMonsterHp\(\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui));
+check('player sprite and attack/cast animation updates are skipped', () => /function updatePlayerSprite\(\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && /function playAttackAnim\(\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && /function playSkillCastAnim\(\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && ui.includes('animCanvas.width = 1;') && ui.includes('_critAnimTimers.forEach(timer => clearInterval(timer))'));
+check('damage, crit and elemental visual effects are skipped', () => /function showDamageFloat\(dmg, type, element\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && /function showCritEffect\(dmgText, targetEl\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui) && /function showElementFloat\(monsterInstanceId, element, mult\) \{\s*if \(isLowPowerMode\(\)\) return;/.test(ui));
+check('combat engine still writes logs and runs independent of display flag', () => /function logMsg\(text, lane\) \{\s*pushCombatLog\(text, lane\);/.test(engine) && !/isLowPowerMode/.test(engine));
+check('turning mode off rebuilds scene and flushes logs', () => /lastMonsterDefId = null;\s*renderMonster\(\);\s*renderAllySprites\(\);\s*updatePlayerSprite\(\);/.test(ui) && /if \(!_lowPowerModeEnabled\) renderLogNow\(\);/.test(ui));
+console.log(`v2.5.491 low-power checks passed (${checks.length}):\n- ` + checks.join('\n- '));

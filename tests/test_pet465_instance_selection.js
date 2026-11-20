@@ -62,6 +62,6 @@ check('Other saved pet remains selectable while one pet is active',()=>html.incl
 
 const index=fs.readFileSync(__dirname+'/../index.html','utf8');
 const sw=fs.readFileSync(__dirname+'/../sw.js','utf8');
-check('All HTML asset query versions are 2.5.481',()=>!/[?&]v=2\.5\.(?!481)\d+/.test(index));
-check('Service worker runtime cache is 2.5.481',()=>sw.includes('ro-idle-runtime-v2.5.481'));
-console.log(`v2.5.481 pet individual-selection checks passed (${checks.length}):\n- `+checks.join('\n- '));
+check('All HTML asset query versions are 2.5.491',()=>!/[?&]v=2\.5\.(?!491)\d+/.test(index));
+check('Service worker runtime cache is 2.5.491',()=>sw.includes('ro-idle-runtime-v2.5.491'));
+console.log(`v2.5.491 pet individual-selection checks passed (${checks.length}):\n- `+checks.join('\n- '));

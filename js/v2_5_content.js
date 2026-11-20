@@ -47,7 +47,7 @@
       ['影刃旋舞',10,'damage_aoe','shadow'],['舞動血刃',5,'damage_aoe','shadow'],['十字斬擊',5,'damage','neutral'],['永恆斬擊',5,'damage','neutral'],['暗影刺擊',5,'damage','shadow'],['野蠻衝擊',10,'damage_aoe','poison'],['神力撞擊',5,'damage','neutral'],['致命影爪',10,'damage','shadow'],['迷惑魅影',5,'magic_aoe','shadow'],['強效毒液',10,'passive','atkFlat'],['魅影強化',10,'passive','atkFlat']
     ],
     abyss_chaser: [
-      ['短劍&弓弩精熟',10,'passive','atkFlat'],['突擊滑行',5,'damage','neutral'],['追擊突斷',5,'damage','neutral'],['深淵匕首',5,'damage','shadow'],['不幸衝擊',5,'magic_aoe','shadow'],['靈巧刺擊',10,'damage','neutral'],['深淵殺手',10,'passive','atkFlat'],['魔劍精熟',10,'passive','matkFlat'],['萬丈深淵',5,'magic_aoe','shadow'],['深淵墳場',5,'magic_aoe','shadow'],['深淵之焰',5,'magic_aoe','fire'],['終結深淵攻擊',10,'magic','shadow'],['卸除影子',5,'passive','defFlat'],['追襲射擊',5,'damage','neutral'],['連鎖射擊',5,'damage_aoe','neutral'],['狂暴射擊',10,'damage_aoe','neutral']
+      ['短劍與弓熟練',10,'passive','atkFlat'],['擊退滑步',5,'damage','neutral'],['追擊破',5,'damage_aoe','neutral'],['深淵之刃',5,'damage','shadow'],['厄運突擊',5,'damage_aoe','neutral'],['靈巧穿刺',10,'damage','neutral'],['深淵殺手',10,'buff_atk','neutral'],['魔劍熟練',10,'passive','atkFlat'],['源自深淵',5,'passive','neutral'],['深淵之域',5,'magic_aoe','shadow'],['深淵之焰',5,'passive','neutral'],['深淵強擊',10,'magic','shadow'],['暗影卸除',5,'passive','neutral'],['追擊射擊',5,'damage','neutral'],['連鎖爆射',5,'damage_aoe','neutral'],['狂亂射擊',10,'damage','neutral']
     ],
     cardinal: [
       ['博愛治癒',5,'cardinal_heal','heal','cd_dilectio_heal'],['治癒誓言',5,'cardinal_support','heal','cd_mediale_votum'],['聖光治癒',5,'cardinal_heal','heal','cd_reparatio'],['神聖防護',5,'cardinal_support','resIgnore','cd_argutus_telum'],['光耀天命',5,'cardinal_support','mresIgnore','cd_argutus_vita'],['爆裂聖光',5,'cardinal_support','presensAcies','cd_presens_acies'],['神聖權能',5,'cardinal_support','competentia','cd_competentia'],['全心奉獻',5,'cardinal_support','magicStats','cd_religio'],['祝福讚歌',5,'cardinal_support','physicalStats','cd_benedictum'],['靈魂忠誠',10,'passive','holy','cd_fidus_animus'],['聖靈鎮魂',5,'magic_aoe','holy','cd_framen'],['制裁謳歌',10,'magic_aoe','holy','cd_arbitrium'],['神聖花雨',5,'magic_aoe','holy','cd_divinus_flos'],['驅魔風暴',10,'magic_aoe','neutral','cd_pneumaticus_procella'],['鈍器&書籍精熟',10,'passive','matkFlat','cd_mace_book_m'],['聖光打擊',10,'damage_aoe','holy','cd_petitio'],['破壞擊',10,'damage_aoe','holy','cd_effligo']
@@ -65,7 +65,7 @@
     troubadour: {'節奏射擊':'instrument'}, trouvere: {'節奏射擊':'whip'},
     meister: {'雙手斧防禦':'axe2','戰斧踏滅':'axe2','強力粉碎':'axe2','衝鋒斬擊':'axe2','爆發橫掃':'axe2'},
     shadow_cross: {'影刃旋舞':'katar','十字斬擊':'katar','永恆斬擊':'katar','暗影刺擊':'dagger'},
-    abyss_chaser: {'短劍&弓弩精熟':'dagger_bow','追襲射擊':'bow','連鎖射擊':'bow','狂暴射擊':'bow'},
+    abyss_chaser: {'短劍與弓熟練':'dagger_bow','連鎖爆射':'bow','狂亂射擊':'bow'},
     cardinal: {'鈍器&書籍精熟':'mace_book','破壞擊':'mace_book'},
     inquisitor: {'焰魔散彈':'knuckle','烈焰爆彈':'knuckle','爆破衝擊':'knuckle'}
   };
@@ -238,7 +238,7 @@
             critRateMult:1, critDmgMult:0.5,
             fleeFlat:[100,150,200,250,300], duration:[6,9,12,15,18], rangeType:'ranged',
             requires:[{skillId:'v25_wind_hawk_1',level:3},{skillId:'v25_wind_hawk_13',level:3}],
-            desc:'風鷹狩獵者四轉遠距離物理技能，使用獵鷹造成3段攻擊；每段ATK 700%～2,100%，依BaseLv、CON、自然親和與鷹之熟練加成，可依自身暴擊率暴擊且暴擊傷害加成減半。施放後FLEE+100～300，持續6～18秒。本作沒有AP與移動速度系統，故不消耗AP，移動速度效果不模擬。'
+            desc:'風鷹狩獵者四轉遠距離物理技能，使用獵鷹造成3段攻擊；每段ATK 700%～2,100%，依技能等級成長，可依自身暴擊率暴擊且暴擊傷害加成減半。施放後FLEE+100～300，持續6～18秒。本作倍率採固定平衡值，不再額外套用BaseLv／CON／自然親和／鋼製喙倍率；本作沒有AP與移動速度系統，故不消耗AP，移動速度效果不模擬。'
           }
         };
         if (sourceValues[name]) Object.assign(sk, sourceValues[name]);

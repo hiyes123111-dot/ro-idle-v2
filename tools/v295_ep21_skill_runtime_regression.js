@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const root=path.resolve(__dirname,'..','js');
 const ctx={console,window:{},Math,Set,Map,Object,Array,String,Number,RegExp};vm.createContext(ctx);
-for(const file of ['skills.js','monster_skills.js','jobs.js','data.js','relics.js','v2_content.js','v2_4_content.js','v2_5_content.js'])
+for(const file of ['skills.js','monster_skills.js','jobs.js','data.js','relics.js','v2_content.js','v2_4_content.js','v2_5_content.js','v2_6_skill_migration.js','v2_7_rogue_skill_rebuild.js'])
   vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),ctx,{filename:file,timeout:20000});
 const cases={
  ep21_tris_card:[['v25_dragon_knight_6','橫揮斬'],['v25_dragon_knight_7','風暴斬擊']],
@@ -11,7 +11,7 @@ const cases={
  ep21_evan_wigner_card:[['v25_meister_10','能量轟炸'],['v25_meister_8','閃光衝擊波']],
  ep21_lalila_card:[['v25_biolo_3','神秘粉末'],['v25_biolo_4','星塵炸裂']],
  ep21_richard_card:[['v25_shadow_cross_3','十字斬擊'],['v25_shadow_cross_4','永恆斬擊']],
- ep21_lora_card:[['v25_abyss_chaser_11','深淵之焰'],['v25_abyss_chaser_10','深淵墳場']],
+ ep21_lora_card:[['v25_abyss_chaser_11','深淵之焰 Abyss Flame'],['v25_abyss_chaser_10','深淵之域 Abyss Square']],
  ep21_aurely_card:[['v25_arch_mage_3','萬紫千紅'],['v25_arch_mage_6','毀滅颶風']],
  ep21_ylze_card:[['v25_element_master_6','雷霆陣地'],['v25_element_master_8','大地驅動']],
  ep21_epesto_card:[['v25_windhawk_progressive_shot','漸進射擊'],['sn_sharpshooting','銳利射擊']],

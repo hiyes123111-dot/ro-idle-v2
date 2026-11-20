@@ -1,0 +1,25 @@
+const fs = require('fs');
+const vm = require('vm');
+const path = require('path');
+const assert = require('assert');
+const root = path.resolve(__dirname, '..');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const files = [...html.matchAll(/<script[^>]+src=["']([^"']+\.js)(?:\?[^"']*)?["']/g)].map(m => m[1]).filter(f => f.startsWith('js/'));
+const ctx = { console, document: { getElementById(){return null;}, addEventListener(){}, removeEventListener(){}, querySelector(){return null;}, querySelectorAll(){return [];}, createElement(){return {getContext(){return {clearRect(){},drawImage(){}};}};}, body:{appendChild(){},classList:{add(){},remove(){},contains(){return false;}}}}, window:{}, Date, Math, Map, Set, Array, Object, Number, String, JSON, RegExp, Image:function(){}, Audio:function(){}, localStorage:{getItem(){return null;},setItem(){},removeItem(){}}, setTimeout(){return 1;}, clearTimeout(){}, setInterval(){return 1;}, clearInterval(){}, requestAnimationFrame(){return 1;}, cancelAnimationFrame(){}, performance:{now(){return 0;}} };
+ctx.window = ctx; vm.createContext(ctx);
+for (const file of files) vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),ctx,{filename:file,timeout:60000});
+const run = source => vm.runInContext(source,ctx);
+run(`
+  const rows = Array.from({length:100}, (_,i) => ({item:'lru_'+i, qty:i+1}));
+  for (let i=0;i<100;i++) ITEMS['lru_'+i] = {name:'LRU item '+i,type:'material',sell:1};
+  window.__lruRows = rows;
+  window.__first = getInventoryCachedRows(rows,'all','all','all','lru_0','none');
+  for (let i=1;i<=20;i++) getInventoryCachedRows(rows,'all','all','all','lru_'+i,'none');
+`);
+assert.strictEqual(run('getInventoryViewIndex(window.__lruRows).queries.size'),12,'query cache stays within 12 entries');
+assert.strictEqual(run("getInventoryViewIndex(window.__lruRows).queries.has(JSON.stringify(['all','all','all','lru_0','none']))"),false,'least-recently-used query is evicted');
+run("getInventoryCachedRows(window.__lruRows,'all','all','all','lru_10','none')");
+assert.strictEqual(run("getInventoryViewIndex(window.__lruRows).queries.has(JSON.stringify(['all','all','all','lru_10','none']))"),true,'recent query is retained and promoted');
+run("getInventoryCachedRows(window.__lruRows,'all','all','all','lru_21','none')");
+assert.strictEqual(run("getInventoryViewIndex(window.__lruRows).queries.has(JSON.stringify(['all','all','all','lru_9','none']))"),false,'next least-recently-used query is evicted');
+console.log('PASS: inventory query cache LRU remains bounded and promotes recent hits');
